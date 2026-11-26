@@ -1,0 +1,59 @@
+name: FMO and Passport OS upstream check
+
+on:
+  schedule:
+    - cron: "17 2 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  compare:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - name: Check both upstreams
+        shell: bash
+        run: |
+          set -euo pipefail
+          report="$(mktemp)"
+          result=0
+          python3 tools/check_fmo_upstream.py --passport --ota --verify-published-image > "$report" || result=$?
+          cat "$report"
+          python3 - "$report" >> "$GITHUB_STEP_SUMMARY" <<'PY'
+          import json
+          import sys
+
+          with open(sys.argv[1], encoding="utf-8") as report:
+              data = json.load(report)
+          passport = data.get("passport_os", {})
+          print("## Upstream comparison")
+          if data.get("status") == "unavailable":
+              print("- FMO Passport: unavailable. See job log.")
+          else:
+              status = "new binary requires compatibility review" if data["update_available"] else "reference binary matches"
+              print(f"- FMO Passport: {status}.")
+              image = data.get("firmware_image", {})
+              if image.get("status") == "checked":
+                  print(f"- Embedded FMO application: {image['embedded_version']} (target {image['target_version']}).")
+                  if data["update_available"] and image["application_matches_reference"]:
+                      print("- The application matches the reference. Review the packaging changes.")
+              elif image:
+                  print("- FMO image verification failed. See job log.")
+          ota = data.get("fmo_ota", {})
+          if ota.get("status") == "checked":
+              status = "new binary requires compatibility review" if ota["update_available"] else "reference binary matches"
+              print(f"- FMO device OTA {ota['manifest_version']}: {status}.")
+          else:
+              print("- FMO device OTA: unavailable. See job log.")
+          relation = passport.get("relationship")
+          if relation:
+              print(f"- Passport OS: {relation}, {passport['ahead_by']} ahead, {passport['behind_by']} behind.")
+          else:
+              print("- Passport OS: unavailable. See job log.")
+          PY
+          exit "$result"

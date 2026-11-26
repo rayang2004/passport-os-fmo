@@ -1,3 +1,4 @@
+#include "scene_mcp.h"
 #include "reminder_service.h"
 #include "device_control.h"
 #include "apps/lists/list_service.h"
@@ -75,11 +76,11 @@ R"({"name":"self.reminder.update","description":"Modify an existing reminder in 
 }
 std::string mcp_result(const char *method,const char *json,bool *rpc_error,uint64_t token) {
     *rpc_error=false;
-    if(!std::strcmp(method,"initialize")) return R"({"protocolVersion":"2024-11-05","capabilities":{"tools":{}},"serverInfo":{"name":"passport-reminders","version":"1"}})";
+    if(!std::strcmp(method,"initialize")) return R"({"protocolVersion":"2024-11-05","capabilities":{"tools":{}},"serverInfo":{"name":"passport-os","version":"2"}})";
     Json params(cJSON_Parse(json),cJSON_Delete);
     if(!std::strcmp(method,"tools/list")) {
         const unsigned reminder_tools=sizeof(tools)/sizeof(tools[0]);
-        const unsigned total_tools=reminder_tools+device_control::tool_count()+lists::tool_count()+aihot::tool_count();
+        const unsigned total_tools=reminder_tools+device_control::tool_count()+lists::tool_count()+aihot::tool_count()+scenes::tool_count();
         unsigned page=0;const auto *cursor=cJSON_GetObjectItem(params.get(),"cursor");
         bool valid=!cursor||cJSON_IsString(cursor);
         if(cJSON_IsString(cursor)&&cursor->valuestring[0]) {
@@ -89,8 +90,9 @@ std::string mcp_result(const char *method,const char *json,bool *rpc_error,uint6
         if(!valid||page>=total_tools){*rpc_error=true;return R"({"code":-32602,"message":"Invalid cursor"})";}
         const unsigned control_end=reminder_tools+device_control::tool_count();
         const unsigned lists_end=control_end+lists::tool_count();
+        const unsigned news_end=lists_end+aihot::tool_count();
         const char *schema=page<reminder_tools?tools[page]:page<control_end?device_control::tool_schema(page-reminder_tools):
-            page<lists_end?lists::tool_schema(page-control_end):aihot::tool_schema(page-lists_end);
+            page<lists_end?lists::tool_schema(page-control_end):page<news_end?aihot::tool_schema(page-lists_end):scenes::tool_schema(page-news_end);
         std::string out="{\"tools\":[";out+=schema;out+="]";
         if(page+1<total_tools)out+=",\"nextCursor\":\""+std::to_string(page+1)+"\"";
         return out+"}";
@@ -100,6 +102,8 @@ std::string mcp_result(const char *method,const char *json,bool *rpc_error,uint6
     const auto *args=cJSON_GetObjectItem(params.get(),"arguments");
     if(!cJSON_IsString(name)||!cJSON_IsObject(args))return fail("Invalid tool arguments");
     const char *tool=name->valuestring;
+    const std::string scene_reply=scenes::call(tool,args,token);
+    if (!scene_reply.empty()) return scene_reply;
     const std::string device_reply=device_control::call(tool,args,token);
     if (!device_reply.empty()) return device_reply;
     const std::string list_reply=lists::call(tool,args);if(!list_reply.empty())return list_reply;

@@ -62,7 +62,7 @@ void wifi_setup_start(void) {
     line("192.168.4.1",190,UI_ACCENT,&ui_digits_32);
     s_status=line(err==ESP_OK?"提示无互联网时选保留":"服务未启动，确定重试",242,UI_TEXT_DIM);
     lv_obj_set_height(s_status,22);lv_label_set_long_mode(s_status,LV_LABEL_LONG_DOT);
-    ui_pixel_footer(s_screen,"配网、资料、名片一起设置",s_required?"长按确定跳过配网":"长按确定返回首页",&buddy_font_16);
+    ui_pixel_footer(s_screen,"配网、城市与背景设置",s_required?"长按确定跳过配网":"长按确定返回首页",&buddy_font_16);
     lv_screen_load(s_screen);
     bsp_lvgl_unlock();
     app_registry_keep_awake();
@@ -114,7 +114,7 @@ void wifi_setup_tick(void) {
 
 const passport_app_t g_wifi_app = {
     .id = APP_ID_WIFI, .name = "手机设置", .en_name = "PHONE SETUP",
-    .desc = "配网、资料与名片", .tag = "SYSTEM", .theme_color = 0x181B1C,
+    .desc = "配网、城市与背景", .tag = "SYSTEM", .theme_color = 0x181B1C,
     .init = wifi_setup_init, .start = wifi_setup_start,
     .stop = wifi_setup_stop, .on_key = wifi_setup_on_key,
 };

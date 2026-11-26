@@ -31,7 +31,7 @@ constexpr char kNvsNamespace[] = "system_prefs";
 // noisy street.
 constexpr uint8_t kVolumeStep = 10;
 constexpr uint8_t kBrightness[] = {20, 40, 60, 80, 100};
-constexpr uint16_t kTimeouts[] = {0, 15, 30, 60, 120, 300};
+constexpr uint16_t kTimeouts[] = {60};
 constexpr size_t kRowCount = 9;
 
 uint8_t s_volume = 80;
@@ -122,8 +122,8 @@ void refresh_ui() {
     lv_label_set_text(s_values[8], s_reset_pending ? "再次确定" : "恢复");
     static const char *hints[kRowCount] = {
         "确定后上下调音量", "长按下键满亮两分钟",
-        "确定切换熄屏时间", "确定切换主题",
-        "轻触反馈", "手机配网、资料与名片", "设备选网与已存网络", "查看网络、时间与电量", "仅恢复设备设置"
+        "一分钟后进入省电", "确定切换主题",
+        "轻触反馈", "手机配网与城市设置", "设备选网与已存网络", "查看网络、时间与电量", "仅恢复设备设置"
     };
     lv_obj_set_flag(s_confirm, LV_OBJ_FLAG_HIDDEN, !s_reset_pending);
     lv_obj_set_flag(s_help, LV_OBJ_FLAG_HIDDEN, s_reset_pending);
@@ -175,7 +175,7 @@ void create_ui() {
     ui_pixel_battery_set(&s_battery, bsp_battery_soc());
 
     static const char *labels[kRowCount] = {
-        "音量", "屏幕亮度", "自动熄屏", "外观主题", "按键音效", "手机设置", "无线网络", "网络与时间", "恢复默认"
+        "音量", "屏幕亮度", "待机省电", "外观主题", "按键音效", "手机设置", "无线网络", "网络与时间", "恢复默认"
     };
     for (size_t i = 0; i < kRowCount; ++i) {
         const int y = 38 + static_cast<int>(i) * 29;
@@ -208,7 +208,7 @@ void create_ui() {
     lv_obj_remove_flag(s_confirm, LV_OBJ_FLAG_SCROLLABLE); lv_obj_set_pos(s_confirm, 12, 42);lv_obj_set_size(s_confirm, 216, 220);
     auto *question = ui_pixel_label(s_confirm, "恢复默认设置？", &ui_font_20, UI_DANGER);
     lv_obj_set_pos(question, 0, 0);lv_obj_set_width(question, 216);
-    auto *consequence = ui_pixel_label(s_confirm, "音量、亮度设为 80%\n60 秒自动熄屏\n主题恢复经典绿\n按键音效开启\nWi-Fi 与个人资料保留\n上下键取消", &buddy_font_16, UI_TEXT);
+    auto *consequence = ui_pixel_label(s_confirm, "音量、亮度设为 80%\n60 秒进入省电\n主题恢复经典绿\n按键音效开启\nWi-Fi、城市与背景保留\n上下键取消", &buddy_font_16, UI_TEXT);
     lv_obj_set_pos(consequence, 0, 54);lv_obj_set_width(consequence, 216);
     lv_obj_set_style_text_line_space(consequence, 5, 0);
 
@@ -371,7 +371,7 @@ void settings_bootstrap(void) {
     if (nvs_open(kNvsNamespace, NVS_READONLY, &handle) == ESP_OK) {
         nvs_get_u8(handle, "volume", &s_volume);
         nvs_get_u8(handle, "brightness", &s_brightness);
-        nvs_get_u16(handle, "timeout", &s_timeout);
+        s_timeout = 60; // This variant always enters power saving after one minute.
         uint8_t theme = static_cast<uint8_t>(UI_THEME_CLASSIC);
         uint8_t key_sound = 1;
         if (nvs_get_u8(handle, "key_sound", &key_sound) == ESP_OK)

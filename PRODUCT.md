@@ -2,6 +2,10 @@
 
 <!-- impeccable:product-schema 1 -->
 
+## Local minimal variant (2026-11-24)
+
+The current requested variant removes Muse, personal portraits, names/signatures and card galleries. Home shows only time/date/weather plus an optional single uploaded background. Phone setup retains Wi-Fi, city/GPS and one background image; it does not retain portrait processing or multi-image management. Ambient mode uses a black background regardless of the configured image. The local variant also adds an experimental FMO foreground client with opt-in certificate application, a reused public trust root, signed relay discovery and half-duplex voice. Private keys stay local; original FMO credentials are not overwritten. Real issuance and network/audio interoperability remain unverified. See docs/CURRENT.md for build results and pending device validation. The Muse-specific commitments below describe the upstream baseline, not this variant.
+
 ## Platform
 
 Embedded ESP32-C3 firmware with LVGL on a 240×320 screen. This is not a web, iOS or Android application. The browser artifact is a separate interaction preview.

@@ -335,10 +335,20 @@ void WifiStation::StartConnect() {
         wifi_config.sta.failure_retry_cnt = failure_retry_cnt_;
     }
     wifi_config.sta.listen_interval = 10;
-    ESP_ERROR_CHECK(esp_wifi_set_config(WIFI_IF_STA, &wifi_config));
+    esp_err_t err = esp_wifi_set_config(WIFI_IF_STA, &wifi_config);
+    if (err != ESP_OK) {
+        ESP_LOGW(TAG, "esp_wifi_set_config failed: %s", esp_err_to_name(err));
+        ScheduleNextScan();
+        return;
+    }
 
     reconnect_count_ = 0;
-    ESP_ERROR_CHECK(esp_wifi_connect());
+    err = esp_wifi_connect();
+    if (err != ESP_OK) {
+        ESP_LOGW(TAG, "esp_wifi_connect failed: %s", esp_err_to_name(err));
+        ScheduleNextScan();
+        return;
+    }
 }
 
 int8_t WifiStation::GetRssi() {

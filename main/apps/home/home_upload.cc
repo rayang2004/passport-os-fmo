@@ -1,12 +1,12 @@
 #include "apps/home/home_upload.h"
 
 #include "apps/home/home_profile.h"
+#include "apps/home/home_background.h"
+#include "apps/fmo/fmo_http.h"
 #include "esp_http_server.h"
 #include "esp_log.h"
 #include <esp_random.h>      // esp_fill_random():每次开启上传窗口换一个一次性 token
 #include "wifi_manager.h"
-#include "passport_muse.h"
-#include "ui/ui_palette.h"
 
 #include <cJSON.h>
 #include <cstdio>
@@ -32,8 +32,8 @@ static httpd_handle_t s_server;
 static char s_url[32];
 
 // 2026-09-13 修复(B8):上传接口原先完全无鉴权,同一局域网任何人都能 POST
-// /api/profile 或 /api/avatar 改写名片与人像。现在每次开启上传窗口生成一个
-// 一次性 token,页面里通过 window.__T 带上,三个 /api/* 接口都校验 ?t=。
+// /api/profile 改写城市。每次开启设置窗口生成一个
+// 一次性 token,页面里通过 window.__T 带上,所有写入接口都校验 ?t=。
 // 这不是强认证(设备没有账号体系),但足以挡住"随手扫一下端口就能改"的滥用。
 static uint32_t s_token = 0;
 
@@ -52,7 +52,7 @@ static bool token_ok(httpd_req_t *req) {
 }
 
 // ---------------------------------------------------------------------------
-// Phone-side crop, pixel grid and four-tone quantization; upload packed 2bpp indices.
+// Offline phone configuration page and city directory.
 // ---------------------------------------------------------------------------
 extern const char phone_page_start[] asm("_binary_phone_setup_html_gz_start");
 extern const char phone_page_end[] asm("_binary_phone_setup_html_gz_end");
@@ -115,23 +115,12 @@ static esp_err_t handler_profile_get(httpd_req_t *req) {
     home_profile_t profile;
     home_profile_get(&profile);
     cJSON *root = cJSON_CreateObject();
-    cJSON_AddStringToObject(root, "name", profile.name);
-    cJSON_AddStringToObject(root, "signature", profile.signature);
     cJSON_AddStringToObject(root, "city", profile.city);
-    cJSON_AddStringToObject(root, "address", profile.address);
     cJSON_AddStringToObject(root, "lat", profile.lat);
     cJSON_AddStringToObject(root, "lon", profile.lon);
     cJSON_AddStringToObject(root, "region", profile.region);
     cJSON_AddStringToObject(root, "radio_city", profile.radio_city);
     cJSON_AddStringToObject(root, "country_code", profile.country_code);
-    cJSON_AddBoolToObject(root, "avatar", home_profile_has_avatar());
-    cJSON *palette = cJSON_AddArrayToObject(root, "portrait_palette");
-    for (uint8_t level = 0; level < 4; ++level)
-        cJSON_AddItemToArray(palette, cJSON_CreateNumber(ui_theme_portrait_color(level)));
-    cJSON *subject = cJSON_AddArrayToObject(root, "portrait_subject_palette");
-    for (uint8_t level = 0; level < 4; ++level)
-        cJSON_AddItemToArray(subject, cJSON_CreateNumber(ui_theme_portrait_subject_color(level)));
-    cJSON_AddBoolToObject(root, "share_image", home_profile_has_share_image());
     char *json = cJSON_PrintUnformatted(root);
     cJSON_Delete(root);
     if (!json) return send_json(req, 400, "{\"error\":\"oom\"}");
@@ -167,10 +156,7 @@ static esp_err_t handler_profile_post(httpd_req_t *req) {
         std::memcpy(dst, value, std::strlen(value) + 1);
         return true;
     };
-    const bool valid = grab("name", in.name, HOME_NAME_MAX) &&
-        grab("signature", in.signature, HOME_SIGNATURE_MAX) &&
-        grab("city", in.city, HOME_CITY_MAX) &&
-        grab("address", in.address, HOME_ADDRESS_MAX) &&
+    const bool valid = grab("city", in.city, HOME_CITY_MAX) &&
         grab("lat", in.lat, HOME_COORD_MAX) &&
         grab("lon", in.lon, HOME_COORD_MAX) &&
         grab("region", in.region, HOME_REGION_MAX) &&
@@ -184,237 +170,48 @@ static esp_err_t handler_profile_post(httpd_req_t *req) {
                      err == ESP_OK ? "{\"ok\":true}" : "{\"error\":\"invalid\"}");
 }
 
-static esp_err_t send_muse_config(httpd_req_t *req) {
-    bool token_set = false, paired = false;
-    passport_muse_config_status(&token_set, &paired);
-    char proxy_host[16]; uint16_t proxy_port = 0;
-    passport_muse_proxy_config(proxy_host, sizeof(proxy_host), &proxy_port);
-    cJSON *obj = cJSON_CreateObject();
-    cJSON_AddBoolToObject(obj, "ok", true);
-    cJSON_AddBoolToObject(obj, "token_set", token_set);
-    cJSON_AddBoolToObject(obj, "paired", paired);
-    cJSON_AddStringToObject(obj, "proxy_host", proxy_host);
-    cJSON_AddNumberToObject(obj, "proxy_port", proxy_port);
-    char *json = cJSON_PrintUnformatted(obj);
-    cJSON_Delete(obj);
-    if (!json) return send_json(req, 500, "{\"error\":\"no_memory\"}");
-    esp_err_t err = send_json(req, 200, json);
-    cJSON_free(json);
-    return err;
-}
-static esp_err_t handler_muse_get(httpd_req_t *req) {
+static esp_err_t handler_background_get(httpd_req_t *req) {
     if (!token_ok(req)) return send_json(req, 401, "{\"error\":\"unauthorized\"}");
-    return send_muse_config(req);
+    bool present = false; size_t bytes = 0;
+    const auto result = home_background_info(&present, &bytes);
+    char json[160];
+    std::snprintf(json, sizeof(json), "{\"present\":%s,\"available\":%s,\"bytes\":%u,\"max_bytes\":%u}",
+        present ? "true" : "false", result == ESP_OK ? "true" : "false",
+        static_cast<unsigned>(bytes), static_cast<unsigned>(HOME_BACKGROUND_MAX_BYTES));
+    return send_json(req, 200, json);
 }
-static esp_err_t handler_muse_post(httpd_req_t *req) {
+static esp_err_t handler_background_post(httpd_req_t *req) {
     if (!token_ok(req)) return send_json(req, 401, "{\"error\":\"unauthorized\"}");
-    char body[512];
-    if (req->content_len <= 0 || req->content_len >= sizeof(body)) return send_json(req, 400, "{\"error\":\"bad size\"}");
-    int received = 0;
-    while (received < req->content_len) {
-        int n = httpd_req_recv(req, body + received, req->content_len - received);
-        if (n <= 0) return send_json(req, 400, "{\"error\":\"recv\"}");
-        received += n;
-    }
-    body[received] = 0;
-    cJSON *obj = cJSON_Parse(body);
-    const cJSON *token = cJSON_GetObjectItemCaseSensitive(obj, "sdk_token");
-    const cJSON *proxy_host = cJSON_GetObjectItemCaseSensitive(obj, "proxy_host");
-    const cJSON *proxy_port = cJSON_GetObjectItemCaseSensitive(obj, "proxy_port");
-    bool proxy_valid = !proxy_host || (cJSON_IsString(proxy_host) && cJSON_IsNumber(proxy_port) &&
-        proxy_port->valuedouble >= 0 && proxy_port->valuedouble <= 65535 &&
-        proxy_port->valuedouble == proxy_port->valueint &&
-        passport_muse_proxy_valid(proxy_host->valuestring, (uint16_t)proxy_port->valueint));
-    esp_err_t err = proxy_valid ? ESP_OK : ESP_ERR_INVALID_ARG;
-    if (err == ESP_OK && token) err = cJSON_IsString(token) ? passport_muse_set_sdk_token(token->valuestring) : ESP_ERR_INVALID_ARG;
-    if (err == ESP_OK && proxy_host) err = passport_muse_set_proxy(proxy_host->valuestring, (uint16_t)proxy_port->valueint);
-    if (!token && !proxy_host) err = ESP_ERR_INVALID_ARG;
-    cJSON_Delete(obj);
-    std::memset(body, 0, sizeof(body));
-    if (err == ESP_OK) return send_muse_config(req);
-    return send_json(req, 400, err == ESP_ERR_INVALID_STATE ? "{\"error\":\"muse_active\"}" : "{\"error\":\"muse_config\"}");
-}
-
-static esp_err_t handler_avatar_get(httpd_req_t *req) {
-    if (!token_ok(req)) return send_json(req, 401, "{\"error\":\"unauthorized\"}");
-    auto *data = static_cast<uint8_t *>(std::malloc(HOME_AVATAR_BYTES));
-    if (!data) return send_json(req, 400, "{\"error\":\"oom\"}");
-    const esp_err_t loaded = home_profile_read_avatar(data, HOME_AVATAR_BYTES);
-    if (loaded != ESP_OK) {
-        std::free(data);
-        return send_json(req, 400, "{\"error\":\"avatar\"}");
-    }
-    httpd_resp_set_type(req, "application/octet-stream");
-    httpd_resp_set_hdr(req, "Cache-Control", "no-store, max-age=0");
-    const esp_err_t sent = httpd_resp_send(req, reinterpret_cast<const char *>(data), HOME_AVATAR_BYTES);
-    std::free(data);
-    return sent;
-}
-
-static esp_err_t send_avatar_upload_error(httpd_req_t *req, const char *error, esp_err_t code) {
-    char json[128];
-    std::snprintf(json, sizeof(json), "{\"error\":\"%s\",\"code\":\"%s\"}",
-                  error, esp_err_to_name(code));
-    return send_json(req, 400, json);
-}
-
-static esp_err_t handler_avatar_post(httpd_req_t *req) {
-    if (!token_ok(req)) return send_json(req, 401, "{\"error\":\"unauthorized\"}");
-    const size_t total = (size_t)req->content_len;
-    if (!home_portrait_upload_size(total)) {
-        ESP_LOGW(TAG, "Avatar upload wrong content-length %d", (int)req->content_len);
-        return send_avatar_upload_error(req, "avatar_size", ESP_ERR_INVALID_SIZE);
-    }
-
-    // httpd_req_recv 的缓冲是 char*,而落盘接口要 uint8_t*;在调用处做一次转换,
-    // 比把整个缓冲声明成 uint8_t 再在 recv 上强转更安全(C++ 下 recv 不会接受 uint8_t*)。
-    char chunk[512];
-    size_t remaining = total;
-    bool first = true;
-    // Bound retries; an in-flight read can still take the configured 5s socket timeout.
-    const int64_t deadline = esp_timer_get_time() + 10000000;
-    while (remaining > 0) {
-        int n = esp_timer_get_time() < deadline
-            ? httpd_req_recv(req, chunk, remaining < sizeof(chunk) ? remaining : sizeof(chunk))
-            : HTTPD_SOCK_ERR_TIMEOUT;
-        if (n == HTTPD_SOCK_ERR_TIMEOUT && esp_timer_get_time() < deadline) continue;
-        if (n <= 0) {
-            home_profile_abort_avatar_upload();
-            ESP_LOGW(TAG, "Avatar recv aborted: received=%u/%u socket=%d",
-                     (unsigned)(total - remaining), (unsigned)total, n);
-            return send_avatar_upload_error(req, "avatar_recv", n == HTTPD_SOCK_ERR_TIMEOUT
-                ? ESP_ERR_TIMEOUT : ESP_FAIL);
+    if (req->content_len <= 0 || req->content_len > HOME_BACKGROUND_MAX_BYTES)
+        return send_json(req, 400, "{\"error\":\"background_size\"}");
+    const size_t total = req->content_len;
+    size_t received = 0; char chunk[512];
+    const int64_t deadline = esp_timer_get_time() + 60000000; // first upload may initialize a blank SPIFFS partition
+    while (received < total) {
+        if (esp_timer_get_time() > deadline) {
+            home_background_abort(); return send_json(req, 400, "{\"error\":\"background_recv\"}");
         }
-        // 2026-09-13 修复(B3):原来直接 remaining -= n。若对端发来超过剩余
-        // 长度的字节(异常/分块编码/代理行为),size_t 下溢成巨大值 →
-        // while 死循环,永久占住这个 httpd 会话与 6KB 栈任务。
-        if ((size_t)n > remaining) {
-            ESP_LOGW(TAG, "Avatar oversized: got %d, only %u left; truncating",
-                     n, (unsigned)remaining);
-            n = (int)remaining;
+        const int count = httpd_req_recv(req, chunk, std::min(sizeof(chunk), total - received));
+        if (count <= 0) {
+            home_background_abort(); return send_json(req, 400, "{\"error\":\"background_recv\"}");
         }
-        remaining -= (size_t)n;
-        esp_err_t err = home_profile_write_avatar_chunk(reinterpret_cast<const uint8_t *>(chunk),
-                                                        (size_t)n, first, remaining == 0, total);
-        first = false;
-        if (err != ESP_OK) {
-            home_profile_abort_avatar_upload();
-            ESP_LOGW(TAG, "Avatar store rejected: received=%u/%u err=%s",
-                     (unsigned)(total - remaining), (unsigned)total, esp_err_to_name(err));
-            return send_avatar_upload_error(req, "avatar_store", err);
+        const auto result = home_background_write(reinterpret_cast<const uint8_t *>(chunk), count,
+            received == 0, received + count == total, total);
+        if (result != ESP_OK) {
+            home_background_abort();
+            return send_json(req, 400, result == ESP_ERR_INVALID_ARG ? "{\"error\":\"background_image\"}"
+                : "{\"error\":\"background_store\"}");
         }
+        received += count;
     }
     return send_json(req, 200, "{\"ok\":true}");
 }
-
-static esp_err_t handler_share_post(httpd_req_t *req) {
+static esp_err_t handler_background_delete(httpd_req_t *req) {
     if (!token_ok(req)) return send_json(req, 401, "{\"error\":\"unauthorized\"}");
-    char query[96], value[12];
-    unsigned slot = 0;
-    if (httpd_req_get_url_query_str(req, query, sizeof(query)) == ESP_OK &&
-        httpd_query_key_value(query, "slot", value, sizeof(value)) == ESP_OK) {
-        if (std::strlen(value) != 1 || value[0] < '0' || value[0] >= '0' + HOME_SHARE_MAX_IMAGES)
-            return send_json(req, 400, "{\"error\":\"card_slot\"}");
-        slot = static_cast<unsigned>(value[0] - '0');
-    }
-    if (req->content_len <= 0 || (size_t)req->content_len > HOME_SHARE_MAX_BYTES) {
-        ESP_LOGW(TAG, "Share image invalid content-length %d (max %u)",
-                 (int)req->content_len, (unsigned)HOME_SHARE_MAX_BYTES);
-        return send_json(req, 400, "{\"error\":\"size\"}");
-    }
-
-    char chunk[512];
-    size_t remaining = (size_t)req->content_len;
-    bool first = true;
-    while (remaining > 0) {
-        int n = httpd_req_recv(req, chunk, remaining < sizeof(chunk) ? remaining : sizeof(chunk));
-        if (n <= 0) {
-            home_profile_abort_card_upload();
-            ESP_LOGW(TAG, "Share image recv aborted at remaining %u", (unsigned)remaining);
-            return send_json(req, 400, "{\"error\":\"recv\"}");
-        }
-        if ((size_t)n > remaining) n = (int)remaining;
-        remaining -= (size_t)n;
-        esp_err_t err = home_profile_write_card_chunk(slot,
-            reinterpret_cast<const uint8_t *>(chunk), (size_t)n, first, remaining == 0);
-        first = false;
-        if (err != ESP_OK) {
-            home_profile_abort_card_upload();
-            return send_json(req, 400, err == ESP_ERR_NO_MEM ? "{\"error\":\"storage_full\"}" :
-                err == ESP_ERR_INVALID_ARG ? "{\"error\":\"card_image\"}" : "{\"error\":\"store\"}");
-        }
-    }
-    return send_json(req, 200, "{\"ok\":true}");
+    const auto result = home_background_clear();
+    return send_json(req, result == ESP_OK ? 200 : 400,
+        result == ESP_OK ? "{\"ok\":true}" : "{\"error\":\"background_store\"}");
 }
-
-static esp_err_t handler_cards_get(httpd_req_t *req) {
-    if (!token_ok(req)) return send_json(req, 401, "{\"error\":\"unauthorized\"}");
-    home_share_gallery_t gallery;
-    if (home_profile_gallery_get(&gallery) != ESP_OK) return send_json(req, 400, "{\"error\":\"store\"}");
-    cJSON *root = cJSON_CreateObject();
-    if (!root) return send_json(req, 400, "{\"error\":\"oom\"}");
-    cJSON_AddNumberToObject(root, "max", HOME_SHARE_MAX_IMAGES);
-    cJSON_AddNumberToObject(root, "per_image_bytes", HOME_SHARE_MAX_BYTES);
-    cJSON_AddNumberToObject(root, "storage_free", gallery.storage_free);
-    cJSON_AddNumberToObject(root, "storage_reserve", HOME_SHARE_STORAGE_RESERVE);
-    cJSON *images = cJSON_AddArrayToObject(root, "images");
-    for (unsigned i = 0; images && i < gallery.count; ++i) {
-        cJSON *card = cJSON_CreateObject();
-        if (!card) { cJSON_Delete(root); return send_json(req, 400, "{\"error\":\"oom\"}"); }
-        cJSON_AddNumberToObject(card, "slot", gallery.slots[i]);
-        cJSON_AddNumberToObject(card, "bytes", gallery.bytes[i]); cJSON_AddItemToArray(images, card);
-    }
-    char *json = images ? cJSON_PrintUnformatted(root) : nullptr;
-    cJSON_Delete(root);
-    if (!json) return send_json(req, 400, "{\"error\":\"oom\"}");
-    esp_err_t err = send_json(req, 200, json); cJSON_free(json); return err;
-}
-
-static esp_err_t handler_cards_post(httpd_req_t *req) {
-    if (!token_ok(req)) return send_json(req, 401, "{\"error\":\"unauthorized\"}");
-    if (req->content_len <= 0 || req->content_len >= 128) return send_json(req, 400, "{\"error\":\"size\"}");
-    char body[128]; size_t got = 0;
-    while (got < static_cast<size_t>(req->content_len)) {
-        int n = httpd_req_recv(req, body + got, req->content_len - got);
-        if (n <= 0) return send_json(req, 400, "{\"error\":\"recv\"}");
-        got += n;
-    }
-    body[got] = 0;
-    cJSON *root = cJSON_Parse(body), *order = cJSON_GetObjectItemCaseSensitive(root, "order");
-    uint8_t slots[HOME_SHARE_MAX_IMAGES]; unsigned count = 0; bool valid = cJSON_IsArray(order);
-    cJSON *item;
-    cJSON_ArrayForEach(item, order) {
-        if (count >= HOME_SHARE_MAX_IMAGES || !cJSON_IsNumber(item) || item->valuedouble < 0 ||
-            item->valuedouble >= HOME_SHARE_MAX_IMAGES || item->valuedouble != item->valueint) { valid = false; break; }
-        slots[count++] = static_cast<uint8_t>(item->valueint);
-    }
-    esp_err_t err = valid ? home_profile_gallery_order(slots, count) : ESP_ERR_INVALID_ARG;
-    cJSON_Delete(root);
-    return send_json(req, err == ESP_OK ? 200 : 400,
-        err == ESP_OK ? "{\"ok\":true}" : "{\"error\":\"card_order\"}");
-}
-
-static esp_err_t handler_share_get(httpd_req_t *req) {
-    if (!token_ok(req)) return send_json(req, 401, "{\"error\":\"unauthorized\"}");
-    char query[96], value[12], path[HOME_SHARE_PATH_MAX];
-    if (httpd_req_get_url_query_str(req, query, sizeof(query)) != ESP_OK ||
-        httpd_query_key_value(query, "slot", value, sizeof(value)) != ESP_OK ||
-        std::strlen(value) != 1 || value[0] < '0' || value[0] >= '0' + HOME_SHARE_MAX_IMAGES ||
-        !home_profile_share_path_for_slot(value[0] - '0', path, sizeof(path)))
-        return send_json(req, 404, "{\"error\":\"card_slot\"}");
-    FILE *fp = std::fopen(path, "rb"); if (!fp) return send_json(req, 404, "{\"error\":\"store\"}");
-    httpd_resp_set_type(req, "image/jpeg"); httpd_resp_set_hdr(req, "Cache-Control", "no-store");
-    char chunk[512]; size_t n; esp_err_t err = ESP_OK;
-    while ((n = std::fread(chunk, 1, sizeof(chunk), fp)) > 0) {
-        err = httpd_resp_send_chunk(req, chunk, n); if (err != ESP_OK) break;
-    }
-    if (std::ferror(fp)) err = ESP_FAIL;
-    std::fclose(fp);
-    if (err == ESP_OK) err = httpd_resp_send_chunk(req, nullptr, 0);
-    return err;
-}
-
-// ---------------------------------------------------------------------------
 
 struct NetworkJob { std::vector<SsidItem> candidates; };
 
@@ -452,8 +249,14 @@ static esp_err_t reply_object(httpd_req_t *req, cJSON *root) {
 static esp_err_t handler_setup(httpd_req_t *req) {
     if (!token_ok(req)) return send_json(req, 401, "{\"error\":\"unauthorized\"}");
     auto *root = cJSON_CreateObject();
+    const bool sta_ip = WifiManager::GetInstance().HasStationIp();
+    int st = s_network_state.load();
+    if (st == 2 && !sta_ip) st = 0; // Live STA IP dropped; never report stale connected state.
     const char *states[] = {"idle", "connecting", "connected", "failed"};
-    cJSON_AddStringToObject(root, "state", states[s_network_state.load()]);
+    cJSON_AddStringToObject(root, "state", states[st]);
+    cJSON_AddBoolToObject(root, "sta_connected", sta_ip);
+    const std::string live_ssid = sta_ip ? WifiManager::GetInstance().GetSsid() : "";
+    cJSON_AddStringToObject(root, "sta_ssid", live_ssid.c_str());
     cJSON_AddBoolToObject(root, "saved_network", s_had_saved);
     auto *saved = cJSON_AddArrayToObject(root, "saved_networks");
     for (const auto &item : s_saved_networks)
@@ -461,7 +264,7 @@ static esp_err_t handler_setup(httpd_req_t *req) {
     cJSON_AddBoolToObject(root, "finishing", s_finish_at.load() != 0);
     {
         std::lock_guard<std::mutex> lock(s_network_mutex);
-        cJSON_AddStringToObject(root, "ssid", s_target_ssid.c_str());
+        cJSON_AddStringToObject(root, "ssid", !live_ssid.empty() ? live_ssid.c_str() : s_target_ssid.c_str());
     }
     cJSON_AddStringToObject(root, "hotspot", WifiManager::GetInstance().GetApSsid().c_str());
     return reply_object(req, root);
@@ -544,6 +347,45 @@ static esp_err_t handler_finish(httpd_req_t *req) {
     return send_json(req, 200, "{\"ok\":true}");
 }
 
+static esp_err_t handler_time(httpd_req_t *req) {
+    if (!token_ok(req)) return send_json(req, 401, "{\"error\":\"unauthorized\"}");
+    char body[160];
+    if (req->content_len <= 0 || req->content_len >= (int)sizeof(body))
+        return send_json(req, 400, "{\"error\":\"size\"}");
+    int received = 0;
+    while (received < req->content_len) {
+        int n = httpd_req_recv(req, body + received, req->content_len - received);
+        if (n <= 0) return send_json(req, 400, "{\"error\":\"recv\"}");
+        received += n;
+    }
+    body[received] = '\0';
+    auto *root = cJSON_Parse(body);
+    if (!root) return send_json(req, 400, "{\"error\":\"json\"}");
+    wifi_phone_time_apply(root);
+    cJSON_Delete(root);
+    return send_json(req, 200, "{\"ok\":true}");
+}
+static esp_err_t handler_fmo(httpd_req_t *req) {
+    if (!token_ok(req)) return send_json(req,401,"{\"error\":\"unauthorized\"}");
+    if (s_finish_at.load()) return send_json(req,400,"{\"error\":\"finishing\"}");
+    return fmo_http_settings(req);
+}
+static esp_err_t handler_fmo_ca(httpd_req_t *req) {
+    if (!token_ok(req)) return send_json(req,401,"{\"error\":\"unauthorized\"}");
+    if (s_finish_at.load()) return send_json(req,400,"{\"error\":\"finishing\"}");
+    return fmo_http_ca(req);
+}
+static esp_err_t handler_fmo_stamp(httpd_req_t *req) {
+    if (!token_ok(req)) return send_json(req,401,"{\"error\":\"unauthorized\"}");
+    if (s_finish_at.load()) return send_json(req,400,"{\"error\":\"finishing\"}");
+    return fmo_http_stamp(req);
+}
+static esp_err_t handler_fmo_beep(httpd_req_t *req) {
+    if (!token_ok(req)) return send_json(req,401,"{\"error\":\"unauthorized\"}");
+    if (s_finish_at.load()) return send_json(req,400,"{\"error\":\"finishing\"}");
+    return fmo_http_beep(req);
+}
+
 esp_err_t home_upload_start(void) {
     if (s_server) return ESP_OK;
     if (!WifiManager::GetInstance().IsConfigMode()) return ESP_ERR_INVALID_STATE;
@@ -559,8 +401,8 @@ esp_err_t home_upload_start(void) {
     if (s_token == 0) s_token = 1;   /* 0 被 token_ok 当作"未启用" */
 
     httpd_config_t config = HTTPD_DEFAULT_CONFIG();
-    config.stack_size = 6144;
-    config.max_uri_handlers = 17;
+    config.stack_size = 12288; // bounded certificate parsing and Ed25519 verification
+    config.max_uri_handlers = 28;
     // 10 lwIP sockets total: leave room for DNS, SNTP, control/listen sockets,
     // and a new accept before LRU eviction. Phone OS probes also use HTTP.
     config.max_open_sockets = 3;
@@ -580,29 +422,41 @@ esp_err_t home_upload_start(void) {
     const httpd_uri_t cities_uri = {"/api/cities", HTTP_GET, handler_cities, NULL};
     const httpd_uri_t profile_get = {"/api/profile", HTTP_GET, handler_profile_get, NULL};
     const httpd_uri_t profile_post = {"/api/profile", HTTP_POST, handler_profile_post, NULL};
-    const httpd_uri_t avatar_post = {"/api/avatar", HTTP_POST, handler_avatar_post, NULL};
-    const httpd_uri_t avatar_get = {"/api/avatar", HTTP_GET, handler_avatar_get, NULL};
-    const httpd_uri_t share_post = {"/api/share", HTTP_POST, handler_share_post, NULL};
-    const httpd_uri_t share_get = {"/api/share", HTTP_GET, handler_share_get, NULL};
-    const httpd_uri_t cards_get = {"/api/cards", HTTP_GET, handler_cards_get, NULL};
-    const httpd_uri_t cards_post = {"/api/cards", HTTP_POST, handler_cards_post, NULL};
+    const httpd_uri_t background_get = {"/api/background", HTTP_GET, handler_background_get, NULL};
+    const httpd_uri_t background_post = {"/api/background", HTTP_POST, handler_background_post, NULL};
+    const httpd_uri_t background_delete = {"/api/background", HTTP_DELETE, handler_background_delete, NULL};
     const httpd_uri_t setup_uri = {"/api/setup", HTTP_GET, handler_setup, NULL};
     const httpd_uri_t networks_uri = {"/api/networks", HTTP_GET, handler_networks, NULL};
     const httpd_uri_t connect_uri = {"/api/connect", HTTP_POST, handler_connect, NULL};
+    const httpd_uri_t time_uri = {"/api/time", HTTP_POST, handler_time, NULL};
     const httpd_uri_t finish_uri = {"/api/finish", HTTP_POST, handler_finish, NULL};
-    const httpd_uri_t muse_get = {"/api/muse", HTTP_GET, handler_muse_get, NULL};
-    const httpd_uri_t muse_post = {"/api/muse", HTTP_POST, handler_muse_post, NULL};
+    const httpd_uri_t fmo_get = {"/api/fmo", HTTP_GET, handler_fmo, NULL};
+    const httpd_uri_t fmo_post = {"/api/fmo", HTTP_POST, handler_fmo, NULL};
+    const httpd_uri_t fmo_ca_get = {"/api/fmo/ca", HTTP_GET, handler_fmo_ca, NULL};
+    const httpd_uri_t fmo_ca_post = {"/api/fmo/ca", HTTP_POST, handler_fmo_ca, NULL};
+    const httpd_uri_t fmo_stamp_get = {"/api/fmo/stamp", HTTP_GET, handler_fmo_stamp, NULL};
+    const httpd_uri_t fmo_stamp_post = {"/api/fmo/stamp", HTTP_POST, handler_fmo_stamp, NULL};
+    const httpd_uri_t fmo_stamp_delete = {"/api/fmo/stamp", HTTP_DELETE, handler_fmo_stamp, NULL};
+    const httpd_uri_t fmo_beep_get = {"/api/fmo/beep", HTTP_GET, handler_fmo_beep, NULL};
+    const httpd_uri_t fmo_beep_post = {"/api/fmo/beep", HTTP_POST, handler_fmo_beep, NULL};
+    const httpd_uri_t fmo_beep_delete = {"/api/fmo/beep", HTTP_DELETE, handler_fmo_beep, NULL};
     const httpd_uri_t captive_uri = {"/*", HTTP_GET, handler_captive, NULL};
     // 2026-09-13 修复(B8):注册返回值必须检查。原来四个 handler 全丢返回值,
     // 注册失败时页面直接 404 且日志里一行痕迹都没有。
     struct { const httpd_uri_t *uri; const char *name; } routes[] = {
         {&index_uri, "/"}, {&cities_uri, "GET /api/cities"}, {&profile_get, "GET /api/profile"},
-        {&profile_post, "POST /api/profile"}, {&avatar_post, "POST /api/avatar"}, {&avatar_get, "GET /api/avatar"},
-        {&share_post, "POST /api/share"},
-        {&share_get, "GET /api/share"}, {&cards_get, "GET /api/cards"}, {&cards_post, "POST /api/cards"},
+        {&profile_post, "POST /api/profile"},
+        {&background_get, "GET /api/background"}, {&background_post, "POST /api/background"},
+        {&background_delete, "DELETE /api/background"},
         {&setup_uri, "GET /api/setup"}, {&networks_uri, "GET /api/networks"},
-        {&connect_uri, "POST /api/connect"}, {&finish_uri, "POST /api/finish"},
-        {&muse_get, "GET /api/muse"}, {&muse_post, "POST /api/muse"},
+        {&connect_uri, "POST /api/connect"}, {&time_uri, "POST /api/time"},
+        {&finish_uri, "POST /api/finish"},
+        {&fmo_get, "GET /api/fmo"}, {&fmo_post, "POST /api/fmo"},
+        {&fmo_ca_get, "GET /api/fmo/ca"}, {&fmo_ca_post, "POST /api/fmo/ca"},
+        {&fmo_stamp_get, "GET /api/fmo/stamp"}, {&fmo_stamp_post, "POST /api/fmo/stamp"},
+        {&fmo_stamp_delete, "DELETE /api/fmo/stamp"},
+        {&fmo_beep_get, "GET /api/fmo/beep"}, {&fmo_beep_post, "POST /api/fmo/beep"},
+        {&fmo_beep_delete, "DELETE /api/fmo/beep"},
         {&captive_uri, "captive portal"},
     };
     for (const auto &r : routes) {
@@ -625,8 +479,7 @@ esp_err_t home_upload_start(void) {
 void home_upload_stop(void) {
     if (!s_server) return;
     httpd_stop(s_server); // 内部 join 处理器任务后释放
-    home_profile_abort_avatar_upload();
-    home_profile_abort_card_upload();
+    home_background_abort();
     s_server = NULL;
     while (s_network_state.load() == 1) vTaskDelay(pdMS_TO_TICKS(20));
     for (auto &item : s_saved_networks) std::fill(item.password.begin(), item.password.end(), '\0');
@@ -640,9 +493,9 @@ bool home_upload_active(void) { return s_server != NULL; }
 
 const char *home_upload_url(void) { return s_server ? s_url : ""; }
 
-bool home_upload_busy(void) { return s_network_state.load() == 1; }
+bool home_upload_busy(void) { return s_network_state.load() == 1 || fmo_http_busy(); }
 bool home_upload_network_verified(void) { return s_network_state.load() == 2; }
 bool home_upload_finished(void) {
     const auto deadline = s_finish_at.load();
-    return deadline != 0 && esp_timer_get_time() >= deadline;
+    return deadline != 0 && esp_timer_get_time() >= deadline && !fmo_http_busy();
 }

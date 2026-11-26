@@ -4,6 +4,8 @@
 #include "apps/netease/netease_controls.h"
 #include "launcher/ok_gesture.h"
 static int starts,stops,keys;
+static bool mock_ambient = false;
+void home_set_ambient(bool enabled) { mock_ambient = enabled; }
 static lv_obj_t *screens[APP_ID_COUNT]{};
 static int conversation_requests=0;
 void xiaozhi_app_request_conversation(){
@@ -25,7 +27,7 @@ static passport_app_t app(passport_app_id_t id){passport_app_t a{};a.id=id;a.nam
 const passport_app_t g_radio_app=app(APP_ID_RADIO),g_voice_app=app(APP_ID_VOICE),g_xiaozhi_app=app(APP_ID_XIAOZHI),
  g_wifi_app=app(APP_ID_WIFI),g_settings_app=app(APP_ID_SETTINGS),g_home_app=app(APP_ID_HOME),g_game_app=app(APP_ID_GAME),
  g_tetris_app=app(APP_ID_TETRIS),g_stopwatch_app=app(APP_ID_STOPWATCH),g_sound_jump_app=app(APP_ID_SOUND_JUMP),g_muse_app=app(APP_ID_MUSE),g_pomodoro_app=app(APP_ID_POMODORO),
- g_netease_app=app(APP_ID_NETEASE),g_reminders_app=app(APP_ID_REMINDERS),g_lists_app=app(APP_ID_LISTS);
+ g_netease_app=app(APP_ID_NETEASE),g_reminders_app=app(APP_ID_REMINDERS),g_lists_app=app(APP_ID_LISTS),g_fmo_app=app(APP_ID_FMO);
 static bool mock_reminder_active=false;
 namespace reminders {
  bool alarm_active(){return mock_reminder_active;}
@@ -49,10 +51,11 @@ void system_overlay_hide(){overlay_text[0]=0;}
 int main(){
  // Audio/network sessions retain fast polling with the display off.
  for(int id=0;id<APP_ID_COUNT;++id){
+  if(id==APP_ID_MUSE)continue;
   s_active_id.store(static_cast<passport_app_id_t>(id));
   s_screen_on.store(true);assert(!app_registry_background_idle());
   s_screen_on.store(false);
-  const bool streaming=id==APP_ID_RADIO||id==APP_ID_NETEASE||id==APP_ID_VOICE||id==APP_ID_XIAOZHI||id==APP_ID_MUSE;
+  const bool streaming=id==APP_ID_RADIO||id==APP_ID_NETEASE||id==APP_ID_VOICE||id==APP_ID_XIAOZHI||id==APP_ID_FMO;
   assert(app_registry_background_idle()==!streaming);
  }
  s_active_id.store(APP_ID_LAUNCHER);s_screen_on.store(true);
@@ -184,13 +187,14 @@ int main(){
  // Clean launch: heavy apps start in place while the heap fits them, however
  // often they are re-entered; light apps never restart.
  app_registry_switch_to(APP_ID_HOME);assert(mock_restarts==0);
- app_registry_switch_to(APP_ID_MUSE);assert(app_registry_get_active()==APP_ID_MUSE&&mock_restarts==0);
+ app_registry_switch_to(APP_ID_MUSE);assert(app_registry_get_active()==APP_ID_HOME&&mock_restarts==0);
  app_registry_switch_to(APP_ID_HOME);app_registry_switch_to(APP_ID_XIAOZHI);
  app_registry_switch_to(APP_ID_HOME);app_registry_switch_to(APP_ID_RADIO);
  assert(app_registry_get_active()==APP_ID_RADIO&&mock_restarts==0);
  // All registered pages, including hidden setup and launcher. Double must
  // never forward a click to a confirmation dialog or toggle Xiaozhi twice.
  for(int id=0;id<APP_ID_COUNT;++id){
+  if(id==APP_ID_MUSE)continue;
   app_registry_switch_to(static_cast<passport_app_id_t>(id));
   const int a=starts,b=stops,c=keys,requests=conversation_requests;
   app_registry_dispatch_key(BSP_BTN_OK,BTN_EVT_DOUBLE,600);
@@ -198,6 +202,21 @@ int main(){
   assert(starts==a+(id!=APP_ID_XIAOZHI)&&stops==b+(id!=APP_ID_XIAOZHI));
   assert(mock_screens.size()==1&&conversation_requests==requests+1);
  }
+ // FMO long OK must be delivered with its release, never interpreted as Back.
+ app_registry_switch_to(APP_ID_FMO);const int ptt_keys=keys;
+ app_registry_dispatch_key(BSP_BTN_OK,BTN_EVT_LONG,0);assert(keys==ptt_keys+1&&app_registry_get_active()==APP_ID_FMO&&!s_ok_long_triggered);
+ app_registry_dispatch_key(BSP_BTN_OK,BTN_EVT_LONG_UP,0);assert(keys==ptt_keys+2&&app_registry_get_active()==APP_ID_FMO);
+ // Home ambient mode preserves the Home app, releases its PM lock and consumes wake.
+ app_registry_switch_to(APP_ID_HOME); app_registry_set_screen_timeout(60);
+ const int ambient_starts=starts, ambient_stops=stops;
+ mock_now+=59000000;app_registry_tick();assert(app_registry_screen_is_on()&&!mock_ambient);
+ mock_now+=1000000;app_registry_tick();
+ assert(!app_registry_screen_is_on()&&mock_ambient&&*s_display_awake_lock==0&&mock_timer.paused);
+ assert(starts==ambient_starts&&stops==ambient_stops&&app_registry_get_active()==APP_ID_HOME);
+ assert(app_registry_wake_for_notice());assert(!mock_ambient&&*s_display_awake_lock==1&&!mock_timer.paused);
+ mock_now+=61000000;app_registry_tick();assert(mock_ambient);
+ app_registry_switch_to(APP_ID_STOPWATCH);
+ assert(!mock_ambient&&app_registry_screen_is_on()&&*s_display_awake_lock==1);
  // Full producer->registry path: a sleeping screen wakes on the first press,
  // then enters Xiaozhi on the second without delivering either click.
  app_registry_switch_to(APP_ID_HOME);
@@ -299,13 +318,17 @@ int main(){
  assert(mock_restarts==2);
  // Total free is checked as well as the largest block.
  mock_largest=40000;mock_free=40*1024;
- try{app_registry_switch_to(APP_ID_MUSE);assert(false);}catch(const MockRestart&){}
+ try{app_registry_switch_to(APP_ID_RADIO);assert(false);}catch(const MockRestart&){}
  assert(mock_restarts==3);
  // The boot after a clean launch never restarts again, even if the heap is short.
- s_clean_launch[0]=kCleanLaunchMagic;s_clean_launch[1]=APP_ID_MUSE^kCleanLaunchMagic;
- assert(app_registry_take_clean_launch()==APP_ID_MUSE);
- app_registry_switch_to(APP_ID_MUSE);assert(app_registry_get_active()==APP_ID_MUSE&&mock_restarts==3);
+ s_clean_launch[0]=kCleanLaunchMagic;s_clean_launch[1]=APP_ID_RADIO^kCleanLaunchMagic;
+ assert(app_registry_take_clean_launch()==APP_ID_RADIO);
+ app_registry_switch_to(APP_ID_RADIO);assert(app_registry_get_active()==APP_ID_RADIO&&mock_restarts==3);
  mock_largest=40000;mock_free=100000;
+ // Power-off preparation suppresses further idle ticks and cooperates with prepare_stop.
+ app_registry_switch_to(APP_ID_HOME);app_registry_set_screen_timeout(1);
+ app_registry_prepare_power_off();mock_now+=2000000;app_registry_tick();
+ assert(app_registry_screen_is_on()&&!mock_ambient);
  mock_active=nullptr;for(auto *p:mock_screens)delete p;mock_screens.clear();
  delete s_switch_mutex;delete s_display_awake_lock;
  puts("Registry: pending worker gate, feedback ownership, single click, wake gesture, latest target and screen lifecycle, clean launch PASS");

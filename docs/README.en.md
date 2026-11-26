@@ -2,15 +2,17 @@
 
 # Passport OS
 
+> Local minimal variant, pending firmware build: Muse, portraits and card galleries are removed. Home shows time/weather with an optional single uploaded background; after one minute it switches to a dim black screensaver. See [current validation status](CURRENT.md).
+
 **A small device worth keeping in your daily routine.**
 
-Community firmware for the FoloToy AI Passport, based on ESP32-C3 with 8 MB Flash. It brings thirteen apps together with shared settings, Wi-Fi setup, themes, audio, battery reporting, and power management.
+Community firmware for the FoloToy AI Passport, based on ESP32-C3 with 8 MB Flash. It brings twelve apps together with shared settings, Wi-Fi setup, themes, audio, battery reporting, and power management.
 
 **Ask Xiaozhi to adjust the volume, play music or radio, and set reminders on the device.**
 
 ## Why this project exists
 
-Thank you to everyone who has enjoyed the project and shared feedback. I started Passport OS to make a small device I would use regularly, then selected thirteen functions and apps through repeated experiments.
+Thank you to everyone who has enjoyed the project and shared feedback. I started Passport OS to make a small device I would use regularly, then selected twelve functions and apps through repeated experiments.
 
 One part I especially enjoy is letting Xiaozhi connect these functions. While chatting, you can ask to hear music, save a task, or start a focus session, and Xiaozhi calls the device's functions to carry out the request.
 
@@ -38,14 +40,13 @@ Voice tools require a network connection and Xiaozhi configuration. NetEase play
 
 | App | What it does | Requirements |
 | --- | --- | --- |
-| Home | Clock, profile, portraits, cards, weather, and air quality | Network for weather and air quality |
+| Home | Clock, weather, optional single background, dim screensaver | Network for weather; phone setup for background |
 | Radio | City and station selection, playback, and sleep timer | Wi-Fi and available online stations |
 | AI Voice | Hardware microphone and configurable desktop hotkeys | Windows companion program |
 | Xiaozhi AI | Voice conversations, volume and brightness control, app opening, music and radio requests, timers, reminders, and lists | Network and Xiaozhi configuration; media needs its corresponding service |
 | NetEase Music | Search songs, play playlists and daily recommendations | Wi-Fi, your own NetEase account, and available APIs |
 | Reminders | One-time and recurring reminders, chimes, and snooze | Works offline; uses the device clock |
 | Lists | View, check off, and manage tasks | Works offline |
-| Muse | Send voice messages and read replies on screen | Phone pairing, your own account, and a working network |
 | Why Barking | A sound-controlled game | Works offline |
 | Sound Jump | Longer sounds jump farther; release your voice to jump | Works offline |
 | Tetris | Stack blocks and clear lines | Works offline |
@@ -74,7 +75,7 @@ Use only the matching FoloToy AI Passport hardware revision with ESP32-C3 and 8 
 
 **Back up first.** A full image overwrites configuration in its written range. A complete reset also requires erasing flash. To preserve settings and images, verify the partition layout and use the application image without erasing the whole flash.
 
-On first boot, connect your phone to the device's password-free `Passport-WiFi-xxxx` hotspot and open `http://192.168.4.1`. Follow the setup page to select Wi-Fi, city, and personal details. Xiaozhi and Muse need your own service configuration; AI Voice also needs its Windows companion.
+On first boot, connect your phone to the device's password-free `Passport-WiFi-xxxx` hotspot and open `http://192.168.4.1`. Follow the setup page to select Wi-Fi and city, and optionally upload one 240×320 JPEG background (up to 24 KiB). Xiaozhi needs your own service configuration; AI Voice also needs its Windows companion.
 
 ## Make your own version
 
@@ -88,7 +89,7 @@ Download the source, modify the apps or interface, build a firmware image, and t
 | Shared UI and fonts | [`main/ui/`](../main/ui/), [`main/fonts/`](../main/fonts/) |
 | Board drivers | [`components/bsp/`](../components/bsp/) |
 | Wi-Fi setup | [`components/esp-wifi-connect/`](../components/esp-wifi-connect/) |
-| Muse integration | [`components/passport_muse/`](../components/passport_muse/) |
+| Muse reference (excluded from this build) | [`components/passport_muse/`](../components/passport_muse/) |
 | Tests and development tools | [`tests/`](../tests/), [`tools/`](../tools/) |
 
 ### Build

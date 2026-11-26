@@ -40,6 +40,9 @@ int bsp_button_read_mv(void);
 // (真机取证 2026-08-28)。窗口内按键判定直接返回"未按下"。
 void bsp_button_suppress_panel_glitch(void);
 
+// 关机进深睡前停止 ADC 轮询并释放 ADC1 句柄，避免高优先级按键任务与 GPIO0 唤醒配置冲突。
+void bsp_button_prepare_sleep(void);
+
 #ifdef __cplusplus
 }
 #endif

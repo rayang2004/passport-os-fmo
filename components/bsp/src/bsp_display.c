@@ -64,7 +64,7 @@ static void backlight_init(void) {
         .timer_num       = BSP_BL_LEDC_TIMER,
         .duty_resolution = BSP_BL_LEDC_RES,
         .freq_hz         = BSP_BL_LEDC_FREQ_HZ,
-        .clk_cfg         = LEDC_USE_XTAL_CLK,
+        .clk_cfg         = LEDC_USE_RC_FAST_CLK, // compatible with automatic light sleep
     };
     esp_err_t e = ledc_timer_config(&t);
     if (e != ESP_OK) { ESP_LOGE(TAG, "ledc_timer_config 失败: %s", esp_err_to_name(e)); return; }
@@ -76,6 +76,7 @@ static void backlight_init(void) {
         .timer_sel  = BSP_BL_LEDC_TIMER,
         .duty       = 0,
         .hpoint     = 0,
+        .sleep_mode = LEDC_SLEEP_MODE_KEEP_ALIVE, // dim clock must not flicker during light sleep
     };
     e = ledc_channel_config(&ch);
     if (e != ESP_OK) { ESP_LOGE(TAG, "ledc_channel_config 失败: %s", esp_err_to_name(e)); return; }
@@ -192,12 +193,37 @@ esp_err_t bsp_display_fill(uint16_t color) {
 void bsp_display_backlight(uint8_t percent) {
     if (percent > 100) percent = 100;
     s_requested_brightness = percent;
-    percent = (uint8_t)(((uint16_t)percent * s_master_brightness) / 100U);
     if (!s_bl_ready) return;
     uint32_t max_duty = (1u << BSP_BL_LEDC_RES) - 1u;
-    uint32_t duty = (max_duty * percent) / 100u;
+    // Scale once: rounding percentages first would turn 3% ambient off at a 20% master setting.
+    uint32_t duty = (max_duty * percent * s_master_brightness) / 10000u;
+    if (percent && s_master_brightness && !duty) duty = 1;
     ledc_set_duty(BSP_BL_LEDC_MODE, BSP_BL_LEDC_CHANNEL, duty);
     ledc_update_duty(BSP_BL_LEDC_MODE, BSP_BL_LEDC_CHANNEL);
+}
+
+void bsp_display_prepare_sleep(void) {
+    if (!s_bl_ready) return;
+    s_bl_ready = false;
+    (void)ledc_stop(BSP_BL_LEDC_MODE, BSP_BL_LEDC_CHANNEL, 0);
+    // Release LEDC_SLEEP_MODE_KEEP_ALIVE / ESP_SLEEP_DIG_USE_RC_FAST_MODE before deep sleep.
+    const ledc_channel_config_t ch = {
+        .gpio_num   = BSP_LCD_BL,
+        .speed_mode = BSP_BL_LEDC_MODE,
+        .channel    = BSP_BL_LEDC_CHANNEL,
+        .timer_sel  = BSP_BL_LEDC_TIMER,
+        .duty       = 0,
+        .hpoint     = 0,
+        .sleep_mode = LEDC_SLEEP_MODE_NO_ALIVE_NO_PD,
+    };
+    (void)ledc_channel_config(&ch);
+    (void)ledc_stop(BSP_BL_LEDC_MODE, BSP_BL_LEDC_CHANNEL, 0);
+    const ledc_timer_config_t off = {
+        .speed_mode  = BSP_BL_LEDC_MODE,
+        .timer_num   = BSP_BL_LEDC_TIMER,
+        .deconfigure = true,
+    };
+    (void)ledc_timer_config(&off);
 }
 
 void bsp_display_set_master_brightness(uint8_t percent) {

@@ -10,6 +10,7 @@
 #include "bsp_button.h"
 #include "bsp_display.h"
 #include "bsp_pins.h"
+#include "wifi_manager.h"
 #include "driver/gpio.h"
 #include "esp_log.h"
 #include "esp_sleep.h"
@@ -41,6 +42,7 @@ void wake_pin_input() {
 }
 
 [[noreturn]] void sleep_now() {
+    bsp_display_prepare_sleep();
     // LEDC stops in deep sleep and the pin would float; a floating backlight
     // pin lights the LED. Hold it low; app_main releases the hold at boot.
     const gpio_config_t bl = {
@@ -54,9 +56,23 @@ void wake_pin_input() {
     gpio_set_level((gpio_num_t)BSP_LCD_BL, 0);
     gpio_hold_en((gpio_num_t)BSP_LCD_BL);
     gpio_deep_sleep_hold_en();
+    // Clear any wakeup source left armed by tickless light sleep or Wi-Fi.
+    esp_sleep_disable_wakeup_source(ESP_SLEEP_WAKEUP_ALL);
     wake_pin_input();
-    esp_deep_sleep_enable_gpio_wakeup(1ULL << kWakePin, ESP_GPIO_WAKEUP_GPIO_LOW);
-    esp_deep_sleep_start();
+    while (true) {
+        // Wait until GPIO0 is stably high before arming low-level wake; if it is
+        // still low at sleep entry, ESP32-C3 rejects deep sleep and trips IWDT.
+        for (int high = 0; high < 5;) {
+            high = gpio_get_level(kWakePin) ? high + 1 : 0;
+            vTaskDelay(pdMS_TO_TICKS(20));
+        }
+        esp_deep_sleep_enable_gpio_wakeup(1ULL << kWakePin, ESP_GPIO_WAKEUP_GPIO_LOW);
+        const esp_err_t err = esp_deep_sleep_try_to_start();
+        ESP_LOGW(kTag, "Deep sleep rejected (%s); retrying after key release", esp_err_to_name(err));
+        gpio_hold_dis(kWakePin);
+        wake_pin_input();
+        vTaskDelay(pdMS_TO_TICKS(50));
+    }
 }
 
 void show_notice(const char *text, uint32_t ms) {
@@ -93,16 +109,26 @@ void power_off(const char *message) {
         show_notice(message, 0);
         vTaskDelay(pdMS_TO_TICKS(1800));
     }
+    app_registry_prepare_power_off();
+    // Unregister Wi-Fi event handlers and scan timers before stopping the driver
+    // so late scan/disconnect callbacks cannot hit ESP_ERR_WIFI_NOT_STARTED.
+    auto &wifi = WifiManager::GetInstance();
+    if (wifi.IsInitialized()) {
+        wifi.StopConfigAp();
+        wifi.StopStation();
+    }
     esp_wifi_stop();
     // Keep the LVGL lock: nothing may flush to the panel after SLPIN.
     bsp_lvgl_lock(1000);
     bsp_display_backlight(0);
     bsp_display_power(false);
-    // Wait for the shared button node to return high before arming wakeup.
+    // Wait for the shared button node to return high before releasing ADC1.
     for (int released = 0, waited = 0; released < 5 && waited < 500; ++waited) {
         released = bsp_button_read_mv() < kButtonRanges[BSP_BTN_COUNT - 1][1] ? 0 : released + 1;
         vTaskDelay(pdMS_TO_TICKS(20));
     }
+    // Stop ADC1 polling before wake_pin_input() switches GPIO0 to digital wakeup.
+    bsp_button_prepare_sleep();
     bsp_audio_prepare_sleep();
     sleep_now();
 }

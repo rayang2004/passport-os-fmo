@@ -1,0 +1,79 @@
+{
+  "upstream": {
+    "author": "BI4TES",
+    "page": "https://ai-passport.folotoy.cn/plays/1791/",
+    "metadata_url": "https://ai-passport.folotoy.cn/api/plays/id/1791",
+    "ota_manifest_url": "https://fmo.simy.live/fw/latest.json",
+    "ota_reference_application_sha256": "ed433f74af30e25c58a421728f3a6ad0eb8aed67fd5aed8e4942c721ad3a390a",
+    "reference_version": "0.6.10",
+    "target_version": "0.6.11",
+    "reference_firmware_sha256": "a8c866909f40bbd7abe85ad74c48b06e7f4ae7c8dd364fe5761079dac74b11c5",
+    "reference_firmware_bytes": 3013344,
+    "source_available": false,
+    "reference_release_revision": 6726,
+    "reference_application_sha256": "6758c9141cb03bd5f60c93e1a6f314c3cd3ae1c274a25943b606e5c20c1b4378"
+  },
+  "interfaces": {
+    "certificate_service": "https://fmo.simy.live/ca",
+    "trust_root_json_sha256": "0f6e70c2f5c4c95c9852427a5fc530372d80530839c6370c992d72fbd29be017",
+    "protocols": [
+      "AIRP-01",
+      "AIRP-02",
+      "AIRP-03",
+      "AIRP-04"
+    ],
+    "aprs_sources": [
+      "china.aprs2.net:14580",
+      "rotate.aprs2.net:14580"
+    ],
+    "aprs_packet_spec": "https://bg5esn.com/docs/fmo-formate/",
+    "aprs_login_spec": "https://www.aprs-is.net/Connecting.aspx"
+  },
+  "capabilities": {
+    "wifi_profiles": "shared_passport_os",
+    "device_key_and_certificate_application": "implemented_device_validation_pending",
+    "signed_v4_relay_discovery": "implemented_device_validation_pending",
+    "relay_selection_and_validated_cache": "implemented_device_validation_pending",
+    "opus_ptt_and_listening": "implemented_device_validation_pending",
+    "radpcm_listening": "implemented_device_validation_pending",
+    "server_presence_and_online_counts": "partial_signed_station_and_received_node_connection_counts_peer_roster_missing",
+    "aprs_cq_and_beacon_transmission": "implemented_manual_opt_in_device_validation_pending",
+    "qso_history_and_passport_gallery": "implemented_local_qso_stamp_passport_12_builtin_and_custom_96x96_i4_stamps_json_backup_device_validation_pending",
+    "aprs_messages_and_private_calls": "partial_addressed_APFM00_text_inbox_session_only_send_ack_and_private_calls_missing_device_validation_pending",
+    "fmo_themes_and_quick_menu": "implemented_quick_menu_and_custom_stamp_colors_device_validation_pending",
+    "cloud_backup_and_restore": "partial_local_heard_and_peer_style_restore_custom_stamp_raster_export_restore_cloud_sync_missing",
+    "legacy_identity_migration": "implemented_readonly_fmo_cred_verified_import_device_validation_pending",
+    "favorite_relays": "manual_and_after_successful_explicit_connection_up_to_8_device_validation_pending",
+    "p_prefix_and_appasp_interop": "implemented_p_prefix_aprs_login_appasp_station_and_pat1_stamp_learning_device_validation_pending",
+    "custom_stamp_studio": "implemented_12_builtin_svgs_custom_png_bg_removal_dual_bank_spiffs_i4_device_validation_pending",
+    "local_crl_refresh": "implemented_manual_refresh_signed_bank_persistence_startup_restore_and_known_revocation_gate_auto_refresh_missing_device_validation_pending",
+    "merged_firmware_ota": "missing",
+    "local_heard_history": "implemented_device_validation_pending",
+    "device_quick_menu": "implemented_device_validation_pending",
+    "signed_station_online_snapshot": "implemented_device_validation_pending",
+    "certificate_clock_and_deadline": "implemented_device_validation_pending",
+    "builtin_and_legacy_relay_selection": "missing_reference_requires_authorized_builtin_guest_login_and_legacy_view_only_discovery",
+    "cross_issuer_relay_trust": "optional_build_time_public_chain_supported_default_has_no_additional_intermediate_device_validation_pending",
+    "manual_relay_discovery_retry": "implemented_empty_list_retry_device_validation_pending",
+    "intermediate_crl_verification": "implemented_manual_phone_refresh_device_validation_pending",
+    "root_crl_verification": "implemented_manual_phone_refresh_device_validation_pending",
+    "relay_verification_diagnostics": "implemented_device_empty_list_reason_device_validation_pending",
+    "volatile_crl_status_tracking": "implemented_shared_state_restored_from_signed_banks_device_validation_pending",
+    "known_revocation_session_gate": "implemented_device_validation_pending",
+    "compact_signed_crl_proofs": "implemented_signed_bank_persistence_device_validation_pending",
+    "signed_crl_bank_storage": "implemented_download_save_and_startup_restore_device_validation_pending",
+    "public_relay_root_material": "verified_public_SAS_builtin_root_only_not_enabled_intermediate_chain_missing",
+    "signed_peer_announcements": "implemented_CQ_OMCQ_VOCAL_ONLINE_and_explicit_grid_80km_BEACON_session_events_only_device_validation_pending",
+    "signed_activity_announcements": "implemented_JOINT_EVENT_two_session_records_reverse_order_30s_wait_and_paged_device_view_device_validation_pending",
+    "mqtt_node_connection_count": "implemented_optional_broker_SYS_subscription_latest_node_snapshot_120s_expiry_device_validation_pending",
+    "roger_beep": "implemented_builtin_and_custom_FBEP_phone_catalog_preview_and_PTT_release_hardware_pending",
+    "mqtt_client_identity": "implemented_reference_PASSPORT_callsign_id_username_and_signed_credentials_unchanged_device_validation_pending"
+  },
+  "update_policy": "Check upstream metadata and review protocol/API differences. Never install a standalone FMO image over Passport OS. Never replace trust roots or device keys automatically.",
+  "passport_os_upstream": {
+    "repository": "https://github.com/manchunx7-bit/passport-os",
+    "api_repository": "https://api.github.com/repos/manchunx7-bit/passport-os",
+    "branch": "main",
+    "integrated_base_commit": "5101891c05210557217dd068fd3d78121a6e4175"
+  }
+}

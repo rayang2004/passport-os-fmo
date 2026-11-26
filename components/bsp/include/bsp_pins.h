@@ -31,9 +31,9 @@
 #define BSP_BL_LEDC_TIMER    LEDC_TIMER_0
 #define BSP_BL_LEDC_MODE     LEDC_LOW_SPEED_MODE
 #define BSP_BL_LEDC_CHANNEL  LEDC_CHANNEL_0
-#define BSP_BL_LEDC_RES      LEDC_TIMER_10_BIT
+#define BSP_BL_LEDC_RES      LEDC_TIMER_9_BIT // 20kHz fits calibrated RC_FAST even below 20.48MHz
 /* 20kHz:移出人耳可听范围。原 5kHz 在主亮度<100% 时会让背光升压电路
-   发出可闻嗡鸣(占空比 100% 时为直流不响)。80MHz APB 下 20kHz@10bit 合法。 */
+   发出可闻嗡鸣(占空比 100% 时为直流不响)。为兼容轻睡眠，使用 RC_FAST 下 20kHz@9bit。 */
 #define BSP_BL_LEDC_FREQ_HZ  20000
 
 // ============================================================================

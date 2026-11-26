@@ -1,6 +1,7 @@
 // Included after the production settings functions by test_device_control.py.
 #include "../main/device_control.cc"
 #include "../main/device_control_mcp.cc"
+#include "../main/scene_mcp.cc"
 #include "../main/apps/reminders/reminder_mcp.cc"
 #include "../main/apps/reminders/reminder_core.cc"
 #include "../main/apps/lists/list_service.cc"
@@ -9,6 +10,10 @@
 #include <functional>
 static passport_app_id_t foreground=APP_ID_XIAOZHI;
 static bool navigation_pending=false, mock_alarm=false;
+static bool scene_clock_ready=true;
+static std::vector<reminders::Record> scene_records;
+static home_profile_t scene_profile{};
+extern "C" void home_profile_get(home_profile_t *out){*out=scene_profile;}
 static unsigned switches=0, ui_volume=0;
 static bool display_locked=false, display_available=true, screen_on=false;
 bool bsp_lvgl_lock(int){if(!display_available)return false;display_locked=true;return true;}
@@ -31,13 +36,13 @@ bool pomodoro_control(pomodoro_action_t action,uint8_t phase,PomodoroSnapshot *o
 extern "C" int time_sync_tz_offset_sec(){return 28800;}
 namespace reminders {
 bool alarm_active(){return mock_alarm;}
-bool clock_ready(){return true;}
+bool clock_ready(){return scene_clock_ready;}
 bool create(const char*,int64_t,uint32_t*,const char**){assert(false);return false;}
 bool create_repeating(const char*,int64_t,const RepeatRule&,uint32_t*,const char**){return false;}
 bool update(uint32_t,const char*,int64_t,const RepeatRule*,const char**){return false;}
 bool get(uint32_t,Record*){return false;}
 bool change(uint32_t,bool,int64_t,const char**,int64_t){return false;}
-size_t list(Record*,size_t){return 0;}
+size_t list(Record *out,size_t cap){const auto n=std::min(cap,scene_records.size());std::copy_n(scene_records.begin(),n,out);return n;}
 }
 namespace aihot {
 static Query last{};
@@ -71,6 +76,15 @@ static std::string news(const char *name,const char *args){
 }
 static std::string invoke(const char *name,const char *args,uint64_t token=1){
     cJSON *json=cJSON_Parse(args);auto result=device_control::call(name,json,token);cJSON_Delete(json);return result;
+}
+static std::string scene(const char *args,uint64_t token=900) {
+    const std::string params=std::string("{\"name\":\"self.scene.run\",\"arguments\":")+args+"}";
+    bool error=false;auto result=reminders::mcp_result("tools/call",params.c_str(),&error,token);assert(!error);return result;
+}
+static cJSON *scene_value(const std::string &answer) {
+    auto *envelope=cJSON_Parse(answer.c_str());assert(envelope);
+    auto *text=cJSON_GetObjectItem(cJSON_GetArrayItem(cJSON_GetObjectItem(envelope,"content"),0),"text");
+    assert(cJSON_IsString(text));auto *value=cJSON_Parse(text->valuestring);cJSON_Delete(envelope);assert(value);return value;
 }
 int main(){
     using namespace device_control;
@@ -210,11 +224,11 @@ int main(){
     answer=invoke("self.audio.set_volume",R"({"percent":90})");assert(answer.find("\"isError\":true")!=std::string::npos);
     poll();assert(s_volume==0);mock_delay_hook=poll;
     bool rpc_error=false;
-    for(unsigned page=0;page<20;++page){
+    for(unsigned page=0;page<21;++page){
         auto out=reminders::mcp_result("tools/list",("{\"cursor\":\""+std::to_string(page)+"\"}").c_str(),&rpc_error);
         auto *json=cJSON_Parse(out.c_str());assert(!rpc_error&&cJSON_GetArraySize(cJSON_GetObjectItem(json,"tools"))==1);
         assert(out.size()<1800); // each tool page fits the real receive limit
-        assert(bool(cJSON_GetObjectItem(json,"nextCursor"))==(page<19));cJSON_Delete(json);
+        assert(bool(cJSON_GetObjectItem(json,"nextCursor"))==(page<20));cJSON_Delete(json);
     }
     answer=invoke("self.pomodoro.control",R"({"action":"start"})");
     assert(answer.find("running")!=std::string::npos&&answer.find("1500")!=std::string::npos&&foreground==APP_ID_XIAOZHI);
@@ -232,5 +246,64 @@ int main(){
     display_available=false;
     answer=invoke("self.pomodoro.control",R"({"action":"reset"})");assert(answer.find("\"isError\":true")!=std::string::npos&&voice_timer.status==POMODORO_RUNNING);
     display_available=true;invoke("self.pomodoro.control",R"({"action":"reset"})");assert(voice_timer.status==POMODORO_READY);
-    puts("Device control: saved settings, guarded navigation, voice pomodoro validation/state, timeout, voice music/radio handover, in-session search, low-battery brightness, AIHOT news and twenty-tool discovery PASS");
+
+    // Scenes use the same real controller, retain its response-before-navigation guard,
+    // and compose only bounded, explicit operations.
+    const unsigned before_scene_switches=switches;
+    answer=scene(R"({"scene":"focus"})",900);
+    assert(answer.find("\"isError\":false")!=std::string::npos&&s_volume==20&&s_brightness==40);
+    assert(voice_timer.phase==POMODORO_FOCUS&&voice_timer.status==POMODORO_RUNNING&&switches==before_scene_switches);
+    response_sent(900,false);monotonic_us+=300000;poll();assert(switches==before_scene_switches);
+    response_sent(900,true);poll();monotonic_us+=300000;poll();assert(foreground==APP_ID_POMODORO);
+    foreground=APP_ID_XIAOZHI;
+    const auto scene_deadline=voice_timer.deadline_us;
+    answer=scene(R"({"scene":"focus","volume_percent":30,"brightness_percent":60})",901);
+    assert(s_volume==30&&s_brightness==60&&voice_timer.deadline_us==scene_deadline);
+    cancel_session();poll();
+    invoke("self.pomodoro.control",R"({"action":"pause"})");
+    answer=scene(R"({"scene":"focus"})",902);assert(voice_timer.status==POMODORO_RUNNING);
+    cancel_session();poll();
+    invoke("self.pomodoro.control",R"({"action":"reset"})");
+    invoke("self.pomodoro.control",R"({"action":"start","phase":"short_break"})");
+    const auto break_deadline=voice_timer.deadline_us;const auto break_volume=s_volume;
+    answer=scene(R"({"scene":"focus","volume_percent":90})",903);
+    assert(answer.find("\"isError\":true")!=std::string::npos&&voice_timer.deadline_us==break_deadline&&s_volume==break_volume);
+    // Missing city / invalid parameters / active alerts have no side effects.
+    answer=scene(R"({"scene":"bedtime"})",904);assert(answer.find("\"isError\":true")!=std::string::npos&&s_volume==break_volume);
+    for(auto bad:{R"({"scene":"focus","city":"北京"})",R"({"scene":"focus","volume_percent":101})",
+                  R"({"scene":"focus","brightness_percent":3})",R"({"scene":"home","brightness_percent":20})",
+                  R"({"scene":"focus","scene":"home"})",R"({"scene":"bedtime","city":"北京","stop_after_minutes":0})"}) {
+        answer=scene(bad,905);assert(answer.find("\"isError\":true")!=std::string::npos&&s_volume==break_volume);
+    }
+    mock_alarm=true;answer=scene(R"({"scene":"home"})",906);assert(answer.find("\"isError\":true")!=std::string::npos);mock_alarm=false;
+    std::strcpy(scene_profile.radio_city,"北京");
+    answer=scene(R"({"scene":"bedtime","station":"交通"})",907);
+    assert(answer.find("\"isError\":false")!=std::string::npos&&s_volume==20&&s_brightness==10);
+    assert(armed.source==voice_intent::Source::Radio&&armed.stop_minutes==30&&!strcmp(armed.name,"北京")&&!strcmp(armed.detail,"交通"));
+    response_sent(907,true);poll();monotonic_us+=300000;poll();assert(foreground==APP_ID_RADIO);
+    foreground=APP_ID_XIAOZHI;armed={};
+    // A failed setting never schedules the media handover, and steps expose partial work.
+    fail_write=true;answer=scene(R"({"scene":"bedtime"})",908);fail_write=false;
+    assert(answer.find("\"isError\":true")!=std::string::npos&&armed.source==voice_intent::Source::None);
+    // Agenda filters reminders by the device's local day; undated list items remain labelled separately.
+    lists::initialize();const char *items[]={"a","b","c"};uint32_t list_id=0;const char *list_error=nullptr;
+    assert(lists::create("场景测试",items,3,&list_id,&list_error));
+    lists::List list_record;assert(lists::read(list_id,&list_record,&list_error));
+    const char *more[]={"d","e","f"};assert(lists::modify(list_id,list_record.revision,lists::Action::Add,0,nullptr,-1,more,3,&list_error));
+    assert(lists::read(list_id,&list_record,&list_error));const char *last[]={"g","h"};
+    assert(lists::modify(list_id,list_record.revision,lists::Action::Add,0,nullptr,-1,last,2,&list_error));
+    const int64_t day=((time(nullptr)+28800)/86400)*86400-28800;
+    for(unsigned i=0;i<8;++i){reminders::Record r{};r.id=i+1;r.status=reminders::Status::Pending;r.due=day+100+i;std::strcpy(r.title,"今天事项");scene_records.push_back(r);}
+    auto tomorrow=scene_records[0];tomorrow.due=day+86400;scene_records.push_back(tomorrow);
+    auto done=scene_records[0];done.status=reminders::Status::Done;scene_records.push_back(done);
+    answer=scene(R"({"scene":"agenda"})",909);auto *agenda=scene_value(answer);
+    assert(cJSON_IsTrue(cJSON_GetObjectItem(agenda,"success"))&&cJSON_GetObjectItem(agenda,"today_pending_total")->valueint==8);
+    assert(cJSON_GetArraySize(cJSON_GetObjectItem(agenda,"today_pending_reminders"))==6&&cJSON_IsTrue(cJSON_GetObjectItem(agenda,"more_reminders")));
+    assert(cJSON_GetArraySize(cJSON_GetObjectItem(agenda,"unfinished_checklist_items"))==6&&cJSON_IsTrue(cJSON_GetObjectItem(agenda,"more_checklist_items")));
+    assert(strstr(cJSON_GetObjectItem(agenda,"checklist_scope")->valuestring,"no dates"));cJSON_Delete(agenda);
+    scene_clock_ready=false;answer=scene(R"({"scene":"agenda"})",910);assert(answer.find("\"isError\":true")!=std::string::npos);scene_clock_ready=true;
+    const auto home_volume=s_volume,home_brightness=s_brightness;
+    answer=scene(R"({"scene":"home"})",911);response_sent(911,true);poll();monotonic_us+=300000;poll();
+    assert(foreground==APP_ID_HOME&&s_volume==home_volume&&s_brightness==home_brightness&&voice_timer.deadline_us==break_deadline);
+    puts("Device control: settings, guarded navigation, timer/music/radio, 21-tool discovery, scene focus/resume/conflicts, bedtime handover, agenda bounds and home PASS");
 }

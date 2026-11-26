@@ -38,7 +38,6 @@ static void bsp_audio_set_master_volume(uint8_t value){master_volume=value;}
 extern "C" void app_registry_set_screen_timeout(uint16_t){}
 static int nvs_set_u8(int h,const char*k,uint8_t v){return nvs_set_blob(h,k,&v,sizeof(v));}
 static int nvs_get_u8(int h,const char*k,uint8_t*v){size_t n=sizeof(*v);return nvs_get_blob(h,k,v,&n);}
-static int nvs_get_u16(int h,const char*k,uint16_t*v){size_t n=sizeof(*v);return nvs_get_blob(h,k,v,&n);}
 template <typename T,size_t N> T validated(const T(&values)[N],T value,T fallback){
     for(auto v:values)if(v==value)return value;return fallback;
 }

@@ -9,6 +9,10 @@
 #include "esp_adc/adc_cali_scheme.h"
 #include "esp_log.h"
 #include "esp_timer.h"
+#include "freertos/FreeRTOS.h"
+#include "freertos/semphr.h"
+#include <stdbool.h>
+#include <stdint.h>
 
 // 面板上电瞬态抑制窗口:SLPOUT+120ms+DISPON+LVGL 全屏刷新 ~300ms,取 600ms。
 #define BSP_BTN_PANEL_GLITCH_US (600 * 1000)
@@ -34,6 +38,9 @@ static void           *s_user;
 // 句柄。谁第二个调 adc_oneshot_new_unit() 谁就拿到 "adc1 is already in use"。
 static adc_oneshot_unit_handle_t s_adc;
 static adc_cali_handle_t         s_cali;
+static StaticSemaphore_t         s_adc_lock_buf;
+static SemaphoreHandle_t         s_adc_lock;
+static volatile bool             s_sleeping;
 
 // BSP 轮询与 button 组件共用衰减档,校准也必须一致,否则读数会与按键阈值错位。
 // managed_components/espressif__button/button_adc.c:26 在 C3 上取 ADC_ATTEN_DB_6+1。
@@ -54,6 +61,8 @@ static void cb_long_up(void *a, void *u) { on_event(a, u, BSP_BTN_LONG_UP); }
 
 esp_err_t bsp_button_init(bsp_btn_cb_t cb, void *user) {
     s_cb = cb; s_user = user;
+    s_sleeping = false;
+    if (!s_adc_lock) s_adc_lock = xSemaphoreCreateMutexStatic(&s_adc_lock_buf);
 
     // 先由 BSP 建 unit,再把句柄交给 button 组件(button_adc.h:adc_handle 非 NULL 即复用),
     // 这样本文件的 bsp_button_read_mv() 也能读同一路 ADC。
@@ -134,14 +143,36 @@ void bsp_button_suppress_panel_glitch(void) {
     button_adc_set_ignore_until(esp_timer_get_time() + BSP_BTN_PANEL_GLITCH_US);
 }
 
+void bsp_button_prepare_sleep(void) {
+    s_sleeping = true;
+    s_ignore_until_us = INT64_MAX;
+    if (!s_adc_lock || xSemaphoreTake(s_adc_lock, pdMS_TO_TICKS(500)) != pdTRUE) return;
+    if (s_cali) {
+        (void)adc_cali_delete_scheme_curve_fitting(s_cali);
+        s_cali = NULL;
+    }
+    if (s_adc) {
+        (void)adc_oneshot_del_unit(s_adc);
+        s_adc = NULL;
+    }
+    xSemaphoreGive(s_adc_lock);
+}
+
 int bsp_button_read_mv(void) {
     // 读的是 bsp_button_init() 建好、并与 iot_button 共用的那一路 ADC。
-    // 单次采样与组件的按键轮询互不干扰(oneshot 内部自带锁)。
-    if (!s_adc || !s_cali) return -1;
+    // 与 bsp_button_prepare_sleep() 互斥，避免关机释放 ADC 时与按键轮询任务竞态。
+    if (s_sleeping || !s_adc_lock) return -1;
     if (esp_timer_get_time() < s_ignore_until_us) return -1;  // 抑制窗内读数不可信
+    if (xSemaphoreTake(s_adc_lock, pdMS_TO_TICKS(50)) != pdTRUE) return -1;
 
-    int raw = 0, mv = 0;
-    if (adc_oneshot_read(s_adc, BSP_BTN_ADC_CHANNEL, &raw) != ESP_OK) return -1;
-    if (adc_cali_raw_to_voltage(s_cali, raw, &mv) != ESP_OK) return -1;
+    int mv = -1;
+    if (!s_sleeping && s_adc && s_cali) {
+        int raw = 0, cal_mv = 0;
+        if (adc_oneshot_read(s_adc, BSP_BTN_ADC_CHANNEL, &raw) == ESP_OK &&
+            adc_cali_raw_to_voltage(s_cali, raw, &cal_mv) == ESP_OK) {
+            mv = cal_mv;
+        }
+    }
+    xSemaphoreGive(s_adc_lock);
     return mv;
 }

@@ -1,53 +1,96 @@
-// Run the actual offline phone flow, including network failures and partial saves.
+// Execute the real captive page with a strict DOM and offline HTTP doubles.
 const fs=require('node:fs'),vm=require('node:vm'),assert=require('node:assert/strict');
 const html=fs.readFileSync('main/apps/home/phone_setup.html','utf8');
-const cityCatalog=JSON.parse(fs.readFileSync('main/apps/home/cities.json','utf8'));
 const script=html.match(/<script>\r?\n([\s\S]*?)<\/script>/)[1];
-// The gzipped page receives its API token from the pt cookie set with it.
-{const line=script.split('\n').find(l=>l.includes('pt=('));for(const [cookie,t] of [['a=1; pt=4294967295','4294967295'],['xpt=9','']]){const w={};vm.runInNewContext(line,{window:w,document:{cookie}});assert.equal(w.__T,t)}}
-assert.ok(!/<(?:script|img|link)\b[^>]*(?:src|href)=["']https?:|url\(["']?https?:/i.test(html),'the captive page must not load internet resources');
-assert.match(html,/id="copyVoiceTutorial"[^>]*>复制教程链接/);
-assert.ok(!html.includes('AI-Passport-Hotkey-Windows.exe'));
-assert.match(html,/href="https:\/\/github.com\/manchunx7-bit\/ai-passport-muse"/,'Muse project is discoverable from phone setup');
+const cityCatalog=JSON.parse(fs.readFileSync('main/apps/home/cities.json','utf8'));
+const ids=[...html.matchAll(/\bid="([^"]+)"/g)].map(m=>m[1]);assert.equal(new Set(ids).size,ids.length);
+for(const retired of ['portraitSection','cardSection','museSection','/api/avatar','/api/share','/api/cards','portraitPixels'])assert.ok(!html.includes(retired),retired);
+assert.ok(!/<(?:script|img|link)\b[^>]*(?:src|href)=["']https?:|url\(["']?https?:/i.test(html));
+{const line=script.split('\n').find(l=>l.includes('pt=('));const w={};vm.runInNewContext(line,{window:w,document:{cookie:'pt=314159'}});assert.equal(w.__T,'314159')}
 const elements=new Map(),requests=[],timers=new Map();let nextTimer=1;
+let fmoCrl={state:'unknown',root:{updated:false,saved:false,cache:'missing',message:'根列表不可用'},user:{updated:true,saved:true,cache:'missing',message:'已验证'},persistence:'signed_banks',enforced:true},failFmoCrl=false,fmoCrlGate=null;
+let fmoPub='',fmoReady=false,fmoRemote={state:'none'},failFmoImport=false,fmoRelay=null,fmoServers=[];
+let fmoBook=[],fmoBookFault='',fmoClockValid=true,failFmoClock=false,fmoStaConnected=true,fmoLegacyAvail=false;
+let fmoStamp={available:true,style_id:'G001',color:'#FF7A1A',label:'AI PASSPORT',custom_present:false,width:96,height:96,bytes:4608};
+let fmoBeep={available:true,enabled:true,use_custom:false,custom_present:false,custom_id:0,custom_samples:0};
+let fmoAprs={available:true,enabled:false,legacy_beacon:false,ssid:15,grid:'',frequency:'',antenna_height:0,rig:'AI Passport',antenna:''},failAprsSave=false;
+let blobBytes=6000,imageMode='ok',qualityAttempts=[],backgroundPresent=false,failBackground=false,failProfile=false;
 class Element {
- constructor(){this.value='';this.textContent='';this.style={};this.dataset={};this.options=[];this.classList={toggle(){}};this.type='password';this.files=[];}
- add(o){this.options.push(o)} replaceChildren(...o){this.options=o;this.value=''}
- appendChild(o){this.options.push(o);return o} click(){this.onclick?.()} setAttribute(k,v){this[k]=v} removeAttribute(k){delete this[k]} focus(){} select(){} setSelectionRange(){} setPointerCapture(){}
+ constructor(){this.value='';this.textContent='';this.style={};this.dataset={};this.options=[];this.classList={toggle(){}};this.type='password';this.files=[];this.hidden=false;this.checked=false;}
+ add(o){this.options.push(o)}replaceChildren(...o){this.options=o;this.value=''}
+ append(...o){this.options.push(...o)}
+ setAttribute(k,v){this[k]=v}removeAttribute(k){delete this[k]}click(){}focus(){}select(){}setSelectionRange(){}
  get selectedOptions(){return this.options.filter(o=>o.value===this.value)}
- getContext(){return {drawImage(){},fillRect(){},putImageData(){},getImageData:(x,y,w,h)=>({data:new Uint8ClampedArray(w*h*4).fill(255)}),createImageData:(w,h)=>({data:new Uint8ClampedArray(w*h*4)})}}
- toBlob(cb,type,quality){assert.equal(type,'image/jpeg');qualityAttempts.push(quality);cb(new Blob([new Uint8Array(typeof blobBytes==='function'?blobBytes(quality):blobBytes)],{type}))}
+ getContext(){return {drawImage(){},fillRect(){},translate(){},rotate(){}}}
+ toBlob(cb,type,quality){qualityAttempts.push(quality);cb(new Blob([new Uint8Array(typeof blobBytes==='function'?blobBytes(quality):blobBytes)],{type}))}
 }
-const get=id=>{if(!elements.has(id))elements.set(id,new Element());return elements.get(id)};
-let imageMode='ok';
-class Image {constructor(){this.naturalWidth=240;this.naturalHeight=320}set src(v){this._src=v;const mode=imageMode;if(mode!=='stall')setImmediate(()=>mode==='error'?this.onerror?.():this.onload?.())}get src(){return this._src}}
-let state='idle',saved=false,failShare=false,denyFinish=false,emptyScan=true,failScan=false;
-let connectError='';
-let avatarError='',avatarDeviceCode='ESP_FAIL';
-let museTokenSet=false,musePaired=false,museProxyHost='',museProxyPort=0,failMuseSave=false,failMuseLoad=false,museGate=null;
-let failCities=false,cityGate=null;let savedProfile={name:'测试',signature:'已有签名',address:'原地址',city:'自定义城市',lat:'22.3',lon:'113.6',avatar:true,share_image:true};let gallery=[{slot:0,bytes:12000}],blobBytes=20000,qualityAttempts=[];
+const get=id=>{assert.ok(ids.includes(id),'unknown DOM id '+id);if(!elements.has(id))elements.set(id,new Element());return elements.get(id)};
+class Image {constructor(){this.naturalWidth=640;this.naturalHeight=480}set src(v){this._src=v;if(imageMode!=='stall')setImmediate(()=>imageMode==='error'?this.onerror?.():this.onload?.())}}
+let state='idle',saved=false,denyFinish=false,emptyScan=true,failScan=false,connectError='',failCities=false,cityGate=null;
+let savedProfile={city:'自定义城市',lat:'22.3',lon:'113.6'};
 const phoneWindow={__T:314159,scrollTo(){},addEventListener(){},isSecureContext:false,crypto:require('node:crypto').webcrypto,location:{origin:'http://192.168.4.1'}};
 const phoneNavigator={};
-class TestURL extends URL{static createObjectURL(){return 'blob:fixture'}static revokeObjectURL(){}}
-const context=vm.createContext({document:{getElementById:get,createElement:()=>new Element()},window:phoneWindow,navigator:phoneNavigator,Option:class{constructor(text,value){this.text=text;this.value=value;this.dataset={}}},Image,TextEncoder,Uint8Array,Uint8ClampedArray,Blob,AbortController,URL:TestURL,URLSearchParams,setTimeout(fn,ms){const id=nextTimer++;timers.set(id,{fn,ms});return id},clearTimeout:id=>timers.delete(id),fetch:async(url,options)=>{
+class TestURL extends URL {static createObjectURL(){return 'blob:fixture'}static revokeObjectURL(){}}
+let beepCloudMode='ok',failBeepWrite=false;
+const context=vm.createContext({document:{getElementById:get,createElement:()=>new Element()},window:phoneWindow,navigator:phoneNavigator,Option:class{constructor(text,value){this.text=text;this.value=value;this.dataset={}}},Image,FileReader:class{readAsDataURL(){this.result="data:image/jpeg;base64,dGVzdA==";setImmediate(()=>this.onload())}},TextEncoder,Uint8Array,Blob,AbortController,URL:TestURL,URLSearchParams,setTimeout(fn,ms){const id=nextTimer++;timers.set(id,{fn,ms});return id},clearTimeout:id=>timers.delete(id),fetch:async(url,options)=>{
  requests.push({url,options});let result={},ok=true;
- if(url.startsWith('/api/cities')){if(cityGate)await cityGate;if(failCities)throw new Error('offline');result=cityCatalog;}
- if(url.startsWith('/api/muse')){if(options.method==='POST'){if(failMuseSave){ok=false;result={error:'muse_config'}}else{const data=JSON.parse(options.body);if(data.sdk_token){museTokenSet=true;musePaired=false}if('proxy_host' in data){museProxyHost=data.proxy_host;museProxyPort=data.proxy_port}result={ok:true,token_set:museTokenSet,paired:musePaired,proxy_host:museProxyHost,proxy_port:museProxyPort}}}else{if(museGate)await museGate;if(failMuseLoad)throw new Error('offline');result={token_set:museTokenSet,paired:musePaired,proxy_host:museProxyHost,proxy_port:museProxyPort}}}
- if(url.startsWith('/api/profile')&&!options.method)result=savedProfile;
- if(url.startsWith('/api/avatar')&&options.method==='POST'&&avatarError){ok=false;result={error:avatarError,code:avatarDeviceCode};}
- if(url.startsWith('/api/setup'))result={state,saved_network:saved,saved_networks:saved?['Absent Wi-Fi','Test Wi-Fi']:[],ssid:'Test Wi-Fi'};
- if(url.startsWith('/api/connect')&&connectError){ok=false;result={error:connectError};}
- if(url.startsWith('/api/networks')){if(failScan)throw new Error('offline');result=emptyScan?[]:[{ssid:'Test Wi-Fi',secure:true}];}
- if(url.startsWith('/api/cards')){if(options.method==='POST'){const order=JSON.parse(options.body).order;gallery=order.map(slot=>gallery.find(c=>c.slot===slot));}else result={max:6,per_image_bytes:24576,storage_free:1900000,storage_reserve:65536,images:gallery.map(c=>({...c}))};}
- if(url.startsWith('/api/share')&&options.method==='POST'){if(failShare){ok=false;result={error:'store'}}else{const slot=Number(new URL('http://device'+url).searchParams.get('slot')||0);gallery=gallery.filter(c=>c.slot!==slot).concat({slot,bytes:options.body.size});}}
- if(url.startsWith('/api/finish')&&denyFinish){ok=false;result={error:'network_required'}}
+ if(url==='https://fmo.simy.live/fw/beep/list.json')return {ok:true,json:async()=>({
+  '6':{n:'模拟信令',s:'all'},'2x':'坏编号','1':{n:'指定呼号',s:'call',c:['OTHER']},
+  '4':{n:'缺少名单',s:'call'},'5':{n:'未知范围',s:'other'}
+ })};
+ if(url==='https://fmo.simy.live/fw/beep/6.bin'){
+  if(beepCloudMode==='offline')throw Error('offline');
+  const payload=new Uint8Array(656);
+  payload.set([70,66,69,80,1,beepCloudMode==='wrong-id'?2:6]);
+  return {ok:true,blob:async()=>new Blob([payload])};
+ }
+ const route=url.split('?')[0];assert.ok(['/api/cities','/api/profile','/api/setup','/api/networks','/api/connect','/api/time','/api/finish','/api/background','/api/fmo','/api/fmo/ca','/api/fmo/stamp','/api/fmo/beep'].includes(route),route);
+ if(route==='/api/cities'){if(cityGate)await cityGate;if(failCities)throw Error('offline');result=cityCatalog}
+ if(route==='/api/profile'){if(!options.method)result=savedProfile;else if(failProfile){ok=false;result={error:'invalid'}}}
+ if(route==='/api/setup')result={state,sta_connected:state==='connected',sta_ssid:state==='connected'?'Test Wi-Fi':'',saved_network:saved,saved_networks:saved?['Absent Wi-Fi','Test Wi-Fi']:[],ssid:'Test Wi-Fi'};
+ if(route==='/api/networks'){if(failScan)throw Error('offline');result=emptyScan?[]:[{ssid:'Test Wi-Fi',rssi:-45,secure:true}]}
+ if(route==='/api/connect'){if(connectError){ok=false;result={error:connectError}}else if(!fmoStaConnected){fmoStaConnected=true;state='connected'}}
+ if(route==='/api/time'){result={ok:true,applied:true}}
+ if(route==='/api/finish'&&denyFinish){ok=false;result={error:'network_required'}}
+ if(route==='/api/background'){
+  if(!options.method)result={present:backgroundPresent,available:true,max_bytes:24576};
+  else if(failBackground){ok=false;result={error:'background_store'}}
+  else if(options.method==='DELETE')backgroundPresent=false;
+  else {assert.equal(options.body.type,'image/jpeg');assert.ok(options.body.size<=24576);backgroundPresent=true}
+ }
+ if(route==='/api/fmo'){
+  if(options.method==='POST'){const body=JSON.parse(options.body);if(body.action==='init'){fmoPub||='A'.repeat(43)}else if(body.action==='import_legacy'){fmoPub='L'.repeat(43);fmoReady=true;fmoLegacyAvail=false}else if(body.action==='stamp'){fmoStamp={...fmoStamp,style_id:body.style_id,color:body.color,label:body.label}}else if(body.action==='beep'){fmoBeep={...fmoBeep,enabled:body.enabled,use_custom:body.use_custom??fmoBeep.use_custom}}else if(body.action==='select_builtin_relay'){fmoRelay=null}else if(body.action==='import'){assert.equal(body.certificate,'Y2VydA==');if(failFmoImport){ok=false;result={error:'证书签名验证失败'}}else fmoReady=true}else if(body.action==='check_crl'){if(fmoCrlGate)await fmoCrlGate;if(failFmoCrl){ok=false;result={error:'吊销查询网络断开'}}else result=fmoCrl}else if(body.action==='relay')fmoRelay=body;else if(body.action==='select_relay'){const found=fmoServers.find(s=>s.uid===body.uid);if(!found){ok=false;result={error:'服务器信息已过期'}}else fmoRelay=found}else if(body.action==='aprs'){if(failAprsSave){ok=false;result={error:'APRS保存失败'}}else fmoAprs={...body,available:true}}else assert.fail('unknown FMO action')}
+  if(ok&&!(options.method==='POST'&&JSON.parse(options.body).action==='check_crl'))result={pubkey:fmoPub,ready:fmoReady,callsign:fmoReady?'BG0TEST':'',uid:fmoReady?123:0,sta_connected:fmoStaConnected,legacy_cred:fmoLegacyAvail&&!fmoReady?{available:true,callsign:'P-BG0OLD',uid:9610010}:{available:false},stamp:fmoStamp,beep:fmoBeep,builtin_relay:{name:'PASSPORT内置中继台',host:'fmo.simy.asia',port:1883,active:!fmoRelay},relay:fmoRelay,servers:fmoServers,aprs:fmoAprs,clock_valid:fmoClockValid};
+  if(url.includes('book=')){
+   const page=Number(new URL(url,'http://device/').searchParams.get('book'));
+   result={contacts_available:fmoBookFault!=='unavailable',contacts_capacity:64,total:fmoBook.length,contacts:fmoBook.slice(page*8,(page+1)*8)};
+   if(fmoBookFault==='missing'&&page===1)result.contacts=[];
+  }
+ }
+ if(route==='/api/fmo/stamp'){
+  if(url.includes('raw=1'))return {ok:true,arrayBuffer:async()=>new Uint8Array(4608).fill(0x5a).buffer};
+  if(!options.method)result=fmoStamp;
+  else if(options.method==='DELETE'){fmoStamp={...fmoStamp,custom_present:false,style_id:'G001'};result={stamp:fmoStamp}}
+  else {assert.equal(options.body.type,'application/octet-stream');assert.equal(options.body.size,4608);fmoStamp={...fmoStamp,custom_present:true,style_id:'CUSTOM'};result={stamp:fmoStamp}}
+ }
+ if(route==='/api/fmo/beep'){
+  if(!options.method)result=fmoBeep;
+  else if(options.method==='DELETE'){fmoBeep={...fmoBeep,custom_present:false,use_custom:false,custom_id:0};result={beep:fmoBeep}}
+  else if(failBeepWrite){ok=false;result={error:'设备写入失败'}}
+  else {fmoBeep={...fmoBeep,enabled:true,use_custom:true,custom_present:true,custom_id:6};result={beep:fmoBeep}}
+ }
+ if(route==='/api/fmo/ca'){
+  if(!fmoStaConnected){ok=false;result={error:'设备尚未连接可上网的Wi-Fi',code:'wifi_required'}}
+  else if(failFmoClock){ok=false;result={error:'设备时间尚未校准，请重连Wi-Fi让手机校时后重试'}}
+  else if(options.method==='POST'){const body=JSON.parse(options.body);assert.equal(body.pubkey,fmoPub);assert.equal(body.callsign,'BG0TEST');assert.match(body.photo_b64,/^data:image\/jpeg;base64,/);result={ok:true};fmoRemote={state:'pending'}}
+  else result=fmoRemote;
+ }
  return {ok,json:async()=>result};
 }});
-vm.runInContext(script,context);
-const flush=()=>new Promise(resolve=>setImmediate(resolve));
+vm.runInContext(script,context);const flush=()=>new Promise(resolve=>setImmediate(resolve));
 const posts=()=>requests.filter(r=>r.options.method==='POST');
 (async()=>{
- await flush();await flush();
+ await flush();await flush();await flush();let profile;
  let copiedText='';
  context.document.execCommand=cmd=>{assert.equal(cmd,'copy');copiedText=get('voiceTutorialLink').value;return true};
  await get('copyVoiceTutorial').onclick();assert.equal(copiedText,'https://github.com/manchunx7-bit/passport-os');assert.equal(get('voiceTutorialLink').hidden,true);
@@ -66,145 +109,19 @@ const posts=()=>requests.filter(r=>r.options.method==='POST');
  failScan=false;await context.scan();
  await get('save').onclick();assert.equal(posts().length,0,'first boot cannot complete without Wi-Fi');
  get('network').value='Test Wi-Fi';get('password').value='short';await get('connect').onclick();assert.equal(posts().length,0);
- get('password').value='  secret with spaces  ';await get('connect').onclick();
- let req=posts().at(-1);assert.equal(req.url,'/api/connect?t=314159');assert.equal(JSON.parse(req.options.body).password,'  secret with spaces  ');
+
+ assert.match(get('scanStatus').textContent,/已找到 1/);
+ get('manualToggle').onclick();get('ssid').value='Test Wi-Fi';get('password').value='  secret with spaces  ';
+ await get('connect').onclick();let req=posts().at(-1);assert.equal(req.url,'/api/connect?t=314159');assert.equal(JSON.parse(req.options.body).password,'  secret with spaces  ');
  state='failed';await context.poll();assert.equal(get('connect').disabled,false);assert.match(get('networkStatus').textContent,/检查密码/);
- await get('connect').onclick();state='connected';await context.poll();assert.equal(get('step2').hidden,false);assert.equal(get('password').value,'');
- get('name').value='新名字';
- get('file').files=[{size:1000}];await get('file').onchange();
- get('shareFile').files=[{size:1000}];await get('shareFile').onchange();
- failShare=true;await get('save').onclick();assert.equal(posts().filter(r=>r.url.startsWith('/api/finish')).length,0,'failed image must not close hotspot');assert.equal(get('save').disabled,false);
- req=posts().find(r=>r.url.startsWith('/api/profile'));let profile=JSON.parse(req.options.body);assert.equal(profile.name,'新名字');assert.equal(profile.address,'原地址','address field removed; saved value is preserved');assert.equal(profile.city,'自定义城市');assert.equal(profile.lat,'22.3','preserve custom weather coordinates');
- req=posts().find(r=>r.url.startsWith('/api/avatar'));assert.equal(req.options.body.byteLength,4976);assert.equal(req.options.body[4],3);
- // Failed avatar uploads retain the page and pending image for a later retry.
- for(const [code,message] of [['avatar_size',/长度不匹配/],['avatar_recv',/传输中断/],['avatar_store',/原头像已保留/]]){
-  avatarError=code;const finishesBefore=posts().filter(r=>r.url.startsWith('/api/finish')).length;
-  await get('save').onclick();assert.match(get('saveStatus').textContent,message);
-  assert.equal(posts().filter(r=>r.url.startsWith('/api/finish')).length,finishesBefore);
-  assert.equal(get('save').disabled,false);assert.equal(get('back').disabled,false);
- }
- avatarDeviceCode='ESP_ERR_NO_MEM';await get('save').onclick();assert.match(get('saveStatus').textContent,/设备内存不足/);
- await assert.rejects(context.api('/api/avatar',new Uint8Array(4976)),error=>error.path==='/api/avatar'&&error.code==='avatar_store'&&error.deviceCode==='ESP_ERR_NO_MEM');
- avatarError='';avatarDeviceCode='ESP_FAIL';
- const writesBeforePreset=posts().length;
- for(const [id,preset] of [['portraitPresetDot',1],['portraitPresetFlat',2],['portraitPresetHybrid',3]]){get(id).checked=true;get(id).onchange();assert.equal(context.portraitPacked()[4],preset)}
- assert.equal(posts().length,writesBeforePreset,'changing presets only updates preview');
- failShare=false;denyFinish=true;await get('save').onclick();assert.match(get('saveStatus').textContent,/连接 Wi-Fi/);
- denyFinish=false;await get('save').onclick();assert.equal(get('step3').hidden,false);assert.equal(get('doneName').textContent,'新名字');
- // A reload during verification resumes polling instead of allowing a duplicate request.
- state='connecting';saved=true;await context.load();assert.equal(get('connect').disabled,true);assert.equal(get('reuse').hidden,false);
- assert.equal(get('savedField').hidden,false);assert.equal(get('savedNetwork').disabled,true);
- state='failed';await context.poll();get('savedNetwork').value='Test Wi-Fi';
- await get('reuse').onclick();const timeBody=JSON.parse(posts().at(-1).options.body);
- assert.equal(timeBody.saved,true);assert.equal(timeBody.ssid,'Test Wi-Fi');
- assert.ok(Number.isInteger(timeBody.epoch)&&Math.abs(timeBody.epoch-Date.now()/1000)<5);
- assert.equal(timeBody.tz_minutes,-new Date().getTimezoneOffset() || 0);
- state='failed';await context.poll();get('savedNetwork').value='';connectError='saved_not_found';
- const beforeRejectedTimer=nextTimer;
- await get('reuse').onclick();assert.equal(get('reuse').disabled,false);assert.match(get('networkStatus').textContent,/已保存网络/);
- assert.equal([...timers.entries()].some(([id,t])=>id>=beforeRejectedTimer&&t.fn===context.poll),false,'an explicit rejection must not start polling');
- connectError='';get('keepSaved').onclick();assert.equal(get('step2').hidden,false);
- assert.match(get('connectionSummary').textContent,/完成后自动重连/);
- const previousMusePosts=posts().filter(r=>r.url.startsWith('/api/muse')).length;
- get('museToken').value='';await get('saveMuse').onclick();
- get('museToken').value='wrong';await get('saveMuse').onclick();
- assert.equal(posts().filter(r=>r.url.startsWith('/api/muse')).length,previousMusePosts,'invalid SDK token is not posted');
- get('museToken').value='mgst_test_fixture_only_12345';await get('saveMuse').onclick();
- const museRequest=posts().at(-1);assert.equal(museRequest.url,'/api/muse?t=314159');
- assert.equal(JSON.parse(museRequest.options.body).sdk_token,'mgst_test_fixture_only_12345');
- assert.equal(get('museToken').value,'');assert.equal(get('saveMuse').disabled,false);
- assert.match(get('museSaved').textContent,/Token 已保存，无需重新填写/);
- assert.match(get('museToken').placeholder,/已保存/);assert.equal(get('useSavedMuse').hidden,false);
- musePaired=true;await context.loadMuse();
- let proxyPosts=posts().filter(r=>r.url.startsWith('/api/muse')).length;
- get('museProxyHost').value='127.0.0.1';get('museProxyPort').value='7897';await get('saveMuse').onclick();
- get('museProxyHost').value='192.168.1.999';await get('saveMuse').onclick();
- get('museProxyHost').value='192.168.1.20';get('museProxyPort').value='0';await get('saveMuse').onclick();
- assert.equal(posts().filter(r=>r.url.startsWith('/api/muse')).length,proxyPosts,'invalid proxy addresses and port are not posted');
- get('museProxyPort').value='7897';await get('saveMuse').onclick();
- let proxyBody=JSON.parse(posts().at(-1).options.body);assert.deepEqual(proxyBody,{proxy_host:'192.168.1.20',proxy_port:7897});
- assert.equal(get('museProxyHost').value,'192.168.1.20');assert.equal(get('museState').textContent,'已配对');
- assert.match(get('museStatus').textContent,/重试连接/);
- // Reopening the page recovers the stored configuration without exposing a token.
- let savedWrites=posts().length;
- vm.runInContext('museConfigured=false;museLoaded=false;museProxyEdited=false',context);
- get('museProxyHost').value='';get('museProxyPort').value='';await context.loadMuse();
- assert.equal(get('museProxyHost').value,'192.168.1.20');assert.equal(get('museProxyPort').value,7897);
- assert.equal(get('museToken').value,'');assert.match(get('museSaved').textContent,/192\.168\.1\.20:7897/);
- assert.equal(posts().length,savedWrites,'loading saved configuration does not rewrite credentials or pairing');
- get('museToken').value='mgst_unsaved_fixture_only';get('museProxyPort').value='8080';get('museProxyPort').oninput();
- await get('useSavedMuse').onclick();
- assert.equal(get('museToken').value,'');assert.equal(get('museProxyPort').value,7897);
- assert.equal(posts().length,savedWrites,'reuse only restores saved values');
- // A late response must not replace a proxy the user has already edited.
- let releaseMuse;museGate=new Promise(resolve=>{releaseMuse=resolve});
- const pendingMuse=context.loadMuse();get('museProxyPort').value='8080';get('museProxyPort').oninput();
- assert.equal(get('saveMuse').disabled,true);assert.equal(context.loadMuse(),pendingMuse,'concurrent loads share one request');
- releaseMuse();await pendingMuse;museGate=null;
- assert.equal(get('museProxyPort').value,'8080','late reads preserve unsaved edits');
- await get('useSavedMuse').onclick();
- failMuseLoad=true;await context.loadMuse();
- assert.match(get('museSaved').textContent,/Token 已保存/);assert.equal(get('museProxyPort').value,7897);
- assert.equal(get('retryMuse').hidden,false);assert.equal(posts().length,savedWrites,'read failure never clears configuration');
- // A cold failed read cannot turn blank fields into a request to clear a saved proxy.
- vm.runInContext('museConfigured=false;museLoaded=false;museProxyEdited=false',context);
- get('museProxyHost').value='';get('museProxyPort').value='';await context.loadMuse();await get('saveMuse').onclick();
- assert.equal(posts().length,savedWrites);assert.match(get('museStatus').textContent,/重新读取/);
- failMuseLoad=false;await get('retryMuse').onclick();
- assert.equal(get('museProxyHost').value,'192.168.1.20');assert.equal(get('museProxyPort').value,7897);
- assert.equal(get('retryMuse').hidden,true);
- // A successful POST supplies persisted state, without needing another fragile GET.
- get('museProxyPort').value='8080';failMuseLoad=true;
- const readsBeforeSave=requests.filter(r=>r.url.startsWith('/api/muse')&&!r.options.method).length;
- await get('saveMuse').onclick();
- assert.match(get('museSaved').textContent,/192\.168\.1\.20:8080/);assert.match(get('museStatus').textContent,/已保存/);
- assert.equal(requests.filter(r=>r.url.startsWith('/api/muse')&&!r.options.method).length,readsBeforeSave);
- failMuseLoad=false;
- get('museProxyHost').value='';await get('saveMuse').onclick();
- assert.deepEqual(JSON.parse(posts().at(-1).options.body),{proxy_host:'',proxy_port:0});
- assert.equal(musePaired,true,'proxy-only update does not replace account authorization');
- get('museProxyHost').value='';await get('saveMuse').onclick();
- // Primary completion saves valid pending Muse inputs, and never closes the
- // setup AP when those inputs are invalid or cannot be persisted.
- museTokenSet=false;musePaired=false;await context.loadMuse();
- let finishes=posts().filter(r=>r.url.startsWith('/api/finish')).length;
- get('museToken').value='wrong';await get('save').onclick();
- assert.equal(posts().filter(r=>r.url.startsWith('/api/finish')).length,finishes);
- assert.match(get('saveStatus').textContent,/SDK Token/);
- get('museToken').value='mgst_test_fixture_only_67890';failMuseSave=true;await get('save').onclick();
- assert.equal(posts().filter(r=>r.url.startsWith('/api/finish')).length,finishes,'failed Muse save keeps setup AP open');
- assert.equal(get('museToken').value,'mgst_test_fixture_only_67890','failed save preserves input');
- failMuseSave=false;let firstRequest=requests.length;await get('save').onclick();
- const completed=requests.slice(firstRequest).filter(r=>r.options.method==='POST').map(r=>r.url);
- assert.ok(completed.indexOf('/api/muse?t=314159')<completed.indexOf('/api/finish?t=314159'));
- assert.equal(get('museToken').value,'');assert.equal(get('step3').hidden,false);
- proxyPosts=posts().filter(r=>r.url.startsWith('/api/muse')).length;
- await get('save').onclick();
- assert.equal(posts().filter(r=>r.url.startsWith('/api/muse')).length,proxyPosts,'unchanged optional Muse configuration is not rewritten');
- // Both document-picker fallbacks use the same preview and binary save paths.
- get('fileFallback').files=[{size:1000}];await get('fileFallback').onchange();
- assert.equal(get('photoTools').hidden,false);assert.match(get('avatarStatus').textContent,/已选择/);
- get('shareFileFallback').files=[{size:1000}];await get('shareFileFallback').onchange();
- assert.equal(get('sharec').hidden,false);assert.match(get('shareStatus').textContent,/已选择/);
- const beforePickerPosts=posts().length;
- get('file').onclick();assert.match(get('avatarStatus').textContent,/正在打开选择器/);
- get('file').oncancel();assert.match(get('avatarStatus').textContent,/保留之前/);
- get('shareFileFallback').oncancel();assert.match(get('shareStatus').textContent,/保留之前/);
- get('fileFallback').files=[{size:0}];await get('fileFallback').onchange();assert.match(get('avatarStatus').textContent,/文件为空/);
- get('fileFallback').files=[{size:21*1024*1024}];await get('fileFallback').onchange();assert.match(get('avatarStatus').textContent,/超过 20 MB/);
- get('shareFileFallback').files=[{size:1000}];imageMode='error';await get('shareFileFallback').onchange();
- assert.match(get('shareStatus').textContent,/无法读取图片/);assert.equal(get('shareStatus').dataset.error,'true');
- imageMode='stall';get('fileFallback').files=[{size:1000}];
- const pendingImage=get('fileFallback').onchange();await get('save').onclick();
- assert.equal(posts().length,beforePickerPosts,'unreadable/loading images must not send settings or finish');
- assert.match(get('saveStatus').textContent,/图片还在读取/);
- const imageTimeout=[...timers.values()].find(t=>t.ms===15000);assert.ok(imageTimeout);imageTimeout.fn();await pendingImage;
- assert.match(get('avatarStatus').textContent,/读取图片超时/);
- imageMode='ok';await get('fileFallback').onchange();
- assert.match(get('avatarStatus').textContent,/已选择/,'retry recovers after decode timeout');
- await get('save').onclick();assert.equal(get('step3').hidden,false);
- assert.equal(posts().filter(r=>r.url.startsWith('/api/avatar')).at(-1).options.body.byteLength,4976);
- assert.equal(posts().filter(r=>r.url.startsWith('/api/share')).at(-1).options.body.type,'image/jpeg');
+ state='connected';await context.poll();assert.equal(get('step2').hidden,false);assert.equal(get('password').value,'');
+ get('city').value='';await get('save').onclick();assert.equal(get('step3').hidden,false);
+ const payload=JSON.parse(posts().filter(r=>r.url.startsWith('/api/profile')).at(-1).options.body);
+ assert.deepEqual(Object.keys(payload).sort(),['city','country_code','lat','lon','radio_city','region'].sort());
+ saved=true;await context.load();get('savedNetwork').value='Test Wi-Fi';await get('reuse').onclick();
+ const body=JSON.parse(posts().at(-1).options.body);assert.equal(body.saved,true);assert.equal(body.ssid,'Test Wi-Fi');assert.ok(Number.isInteger(body.epoch));
+ connectError='saved_not_found';await get('reuse').onclick();assert.match(get('networkStatus').textContent,/已保存网络/);connectError='';
+ state='connected';await context.poll();
  // Nationwide search and stable ids distinguish repeated county names.
  assert.ok(cityCatalog.length>=3000);assert.equal(new Set(cityCatalog.map(c=>c[4])).size,34);
  get('province').value='广东';get('province').onchange();
@@ -286,79 +203,159 @@ const posts=()=>requests.filter(r=>r.options.method==='POST');
  get('locationCode').value='PPOS:91,113,10';get('importLocation').onclick();assert.match(get('locationStatus').textContent,/无效/);
  phoneWindow.open=()=>null;get('locate').onclick();assert.match(get('locationStatus').textContent,/新窗口/);
  get('locate').dataset.helper='http://location.example';get('locate').onclick();assert.match(get('locationStatus').textContent,/入口尚未启用/);
- // Real gallery state: compressed blobs only, stable slots, order/delete and retry.
- await context.loadCards();
- get('shareFile').files=Array.from({length:6-gallery.length},()=>({size:1000}));await get('shareFile').onchange();
- assert.equal(vm.runInContext('cards.length',context),6);
- assert.equal(vm.runInContext('shareImg',context),null,'original bitmap released after compression');
- get('shareFile').files=[{size:1000}];await get('shareFile').onchange();assert.match(get('shareStatus').textContent,/最多保存 6/);
- await context.saveCards();assert.equal(gallery.length,6);
- const original=gallery.map(c=>c.slot);context.moveCard(5,-1);await context.saveCards();assert.equal(gallery[4].slot,original[5]);
- context.removeCard(0);await context.saveCards();assert.equal(gallery.length,5);
- const replacing=gallery[0].slot;context.chooseReplacement(replacing);get('shareReplace').files=[{size:1000}];await get('shareReplace').onchange();
- const beforeRetry=posts().filter(r=>r.url.startsWith('/api/share')).length;failShare=true;await get('save').onclick();
- assert.equal(vm.runInContext('cards.find(c=>c.slot===cards[0].slot).blob.size',context),20000,'failed upload retains compressed retry data');
- failShare=false;await get('save').onclick();assert.equal(gallery.length,5);assert.equal(gallery[0].slot,replacing);
- assert.equal(posts().filter(r=>r.url.startsWith('/api/share')).length,beforeRetry+2);
- qualityAttempts=[];blobBytes=q=>q>.48?30000:24000;get('shareFile').files=[{size:1000}];await get('shareFile').onchange();
- assert.deepEqual(qualityAttempts,[.86,.78,.68,.58,.48]);assert.equal(vm.runInContext('cards.at(-1).bytes',context),24000);
- context.removeCard(5);blobBytes=30000;qualityAttempts=[];get('shareFile').files=[{size:1000}];await get('shareFile').onchange();
- assert.match(get('shareStatus').textContent,/压缩后仍较大/);assert.equal(vm.runInContext('cards.length',context),5);
- assert.equal(qualityAttempts.length,7);
- // Native chooser contracts: batch inputs stay multiple; replacement is independent.
-const batchTag=html.match(/<input[^>]*id="shareFile"[^>]*>/)[0];
-assert.match(batchTag,/\bmultiple\b/);assert.ok(!/\baccept=|\bcapture=/.test(batchTag));
-assert.match(html.match(/<input[^>]*id="shareFileFallback"[^>]*>/)[0],/\bmultiple\b/);
-assert.ok(!/\bmultiple\b/.test(html.match(/<input[^>]*id="shareReplace"[^>]*>/)[0]));
-// Starting batch addition after replacement selection/cancel must never overwrite it.
-blobBytes=20000;await context.loadCards();context.chooseReplacement(gallery[0].slot);get('shareReplace').oncancel();
-get('shareFile').onclick();get('shareFile').files=[{size:1000,type:'image/png'}];await get('shareFile').onchange();
-assert.equal(vm.runInContext('cards.length',context),6,'batch adds a card instead of replacing an old one');
-context.removeCard(5);get('shareFile').files=[{size:1000,type:'application/pdf'}];await get('shareFile').onchange();
-assert.match(get('shareStatus').textContent,/不支持文档或视频/);assert.equal(vm.runInContext('cards.length',context),5);
-get('shareFileFallback').onclick();get('shareFileFallback').files=[{size:1000,type:'image/png'}];await get('shareFileFallback').onchange();
-assert.equal(vm.runInContext('cards.length',context),6);
-// A selected filename remains visible after processing; retry resets it on click.
-context.removeCard(5);
-get('shareFile').value='C:\\fakepath\\card.png';
-get('shareFile').files=[{size:1000,type:'image/png'}];await get('shareFile').onchange();
-assert.equal(get('shareFile').value,'C:\\fakepath\\card.png');
-context.removeCard(5);get('shareFile').onclick();assert.equal(get('shareFile').value,'');
-get('shareFile').files=[];await get('shareFile').onchange();
-assert.match(get('shareStatus').textContent,/保留之前/);
-// Reading and encoding are separate stages; stalled encoding can be retried.
-const originalToBlob=get('sharec').toBlob;let lateEncode;
-get('sharec').toBlob=cb=>{lateEncode=cb};
-get('shareFile').value='C:\\fakepath\\card.png';get('shareFile').files=[{size:1000,type:'image/png'}];
-const stalledEncoding=get('shareFile').onchange();await flush();await flush();
-assert.match(get('shareStatus').textContent,/正在压缩/);assert.equal(vm.runInContext('cardBusy',context),true);
-const encodingTimeout=[...timers.values()].find(t=>t.ms===10000);assert.ok(encodingTimeout);
-encodingTimeout.fn();await stalledEncoding;
-assert.match(get('shareStatus').textContent,/图片压缩超时/);
-assert.equal(vm.runInContext('cardBusy',context),false);assert.equal(vm.runInContext('shareImg',context),null);
-assert.equal(get('shareFile').value,'C:\\fakepath\\card.png','timeout must not erase the selected filename');
-assert.equal(vm.runInContext('cards.length',context),5);
-lateEncode(new Blob([new Uint8Array(1000)],{type:'image/jpeg'}));await flush();
-assert.equal(vm.runInContext('cards.length',context),5,'late encoding callback cannot add a card');
-get('sharec').toBlob=originalToBlob;get('shareFile').onclick();
-get('shareFile').files=[{size:1000,type:'image/png'}];await get('shareFile').onchange();
-assert.equal(vm.runInContext('cards.length',context),6,'same file can be retried after encoding timeout');
-context.removeCard(5);
-// Reject null, unexpected MIME and thrown encoding errors without wedging the picker.
-for(const encode of [cb=>cb(null),cb=>cb(new Blob(['png'],{type:'image/png'})),()=>{throw new Error('canvas unavailable')}]){
- get('sharec').toBlob=encode;await get('shareFile').onchange();
- assert.equal(get('shareStatus').dataset.error,'true');assert.equal(vm.runInContext('cardBusy',context),false);
- assert.equal(vm.runInContext('cards.length',context),5);
-}
-get('sharec').toBlob=originalToBlob;imageMode='stall';
-const stalledReading=get('shareFile').onchange();await flush();
-assert.match(get('shareStatus').textContent,/正在读取/);
-const readingTimeout=[...timers.values()].find(t=>t.ms===15000);assert.ok(readingTimeout);
-readingTimeout.fn();await stalledReading;imageMode='ok';
-assert.match(get('shareStatus').textContent,/读取图片超时/);assert.equal(vm.runInContext('cardBusy',context),false);
-assert.ok(html.indexOf('id="shareStatus"')<html.indexOf('id="cardList"'),'picker feedback precedes the gallery');
-console.log('Image feedback: filename preservation, distinct decode/encode stages, encoding timeout/retry/late callback, MIME/null/exception recovery: PASS');
-console.log('Multiselect: unfiltered multiple file input, multiple photo alternative, separate single replacement, cancelled replacement isolation and non-image rejection: PASS');
- console.log('Card gallery: six-image limit, sequential compression, released original bitmaps, quality ladder, reject oversized, stable slots, reorder/delete and partial-save retry: PASS');
- console.log('Phone setup: Wi-Fi/images/Muse, nationwide cities, phone GPS/raw coordinates, permission/timeout/manual override, HTTPS popup authentication and copy fallback: PASS');
+
+ // One background is prepared on the phone, persisted before finishing, and retries preserve the selection.
+ const choose=async()=>{get('backgroundFile').files=[{size:1000,type:'image/png'}];await get('backgroundFile').onchange()};
+ await choose();assert.equal(get('backgroundPreview').hidden,false);assert.match(get('backgroundStatus').textContent,/准备/);
+ const start=requests.length;await get('save').onclick();
+ const writes=requests.slice(start).filter(r=>r.options.method==='POST').map(r=>r.url.split('?')[0]);
+ assert.deepEqual(writes,['/api/profile','/api/background','/api/finish']);assert.equal(backgroundPresent,true);
+ await choose();failBackground=true;const finishes=posts().filter(r=>r.url.startsWith('/api/finish')).length;
+ await get('save').onclick();assert.equal(posts().filter(r=>r.url.startsWith('/api/finish')).length,finishes);assert.match(get('saveStatus').textContent,/背景保存未确认/);
+ failBackground=false;await get('save').onclick();assert.equal(posts().filter(r=>r.url.startsWith('/api/finish')).length,finishes+1);
+ get('clearBackground').onclick();await get('save').onclick();assert.equal(backgroundPresent,false);
+ assert.equal(requests.filter(r=>r.url.startsWith('/api/background')).at(-1).options.method,'DELETE');
+ qualityAttempts=[];blobBytes=q=>q>.45?12000:6000;await choose();assert.deepEqual(qualityAttempts,[.58,.45]);
+ assert.equal(get('backgroundEditor').hidden,false);
+ get('backgroundZoom').value='200';get('backgroundZoom').oninput();assert.match(get('backgroundState').textContent,/待压缩/);
+ get('backgroundX').value='0';get('backgroundX').oninput();get('backgroundY').value='100';get('backgroundY').oninput();
+ get('rotateBackground').onclick();assert.equal(vm.runInContext('backgroundRotation',context),90);
+ qualityAttempts=[];await get('applyBackground').onclick();assert.deepEqual(qualityAttempts,[.58,.45]);assert.match(get('backgroundStatus').textContent,/5.9 KB/);
+ // Saving an edited crop must compress again before uploading, without an explicit Apply click.
+ get('backgroundQuality').value='balanced';get('backgroundQuality').onchange();qualityAttempts=[];await get('save').onclick();assert.deepEqual(qualityAttempts,[.68]);
+ get('backgroundQuality').value='detail';get('backgroundQuality').onchange();qualityAttempts=[];await get('applyBackground').onclick();assert.deepEqual(qualityAttempts,[.78]);
+ get('backgroundQuality').value='fast';get('backgroundQuality').onchange();
+ blobBytes=30000;await choose();assert.match(get('backgroundStatus').textContent,/超过所选档位/);
+ // A rejected new selection keeps the previously prepared valid background available for retry.
+ blobBytes=6000;imageMode='error';await choose();assert.match(get('backgroundStatus').textContent,/无法读取/);imageMode='ok';
+ get('backgroundFile').files=[{size:1000,type:'application/pdf'}];await get('backgroundFile').onchange();assert.match(get('backgroundStatus').textContent,/图片/);
+ imageMode='stall';get('backgroundFile').files=[{size:1000,type:'image/png'}];const pending=get('backgroundFile').onchange();await flush();
+ const timeout=[...timers.values()].find(t=>t.ms===15000);assert.ok(timeout);timeout.fn();await pending;assert.match(get('backgroundStatus').textContent,/超时/);imageMode='ok';
+ assert.equal(get('save').disabled,false);
+ // FMO is opt-in: no identity generation or remote submission on initial page load.
+ assert.equal(requests.filter(r=>r.url.startsWith('/api/fmo')).length,0);
+ await get('fmoRefresh').onclick();assert.match(get('fmoStatus').textContent,/先创建/);assert.equal(fmoPub,'');
+ await get('fmoInit').onclick();assert.equal(fmoPub,'A'.repeat(43));assert.match(get('fmoIdentity').textContent,/等待有效证书/);
+ await get('fmoInit').onclick();assert.equal(fmoPub,'A'.repeat(43),'retry retains device identity');
+ await get('fmoRefresh').onclick();assert.match(get('fmoStatus').textContent,/没有本机申请/);
+ const beforeApply=posts().filter(r=>r.url.startsWith('/api/fmo/ca')).length;
+ get('fmoCallsign').value='bad call';await get('fmoApply').onclick();assert.equal(posts().filter(r=>r.url.startsWith('/api/fmo/ca')).length,beforeApply);
+ get('fmoCallsign').value='bg0test';await get('fmoApply').onclick();assert.match(get('fmoStatus').textContent,/合照/);
+ get('fmoPhoto').files=[{size:1000,type:'image/png'}];fmoRemote={state:'none'};
+ await get('fmoApply').onclick();assert.match(get('fmoStatus').textContent,/等待签发服务审核/);
+ assert.equal(posts().filter(r=>r.url.startsWith('/api/fmo/ca')).length,beforeApply+1);
+ await get('fmoApply').onclick();assert.equal(posts().filter(r=>r.url.startsWith('/api/fmo/ca')).length,beforeApply+1,'pending approval never re-uploads the photo');
+ const pollFmo=[...timers.entries()].find(([,t])=>t.ms===5000);assert.ok(pollFmo);
+ fmoRemote={state:'ready',cert:'Y2VydA=='};failFmoImport=true;await get('fmoRefresh').onclick();assert.match(get('fmoStatus').textContent,/签名验证失败/);assert.equal(fmoReady,false);
+ failFmoImport=false;await get('fmoRefresh').onclick();assert.equal(fmoReady,true);assert.match(get('fmoStatus').textContent,/校验并保存/);
+ fmoRemote={state:'ready',cert:'Y2VydA==',revoked:true};await get('fmoRefresh').onclick();assert.match(get('fmoStatus').textContent,/撤销或过期/);
+ fmoRemote={state:'rejected',message:'<img src=x onerror=alert(1)>'};await get('fmoRefresh').onclick();assert.equal(get('fmoStatus').textContent,fmoRemote.message);
+ get('fmoHost').value='relay.example.test';get('fmoPort').value='1883';get('fmoRelayCall').value='BG0SRV';get('fmoRelayUid').value='456';get('fmoFingerprint').value='B'.repeat(43);
+ await get('fmoSaveRelay').onclick();assert.equal(fmoRelay.host,'relay.example.test');assert.equal(fmoRelay.port,1883);
+ get('fmoPort').value='0';await get('fmoSaveRelay').onclick();assert.match(get('fmoStatus').textContent,/完整中继参数/);assert.equal(fmoRelay.port,1883);
+ await get('fmoRefreshServers').onclick();assert.match(get('fmoStatus').textContent,/尚未缓存/);
+ fmoServers=[{uid:456,name:'测试中继',host:'relay.example.test',callsign:'BG0SRV',port:1883,fingerprint:'B'.repeat(43)}];
+ await get('fmoRefreshServers').onclick();assert.ok(get('fmoServerList').options.some(s=>s.value==='456'));
+ get('fmoServerList').value='456';await get('fmoSelectServer').onclick();assert.match(get('fmoStatus').textContent,/服务器已选定/);assert.equal(fmoRelay.uid,456);
+ Object.assign(fmoServers[0],{stats_known:true,online:0,peak:200,range_km:500});await get('fmoRefreshServers').onclick();assert.ok(get('fmoServerList').options.some(s=>s.text.includes('广播在线 0/200 · 500km')));
+ fmoServers[0].stats_known=false;await get('fmoRefreshServers').onclick();assert.ok(get('fmoServerList').options.some(s=>s.value==='456'&&s.text.includes('待更新')));
+ Object.assign(fmoServers[0],{stats_known:true,online:'<img onerror=alert(1)>'});await get('fmoRefreshServers').onclick();assert.ok(get('fmoServerList').options.some(s=>s.value==='456'&&s.text.includes('待更新')&&!s.text.includes('<img')));
+
+ fmoServers=[];get('fmoServerList').value='456';await get('fmoSelectServer').onclick();assert.match(get('fmoStatus').textContent,/过期/);
+ assert.equal(get('fmoApply').disabled,false);assert.equal(get('fmoPhoto').disabled,false);
+ context.stopFmoPoll();
+ await get('fmoReadBook').onclick();assert.match(get('fmoBookCount').textContent,/0\/64/);assert.match(get('fmoBookEntries').options[0].textContent,/还没有/);
+ fmoBook=Array.from({length:10},(_,i)=>({callsign:'BG0T'+i,uid:i+1,relay_uid:456,first_seen:1800000000,last_seen:1800000000+i,receptions:i+1}));
+ const readStart=requests.length;await get('fmoReadBook').onclick();
+ assert.equal(requests.slice(readStart).filter(r=>r.url.includes('book=')).length,2);
+ assert.equal(get('fmoBookEntries').options.length,10);assert.equal(get('fmoBookEntries').options[0].options[0].textContent,'BG0T9');
+ assert.match(get('fmoBookEntries').options[0].options[1].textContent,/初次：.*最近：.*10次/);
+ get('fmoBookSearch').value='t3';get('fmoBookSearch').oninput();assert.equal(get('fmoBookEntries').options.length,1);assert.equal(get('fmoBookEntries').options[0].options[0].textContent,'BG0T3');
+ get('fmoBookSearch').value='NONE';get('fmoBookSearch').oninput();assert.match(get('fmoBookEntries').options[0].textContent,/没有匹配/);
+ get('fmoBookSearch').value='';get('fmoBookSearch').oninput();
+ for(const fault of ['unavailable','missing']){fmoBookFault=fault;await get('fmoReadBook').onclick();assert.match(get('fmoBookStatus').textContent,/失败|不完整/);assert.equal(get('fmoBookEntries').options.length,10)}
+ fmoBookFault='';fmoBook[0].callsign='<img onerror=alert(1)>';
+ await get('fmoReadBook').onclick();assert.match(get('fmoBookStatus').textContent,/格式无效/);assert.equal(get('fmoBookEntries').options.length,10);
+ assert.equal(get('fmoReadBook').disabled,false);
+ await get('fmoReadAprs').onclick();assert.equal(get('fmoAprsEnabled').checked,false);assert.equal(get('fmoAprsSsid').value,'15');
+ let aprsBefore=posts().length;get('fmoAprsEnabled').checked=true;get('fmoAprsGrid').value='SS99';await get('fmoSaveAprs').onclick();assert.equal(posts().length,aprsBefore);assert.match(get('fmoAprsStatus').textContent,/网格/);
+ get('fmoAprsGrid').value='PM06eb';get('fmoAprsSsid').value='1';get('fmoAprsFrequency').value='438.5';get('fmoAprsHeight').value='15';get('fmoAprsRig').value='AI Passport';get('fmoAprsAntenna').value='J';
+ await get('fmoSaveAprs').onclick();assert.equal(fmoAprs.enabled,true);assert.equal(fmoAprs.grid,'PM06EB');assert.equal(fmoAprs.ssid,1);assert.match(get('fmoAprsStatus').textContent,/不会发送广播/);
+ get('fmoAprsLegacy').checked=true;await get('fmoSaveAprs').onclick();assert.equal(fmoAprs.legacy_beacon,true);
+ aprsBefore=posts().length;get('fmoAprsRig').value='bad,field';await get('fmoSaveAprs').onclick();assert.equal(posts().length,aprsBefore);
+ get('fmoAprsRig').value='中文设备设备设备设备设备';await get('fmoSaveAprs').onclick();assert.equal(posts().length,aprsBefore);
+ get('fmoAprsRig').value='AI Passport';failAprsSave=true;get('fmoAprsEnabled').checked=false;await get('fmoSaveAprs').onclick();assert.equal(fmoAprs.enabled,true);assert.match(get('fmoAprsStatus').textContent,/保存失败/);
+ failAprsSave=false;await get('fmoSaveAprs').onclick();assert.equal(fmoAprs.enabled,false);assert.match(get('fmoAprsStatus').textContent,/已关闭/);
+ assert.equal(get('fmoSaveAprs').disabled,false);
+ const caPosts=requests.filter(r=>r.url.startsWith('/api/fmo/ca')&&r.options.method==='POST').length,identityBefore=fmoPub;
+ fmoClockValid=false;failFmoClock=true;await get('fmoRefresh').onclick();assert.match(get('fmoStatus').textContent,/校准/);
+ await get('fmoApply').onclick();assert.equal(requests.filter(r=>r.url.startsWith('/api/fmo/ca')&&r.options.method==='POST').length,caPosts);assert.equal(fmoPub,identityBefore);assert.equal(get('fmoApply').disabled,false);
+ fmoClockValid=true;failFmoClock=false;
+
+
+ let releaseCrl;fmoCrlGate=new Promise(resolve=>releaseCrl=resolve);const pendingCrl=get('fmoCheckCrl').onclick();await flush();assert.ok([...timers.values()].some(t=>t.ms===90000));assert.equal(get('fmoCheckCrl').disabled,true);releaseCrl();await pendingCrl;fmoCrlGate=null;
+ const crlIdentity=fmoPub;await get('fmoCheckCrl').onclick();assert.match(get('fmoCrlStatus').textContent,/暂无法确认/);assert.match(get('fmoCrlStatus').textContent,/已知吊销将阻止本机FMO通联/);
+ fmoCrl.state='current';await get('fmoCheckCrl').onclick();assert.match(get('fmoCrlStatus').textContent,/缓存中的两级列表/);assert.match(get('fmoCrlStatus').textContent,/根列表不可用/);
+ fmoCrl.user.saved=false;await get('fmoCheckCrl').onclick();assert.match(get('fmoCrlStatus').textContent,/保存未确认/);fmoCrl.user.saved=true;fmoCrl.root.cache='restored';await get('fmoCheckCrl').onclick();assert.match(get('fmoCrlStatus').textContent,/已恢复签名缓存/);
+ fmoCrl.state='revoked';await get('fmoCheckCrl').onclick();assert.match(get('fmoCrlStatus').textContent,/命中/);
+ fmoCrl.root.message='<img src=x onerror=alert(1)>';await get('fmoCheckCrl').onclick();assert.ok(get('fmoCrlStatus').textContent.includes('<img'));
+ failFmoCrl=true;await get('fmoCheckCrl').onclick();assert.match(get('fmoCrlStatus').textContent,/网络断开/);assert.equal(get('fmoCheckCrl').disabled,false);assert.equal(fmoPub,crlIdentity);
+ failFmoCrl=false;fmoCrl={state:'current'};await get('fmoCheckCrl').onclick();assert.match(get('fmoCrlStatus').textContent,/无法识别/);assert.equal(get('fmoCheckCrl').disabled,false);
+
+ // FMO Wi-Fi auto-reconnect on wifi_required + /api/time phone sync + legacy import + custom stamp studio.
+ {
+  const beforeConnects=posts().filter(r=>r.url.startsWith('/api/connect')).length;
+  fmoStaConnected=false;state='idle';saved=true;fmoRemote={state:'none'};
+  const p=get('fmoRefresh').onclick();await flush();await flush();
+  const waitPoll=[...timers.entries()].find(([,t])=>t.ms===1000);assert.ok(waitPoll,'wifi_required must auto-connect saved Wi-Fi and poll');
+  timers.delete(waitPoll[0]);waitPoll[1].fn();await p;
+  assert.equal(posts().filter(r=>r.url.startsWith('/api/connect')).length,beforeConnects+1);
+  assert.match(get('fmoStatus').textContent,/没有本机申请/);
+  // Legacy fmo_cred read-only import button.
+  fmoReady=false;fmoLegacyAvail=true;await context.fmoLocal();
+  assert.equal(get('fmoImportLegacy').hidden,false);assert.match(get('fmoImportLegacy').textContent,/P-BG0OLD/);
+  await get('fmoImportLegacy').onclick();assert.equal(fmoReady,true);assert.equal(get('fmoImportLegacy').hidden,true);
+  // Custom stamp studio: read, save built-in style/color/label, upload 4608B custom pattern, clear.
+  await get('fmoReadStamp').onclick();assert.equal(get('fmoStampStyle').value,'G001');
+  get('fmoStampStyle').value='G007';get('fmoStampColor').value='#2E8B57';get('fmoStampLabel').value='BEIJING';
+  await get('fmoSaveStamp').onclick();assert.equal(fmoStamp.style_id,'G007');assert.equal(fmoStamp.color,'#2E8B57');assert.equal(fmoStamp.label,'BEIJING');
+  get('fmoStampLabel').value='bad,label';await get('fmoSaveStamp').onclick();assert.match(get('fmoStampStatus').textContent,/铭文/);assert.equal(fmoStamp.label,'BEIJING');
+  get('fmoStampFile').files=[{size:2048,type:'image/png'}];await get('fmoStampFile').onchange();
+  assert.equal(get('fmoUploadStamp').disabled,false);
+  await get('fmoUploadStamp').onclick();assert.equal(fmoStamp.custom_present,true);assert.equal(fmoStamp.style_id,'CUSTOM');
+  await get('fmoExportStamp').onclick();assert.match(get('fmoStampStatus').textContent,/已下载/);
+  const backupPixels=new Uint8Array(4608).fill(0x5a);
+  get('fmoStampFile').files=[{name:'passport-custom.fmostamp',size:4608,arrayBuffer:async()=>backupPixels.buffer}];
+  await get('fmoStampFile').onchange();assert.match(get('fmoStampStatus').textContent,/已载入点阵备份/);
+  await get('fmoUploadStamp').onclick();
+  const stampPost=posts().filter(r=>r.url.startsWith('/api/fmo/stamp')).at(-1);
+  assert.deepEqual(new Uint8Array(await stampPost.options.body.arrayBuffer()),backupPixels);
+  get('fmoStampFile').files=[{name:'broken.fmostamp',size:2}];
+  await get('fmoStampFile').onchange();assert.match(get('fmoStampStatus').textContent,/4608/);
+  await get('fmoClearStamp').onclick();assert.equal(fmoStamp.custom_present,false);assert.equal(fmoStamp.style_id,'G001');
+  // Built-in PASSPORT fallback relay switch + Roger Beep toggle/clear.
+  await get('fmoUseBuiltin').onclick();assert.equal(fmoRelay,null);assert.match(get('fmoStatus').textContent,/内置中继台/);
+  get('fmoBeepEnabled').checked=false;get('fmoBeepSelect').value='0';await get('fmoBeepApply').onclick();
+  assert.equal(fmoBeep.enabled,false);assert.match(get('fmoBeepStatus').textContent,/关闭/);
+  get('fmoBeepEnabled').checked=true;await get('fmoBeepApply').onclick();
+  assert.equal(fmoBeep.enabled,true);assert.equal(fmoBeep.use_custom,false);
+  await get('fmoBeepRefresh').onclick();
+  assert.match(get('fmoBeepStatus').textContent,/1 款/);
+  const beepPosts=()=>posts().filter(r=>r.url.startsWith('/api/fmo/beep'));
+  const chooseTone=()=>{get('fmoBeepEnabled').checked=true;get('fmoBeepSelect').value='6';return get('fmoBeepApply').onclick()};
+  failBeepWrite=true;const countBefore=beepPosts().length;
+  await chooseTone();
+  assert.equal(beepPosts().length,countBefore+1);
+  assert.equal(beepPosts().at(-1).options.body.type,'application/octet-stream');
+  assert.match(get('fmoBeepStatus').textContent,/设备写入失败/);
+  failBeepWrite=false;beepCloudMode='wrong-id';
+  await chooseTone();
+  assert.equal(beepPosts().length,countBefore+2);
+  assert.deepEqual(JSON.parse(beepPosts().at(-1).options.body),{download_id:6});
+  assert.equal(fmoBeep.custom_id,6);
+  await get('fmoBeepClear').onclick();assert.equal(fmoBeep.custom_present,false);
+ }
+
+ for(const request of requests)assert.ok(!/\/api\/(avatar|share|cards|muse)/.test(request.url));
+ console.log('Phone setup: strict DOM, offline Wi-Fi/cities/GPS, no portrait/cards, single background compression/upload/delete/retry partial-save ordering, FMO opt-in application/polling/import/expiry relay validation paged/searchable heard book with failure preservation and explicit APRS configuration and signed station snapshot labels and clock-failure photo preflight PASS');
 })().catch(e=>{console.error(e);process.exitCode=1});

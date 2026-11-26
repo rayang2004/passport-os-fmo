@@ -49,7 +49,7 @@ void shutdown_task(void *) {
 bool radio_sleep_timer_init() {
     if (s_timer && s_shutdown_task) return true;
     if (!s_shutdown_task &&
-        xTaskCreate(shutdown_task, "radio_shutdown", 2048, nullptr, 7,
+        xTaskCreate(shutdown_task, "radio_shutdown", 4096, nullptr, 7,
                     &s_shutdown_task) != pdPASS) {
         s_shutdown_task = nullptr;
         return false;

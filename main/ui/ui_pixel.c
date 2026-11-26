@@ -57,28 +57,6 @@ uint32_t ui_theme_color_on_dark(ui_color_role_t role)
     if ((unsigned)role >= UI_COLOR_COUNT) role = UI_COLOR_TEXT;
     return s_ui_theme == UI_THEME_PLAYFUL ? s_playful_dark[role] : ui_theme_color(role);
 }
-uint32_t ui_theme_portrait_color(uint8_t level)
-{
-    const uint32_t bg = ui_theme_color_on_dark(UI_COLOR_BG);
-    const uint32_t fg = s_ui_theme == UI_THEME_PLAYFUL ? 0xF1EEE6 : ui_theme_color_on_dark(UI_COLOR_TEXT);
-    if (level > 3) level = 3;
-    uint32_t color = 0;
-    for (int shift = 0; shift <= 16; shift += 8) {
-        const unsigned a = (bg >> shift) & 255, b = (fg >> shift) & 255;
-        color |= ((a * (3-level) + b * level) / 3) << shift;
-    }
-    return color;
-}
-uint32_t ui_theme_portrait_subject_color(uint8_t level)
-{
-    static const uint32_t colors[UI_THEME_COUNT][4] = {
-        {0x254D36, 0x4B8060, 0x80B795, 0xA8EDBB},
-        {0x484D43, 0x797D69, 0xB6B7A0, 0xEEE7D6},
-        {0x374543, 0x637771, 0xADBFB1, 0xF1EEE6},
-        {0x343C55, 0x657593, 0xB3C5D8, 0xF4F4F6},
-    };
-    return colors[s_ui_theme][level > 3 ? 3 : level];
-}
 const char *ui_theme_name(ui_theme_t theme)
 {
     switch (theme) {

@@ -1,4 +1,5 @@
 #include "launcher/app_registry.h"
+#include "apps/home/app_home.h"
 #include "launcher/timer_resume.h"
 #include "bsp_memory.h"
 #include "bsp_memory.h"
@@ -40,11 +41,11 @@ extern const passport_app_t g_game_app;
 extern const passport_app_t g_tetris_app;
 extern const passport_app_t g_stopwatch_app;
 extern const passport_app_t g_sound_jump_app;
-extern const passport_app_t g_muse_app;
 extern const passport_app_t g_pomodoro_app;
 extern const passport_app_t g_netease_app;
 extern const passport_app_t g_reminders_app;
 extern const passport_app_t g_lists_app;
+extern const passport_app_t g_fmo_app;
 
 namespace {
 
@@ -57,11 +58,11 @@ const passport_app_t *s_apps[] = {
     &g_radio_app,
     &g_netease_app,
     &g_voice_app,
-    &g_muse_app,
     &g_pomodoro_app,
     &g_stopwatch_app,
     &g_reminders_app,
     &g_lists_app,
+    &g_fmo_app,
     &g_tetris_app,
     &g_game_app,
     &g_sound_jump_app,
@@ -106,7 +107,7 @@ WifiPowerSaveLevel power_save_level_for(passport_app_id_t id) {
         case APP_ID_NETEASE:
         case APP_ID_VOICE:
         case APP_ID_XIAOZHI:
-        case APP_ID_MUSE:
+        case APP_ID_FMO:
             return WifiPowerSaveLevel::BALANCED;
         default:
             return WifiPowerSaveLevel::LOW_POWER;
@@ -136,7 +137,7 @@ HeapNeed heap_need(passport_app_id_t id) {
         // Same MP3 decoder as Radio; logged-in requests add TLS only while it is closed.
         case APP_ID_NETEASE: return {24 * 1024, 48 * 1024};
         case APP_ID_XIAOZHI: return {16 * 1024, 64 * 1024};
-        case APP_ID_MUSE: return {20 * 1024, 44 * 1024};
+        case APP_ID_FMO: return {16 * 1024, 64 * 1024};
         default: return {0, 0};
     }
 }
@@ -149,7 +150,7 @@ bool s_heap_strained = false;
 bool s_fresh_heap = false;
 
 bool heavy_app(passport_app_id_t id) {
-    return id == APP_ID_RADIO || id == APP_ID_NETEASE || id == APP_ID_XIAOZHI || id == APP_ID_MUSE;
+    return id == APP_ID_RADIO || id == APP_ID_NETEASE || id == APP_ID_XIAOZHI || id == APP_ID_FMO;
 }
 
 // 在旧应用 stop() 之后调用:此时测到的才是新应用可用的堆。
@@ -176,6 +177,7 @@ void show_clean_launch_notice(passport_app_id_t id);
 
 // 息屏与背光管理
 std::atomic<bool> s_screen_on{true};
+std::atomic<bool> s_powering_off{false};
 std::atomic<passport_app_id_t> s_pending_target{APP_ID_COUNT};
 esp_pm_lock_handle_t s_display_awake_lock = nullptr;
 std::atomic<int64_t> s_last_activity_us{0};
@@ -242,6 +244,13 @@ bool begin_screen_handoff() {
     if (!bsp_lvgl_lock(500)) return false;
     lv_obj_t *screen = lv_obj_create(nullptr);
     if (screen) {
+        if (!s_screen_on.load()) {
+            if (s_active_id == APP_ID_HOME) home_set_ambient(false);
+            if (s_display_awake_lock) esp_pm_lock_acquire(s_display_awake_lock);
+            bsp_display_power(true); bsp_display_backlight(100);
+            s_screen_on.store(true);
+            s_last_activity_us.store(esp_timer_get_time());
+        }
         s_building_target = true;
         auto *old_handoff = s_handoff_screen;
         s_handoff_screen = screen;
@@ -506,6 +515,7 @@ void app_registry_dispatch_key(uint8_t btn, app_btn_event_t event, uint16_t mv) 
             wake_gate_arm(&s_wake_gate);
             if (!bsp_lvgl_lock(500)) return;
             if (s_display_awake_lock) esp_pm_lock_acquire(s_display_awake_lock);
+            if (s_active_id == APP_ID_HOME) home_set_ambient(false);
             bsp_display_power(true);
             bsp_display_backlight(100);
             s_screen_on.store(true, std::memory_order_release);
@@ -543,6 +553,13 @@ void app_registry_dispatch_key(uint8_t btn, app_btn_event_t event, uint16_t mv) 
 
     if (reminders::intercept_key(btn,event)) return;
     const auto source = s_active_id.load();
+    // FMO owns long OK for PTT. Do not arm the Back release suppression:
+    // its matching RELEASE/LONG_UP must reach the app to stop transmission.
+    if (source == APP_ID_FMO && btn == BSP_BTN_OK && event == BTN_EVT_LONG) {
+        const auto *app = app_registry_get_by_id(source);
+        if (app && app->on_key) app->on_key(btn,event,mv);
+        return;
+    }
     auto feedback = [&](ui_sfx_kind_t kind) {
         if (s_pending_target == APP_ID_COUNT && !boot_chime_busy() &&
             feedback_allowed(source) && feedback_allowed(s_active_id.load())) ui_sfx_play(kind);
@@ -617,6 +634,7 @@ void app_registry_dispatch_key(uint8_t btn, app_btn_event_t event, uint16_t mv) 
 }
 
 void app_registry_tick(void) {
+    if (s_powering_off.load(std::memory_order_acquire)) return;
     if (bsp_lvgl_lock(50)) {
         if (!s_building_target.load() && s_handoff_screen && lv_screen_active() != s_handoff_screen) {
             lv_obj_delete(s_handoff_screen);
@@ -641,14 +659,17 @@ void app_registry_tick(void) {
                 bsp_lvgl_unlock();
                 return;
             }
-            bsp_display_backlight(0);
-            bsp_display_power(false); // DISPOFF+SLPIN 面板真睡眠,只关背光会有内容残影
+            const bool ambient = s_active_id == APP_ID_HOME;
+            if (ambient) home_set_ambient(true);
+            // LCD ambient mode needs a lit panel; other apps retain full panel sleep.
+            bsp_display_backlight(ambient ? 3 : 0);
+            if (!ambient) bsp_display_power(false);
             lv_timer_t *refr = lv_display_get_refr_timer(lv_display_get_default());
             if (refr) lv_timer_pause(refr);
             s_screen_on.store(false, std::memory_order_release);
             if (s_display_awake_lock) esp_pm_lock_release(s_display_awake_lock);
             bsp_lvgl_unlock();
-            ESP_LOGI(TAG, "Screen blanked after %u seconds", (unsigned)timeout);
+            ESP_LOGI(TAG, "Power save after %u seconds (home ambient=%d)", (unsigned)timeout, ambient);
         }
     }
 }
@@ -678,6 +699,7 @@ bool app_registry_wake_for_notice(void) {
         s_handoff_screen || !lv_screen_active()) return false;
     if (!s_screen_on.load(std::memory_order_acquire)) {
         if (s_display_awake_lock) esp_pm_lock_acquire(s_display_awake_lock);
+        if (s_active_id == APP_ID_HOME) home_set_ambient(false);
         bsp_display_power(true);
         bsp_display_backlight(100);
         s_screen_on.store(true, std::memory_order_release);
@@ -711,4 +733,18 @@ void app_registry_log_display_state(void) {
         (unsigned)s_handoff_count, (unsigned)s_handoff_flushes, (unsigned)s_panel_flushes,
         s_handoff_screen && lv_screen_active() == s_handoff_screen);
     bsp_lvgl_unlock();
+}
+
+void app_registry_prepare_power_off(void) {
+    s_powering_off.store(true, std::memory_order_release);
+    SwitchGuard guard;
+    if (!guard.try_take(pdMS_TO_TICKS(500))) return;
+    const passport_app_id_t active = s_active_id.load();
+    if (active == APP_ID_LAUNCHER) return;
+    const passport_app_t *current = app_registry_get_by_id(active);
+    if (!current || !current->prepare_stop) return;
+    for (int waited = 0; waited < 75; ++waited) {
+        if (current->prepare_stop()) break;
+        vTaskDelay(pdMS_TO_TICKS(20));
+    }
 }

@@ -46,6 +46,8 @@ public:
     void StartSmartConfig();
 #endif
     bool ConnectToWifi(const std::string &ssid, const std::string &password, bool keep_connected = false);
+    bool IsStaConnected() const { return sta_connected_.load(); }
+    std::string GetStaSsid();
     void Save(const std::string &ssid, const std::string &password);
     std::vector<wifi_ap_record_t> GetAccessPoints();
     std::string GetSsid();
@@ -68,7 +70,9 @@ private:
     esp_event_handler_instance_t instance_any_id_;
     esp_event_handler_instance_t instance_got_ip_;
     esp_timer_handle_t scan_timer_ = nullptr;
-    bool is_connecting_ = false;
+    std::atomic<bool> is_connecting_{false};
+    std::atomic<bool> sta_connected_{false};
+    std::string sta_ssid_;
     std::atomic<int> last_disconnect_reason_{0};
     esp_netif_t* ap_netif_ = nullptr;
     std::vector<wifi_ap_record_t> ap_records_;

@@ -21,11 +21,12 @@ typedef enum {
     APP_ID_TETRIS,
     APP_ID_STOPWATCH,
     APP_ID_SOUND_JUMP,
-    APP_ID_MUSE,
+    APP_ID_MUSE, // retired, unregistered; keep numeric IDs stable for saved RTC navigation
     APP_ID_POMODORO,
     APP_ID_NETEASE,
     APP_ID_REMINDERS,
     APP_ID_LISTS,
+    APP_ID_FMO,
     APP_ID_COUNT
 } passport_app_id_t;
 

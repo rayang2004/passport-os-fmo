@@ -40,6 +40,8 @@ done
     tests/test_stopwatch.c main/apps/stopwatch/stopwatch_core.c -o "$test_dir/stopwatch"
 "$test_dir/stopwatch"
 python3 tests/test_wifi_configure.py
+python3 tests/test_wifi_station_ip.py
+python3 tests/test_fmo_ca_clock.py
 python3 tests/test_wifi_internet.py
 "${CC:-cc}" -std=c11 -Wall -Wextra -Werror -fsanitize=address,undefined -g -Imain \
     tests/test_battery_guard.c -o "$test_dir/battery-guard"
@@ -71,14 +73,7 @@ python3 tests/test_wifi_internet.py
     tests/test_captive_setup.cc -o "$test_dir/captive-setup"
 "$test_dir/captive-setup"
 node tests/test_profile_page.js
-node tests/test_portrait_pixels.js
-python3 tests/test_card_gallery.py
-python3 tests/test_avatar_upload.py
-"${CC:-cc}" -std=c11 -D_POSIX_C_SOURCE=200809L -Wall -Wextra -Werror -Wno-unused-variable \
-    -fsanitize=address,undefined -g -ffunction-sections -fdata-sections \
-    -Itests/home_mocks -Itests/radio_mocks -Imain \
-    tests/test_home_storage.c -Wl,--gc-sections -lm -o "$test_dir/home-storage"
-"$test_dir/home-storage"
+python3 tests/test_background_store.py
 "${CXX:-c++}" -std=c++17 -Wall -Wextra -Werror -fsanitize=address,undefined -g \
     -Itests/vendor/cjson -Icomponents/esp-wifi-connect/include \
     tests/test_phone_time.cc tests/vendor/cjson/cJSON.c -o "$test_dir/phone-time"
@@ -97,6 +92,14 @@ python3 tests/test_radio_source.py
 python3 tests/test_xiaozhi.py
 python3 tests/test_reminders.py
 python3 tests/test_device_control.py
+python3 tests/test_fmo.py
+python3 tests/test_fmo_stamp.py
+python3 tests/test_fmo_beep.py
+python3 tests/test_fmo_mqtt.py
+python3 tests/test_fmo_crl_store.py
+python3 tests/test_fmo_book.py
+python3 tests/test_fmo_aprs_store.py
+python3 tests/test_fmo_upstream.py
 python3 tests/test_lists.py
 "${CC:-cc}" -std=c11 -Wall -Wextra -Werror -Icomponents/passport_muse/sdk -Icomponents/passport_muse/include \
     tests/test_muse_voice.c components/passport_muse/voice_helpers.c -o "$test_dir/muse-voice"
@@ -116,7 +119,8 @@ python3 tests/test_muse_queue.py
 python3 tests/test_bsp_audio_profiles.py
 python3 tests/test_memory_telemetry.py
 python3 tests/test_radio_lifecycle.py
-python3 tests/test_home_portrait_lifecycle.py
+python3 tests/test_minimal_home.py
+python3 tests/test_display_ambient.py
 python3 tests/test_voice_startup.py
 "${CC:-cc}" -std=c11 -Wall -Wextra -Werror -fsanitize=address,undefined -g \
     -Itests/home_mocks -Itests/radio_mocks -Icomponents/passport_muse/sdk \

@@ -52,17 +52,17 @@ details>summary{list-style:none;cursor:pointer}details>summary::-webkit-details-
 .sub>summary{font-size:13.5px;color:var(--green);font-weight:500;padding:4px 0}.sub .detail-body{padding:10px 0 0}
 .download-link{display:block;min-height:48px;padding:12px;border-radius:var(--r-s);background:var(--green);color:#fff;text-align:center;text-decoration:none;font-weight:600}.download-link.secondary-link{background:var(--tint);color:var(--green);font-size:14px}
 a{color:var(--green)}
-.file-pick{display:block;padding:14px;border:1.5px dashed #b9c6b9;border-radius:var(--r-s);background:var(--field)}.file-pick label{color:var(--ink);margin:0 0 8px}
-.file-pick input,.sub input[type=file]{display:block;width:100%;min-height:44px;font-size:14px;cursor:pointer}
-input::file-selector-button{min-height:40px;border:0;background:var(--green);color:#fff;padding:8px 14px;border-radius:9px;margin-right:10px;font:inherit;font-size:14px}
-.portrait-presets{border:0;padding:0;margin:0;min-width:0}.portrait-presets legend{font-size:13px;font-weight:600;color:var(--muted);margin-bottom:6px;padding:0}
-.portrait-segments{display:grid;grid-template-columns:1fr 1fr 1.6fr;gap:4px;padding:4px;background:var(--field);border-radius:var(--r-s)}.portrait-segments label{position:relative;margin:0;min-width:0;cursor:pointer;color:var(--ink);font-weight:500}.portrait-segments input{position:absolute;opacity:0;width:1px;height:1px}.portrait-segments span{display:flex;align-items:center;justify-content:center;min-height:40px;padding:4px;font-size:13px;text-align:center;border-radius:9px}.portrait-segments input:checked+span{color:#fff;background:var(--green)}.portrait-segments input:focus-visible+span{outline:3px solid #4b8a62}
-.crop-layout{display:flex;align-items:flex-end;justify-content:center;gap:16px;margin-top:14px}#vp{position:relative;width:192px;height:300px;overflow:hidden;border-radius:10px;background:#dde5d7;touch-action:none}#pv{position:absolute;pointer-events:none;user-select:none;max-width:none}#binc{width:96px;height:150px;border-radius:6px;background:#07170f;image-rendering:pixelated}
-.caption{display:block;text-align:center;font-size:12px;color:var(--muted);font-weight:400;margin:6px 0 0}
-input[type=range]{width:100%;min-height:36px}.check{display:flex;align-items:center;gap:8px;color:var(--ink);font-weight:400;font-size:14px;margin:0}
-#sharec{display:block;width:150px;height:200px;margin:0 auto;border-radius:8px;background:#fff;border:1px solid var(--line)}
 .saved{font-size:12.5px;color:var(--muted)}
-.card-row{display:flex;align-items:center;gap:12px;padding:12px 0;border-top:1px solid var(--line)}.card-thumb{width:54px;height:72px;object-fit:contain;background:var(--field);border-radius:6px;flex-shrink:0}.card-meta{flex:1;min-width:0}.card-meta p{margin:0 0 6px;font-size:13px;color:var(--muted)}.card-actions{display:flex;flex-wrap:wrap;gap:6px}.card-actions button{min-height:34px;padding:4px 10px;font-size:13px;border:0;border-radius:8px;background:var(--field);color:var(--ink)}.card-actions .remove{color:var(--error)}.card-empty{color:var(--muted);font-size:13px}
+.stamp-preview-wrap{background:#111518;border-radius:var(--r-s);padding:14px;text-align:center;color:#d6dce2}
+.stamp-preview-wrap canvas{width:96px;height:96px;display:block;margin:0 auto 6px;image-rendering:pixelated}
+.stamp-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+.stamp-opt{display:flex;flex-direction:column;align-items:center;gap:4px;padding:8px 4px;border:1.5px solid var(--line);border-radius:10px;background:var(--field);color:var(--ink);font-size:11px}
+.stamp-opt[aria-pressed=true]{border-color:var(--green);background:var(--tint);font-weight:600}
+.stamp-opt svg{width:38px;height:38px}
+.swatch-row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.swatch{width:32px;height:32px;border-radius:999px;border:2px solid var(--line);padding:0}
+.book-card{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 12px;border:1px solid var(--line);border-radius:12px;background:var(--field);margin-top:8px}
+.book-card svg{width:42px;height:42px;flex:none;color:#ff7a1a}
 .success-mark{width:64px;height:64px;color:var(--green);margin:40px 0 0}
 .recap strong{display:block;font-size:20px;font-weight:650;overflow-wrap:anywhere}.recap span{color:var(--muted);font-size:14px}
 @media(min-width:760px){.shell{padding-top:48px}}
@@ -71,7 +71,7 @@ input[type=range]{width:100%;min-height:36px}.check{display:flex;align-items:cen
 </head>
 <body><main class="shell">
 <header class="brand"><svg viewBox="0 0 16 16" aria-hidden="true"><path fill="#1f5c3f" d="M3 1h10v1h1v12h-1v1H3v-1H2V2h1z"/><path fill="#e6efe6" d="M5 4h6v1h1v4h-1v1H5V9H4V5h1z"/><path fill="#1f5c3f" d="M6 6h1v1H6zm3 0h1v1H9zM5 12h6v1H5z"/></svg>AI 护照
-<ol class="steps" aria-label="设置进度"><li id="progress1" aria-current="step">1 连接网络</li><li id="progress2">2 个人资料</li><li id="progress3">3 完成</li></ol></header>
+<ol class="steps" aria-label="设置进度"><li id="progress1" aria-current="step">1 连接网络</li><li id="progress2">2 城市设置</li><li id="progress3">3 完成</li></ol></header>
 
 <section id="step1" aria-labelledby="title1">
 <h1 id="title1" tabindex="-1">连接 Wi-Fi</h1>
@@ -85,18 +85,14 @@ input[type=range]{width:100%;min-height:36px}.check{display:flex;align-items:cen
 </div>
 <button class="text-button" id="manualToggle" type="button" aria-expanded="false">找不到网络？手动输入</button>
 <div id="networkStatus" class="status" role="status" aria-live="polite">正在读取设备状态…</div>
-<div class="actions"><button id="connect" class="primary" type="button" disabled>连接并继续</button><button id="reuse" class="secondary" type="button" hidden>连接已保存的 Wi-Fi</button><button id="keepSaved" class="text-button center" type="button" hidden>暂不联网，只修改资料</button></div>
+<div class="actions"><button id="connect" class="primary" type="button" disabled>连接并继续</button><button id="reuse" class="secondary" type="button" hidden>连接已保存的 Wi-Fi</button><button id="keepSaved" class="text-button center" type="button" hidden>暂不联网，只修改城市</button></div>
 <p class="note">手机提示“无互联网”时，选择继续使用此网络</p>
 </section>
 
 <section id="step2" aria-labelledby="title2" hidden>
-<h1 id="title2" tabindex="-1">个人资料</h1>
+<h1 id="title2" tabindex="-1">城市设置</h1>
 <div class="connection"><svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><circle cx="10" cy="10" r="8" stroke="currentColor" stroke-width="1.8"/><path d="m6 10 3 3 5-6" stroke="currentColor" stroke-width="1.8"/></svg><span id="connectionSummary">网络已就绪</span></div>
 <p class="intro">以下均可选填，以后也能修改</p>
-<div class="card">
-<div class="field"><label for="name">名字</label><input id="name" type="text" maxlength="9" autocomplete="nickname" placeholder="显示在首页"></div>
-<div class="field"><label for="sig">签名</label><input id="sig" type="text" maxlength="30" placeholder="一句话介绍自己"></div>
-</div>
 <div class="card">
 <div class="field"><label for="city">城市<span class="optional">用于天气和收音机</span></label>
 <div class="stack"><button id="locate" type="button" class="secondary" data-helper="" aria-describedby="locationHelp">使用手机当前位置</button><p id="locationHelp" class="vh">允许定位后自动匹配附近城市</p><p id="locationStatus" class="status" role="status" aria-live="polite"></p>
@@ -109,26 +105,112 @@ input[type=range]{width:100%;min-height:36px}.check{display:flex;align-items:cen
 </div>
 
 <div class="group">
-<details id="portraitSection"><summary><span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21c1-4.5 4.2-7 8-7s7 2.5 8 7"/></svg></span>首页人像<small id="avatarState">可稍后上传</small></summary><div class="detail-body">
-<div class="file-pick"><label for="file">选择一张清晰的人像</label><input type="file" id="file" name="portrait" accept="image/*" aria-describedby="avatarPickerHelp"></div>
-<details class="sub picker-help"><summary>选图没有反应？</summary><div class="detail-body"><label for="fileFallback">从文件选择</label><input type="file" id="fileFallback" name="portraitFile" aria-describedby="avatarPickerHelp"><p id="avatarPickerHelp" class="help">支持 JPEG、PNG。仍打不开时，用系统浏览器访问 192.168.4.1</p></div></details>
-<div id="photoTools" class="photo-tools" hidden>
-<fieldset class="portrait-presets"><legend>风格</legend><div class="portrait-segments">
-<label><input type="radio" name="portraitPreset" id="portraitPresetDot" value="1"><span>点阵</span></label>
-<label><input type="radio" name="portraitPreset" id="portraitPresetFlat" value="2"><span>平涂</span></label>
-<label><input type="radio" name="portraitPreset" id="portraitPresetHybrid" value="3" checked><span>平涂＋点阵</span></label>
-</div></fieldset>
-<div class="crop-layout"><div id="vp" style="height:276px"><img id="pv" alt="人像取景预览"></div><div><canvas id="binc" width="96" height="138" style="height:138px" aria-label="设备人像预览"></canvas><p class="caption">设备效果</p></div></div>
-<label for="zm" class="caption">缩放</label><input type="range" id="zm" min="100" max="400" value="100"><label for="portraitBrightness" class="caption">明暗</label><input type="range" id="portraitBrightness" min="-48" max="48" value="0">
-<label class="check"><input type="checkbox" id="portraitBackground"> 去除纯色背景</label></div>
-<p id="avatarStatus" class="status" role="status"></p></div></details>
-
-<details id="cardSection"><summary><span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2.5"/><circle cx="9" cy="11" r="2"/><path d="M6 16c.6-1.6 1.7-2.4 3-2.4s2.4.8 3 2.4M14.5 10h3.5M14.5 13.5h3.5"/></svg></span>随身名片<small id="shareState">最多 6 张</small></summary><div class="detail-body">
-<p class="help">首页按上键查看 · 建议 3:4 比例</p>
-<div class="file-pick"><label for="shareFile" id="sharePickLabel">一次添加多张图片（最多 6 张）</label><input type="file" id="shareFile" name="card" multiple aria-describedby="shareBatchHelp"><p id="shareBatchHelp" class="help">长按图片可多选 · JPEG / PNG / WebP</p></div>
-<details class="sub picker-help"><summary>改用相册选择</summary><div class="detail-body"><label for="shareFileFallback">从相册添加</label><input type="file" id="shareFileFallback" name="cardPhotos" accept="image/*" multiple aria-describedby="sharePickerHelp"><p id="sharePickerHelp" class="help">相册只能单选时，请用上面的文件入口</p></div></details><input type="file" id="shareReplace" name="cardReplacement" hidden aria-hidden="true">
-<p id="shareStatus" class="status" role="status" aria-live="polite"></p><p id="cardUsage" class="saved" role="status"></p><div id="cardList" aria-label="名片图片列表"></div><canvas id="sharec" width="240" height="320" aria-label="彩色名片预览" hidden></canvas></div></details>
-
+<details id="backgroundSection"><summary>首页背景<small id="backgroundState">可选</small></summary><div class="detail-body">
+<p class="help">在手机上调整构图并压缩成 240×320，原图不会上传。默认流畅档不超过 8 KB。低亮屏保仍为纯黑底。</p>
+<label for="backgroundFile">选择背景图片</label><input id="backgroundFile" type="file" accept="image/*">
+<canvas id="backgroundPreview" width="240" height="320" aria-label="背景预览" hidden style="width:120px;height:160px;display:block;margin:12px auto;filter:brightness(.4)"></canvas>
+<div id="backgroundEditor" hidden>
+<label for="backgroundZoom">放大</label><input id="backgroundZoom" type="range" min="100" max="300" value="100" step="5" style="width:100%">
+<label for="backgroundX">水平位置</label><input id="backgroundX" type="range" min="0" max="100" value="50" style="width:100%">
+<label for="backgroundY">垂直位置</label><input id="backgroundY" type="range" min="0" max="100" value="50" style="width:100%">
+<label for="backgroundQuality">画质与加载速度</label><select id="backgroundQuality"><option value="fast" selected>流畅 · 最多 8 KB（推荐）</option><option value="balanced">均衡 · 最多 12 KB</option><option value="detail">细节 · 最多 16 KB</option></select>
+<button id="rotateBackground" class="secondary" type="button">旋转 90°</button>
+<button id="applyBackground" class="secondary" type="button">应用裁剪与压缩</button>
+<p class="help">预览含首页暗色遮罩。调整后点应用，也可直接保存。</p></div>
+<button id="clearBackground" class="secondary" type="button">使用纯色背景</button>
+<p id="backgroundStatus" class="status" role="status" aria-live="polite"></p>
+</div></details>
+<details id="fmoSection"><summary>FMO 身份与证书<small>v0.6.10 兼容</small></summary><div class="detail-body">
+<p class="help">沿用 FMO Passport 签发服务。本机生成密钥，私钥不会上传。已有原设备身份不会被更改；若设备曾运行原 FMO Passport 固件并已有有效证书，可一键只读导入。</p>
+<p id="fmoWifiNotice" class="help"></p>
+<button id="fmoConnectWifi" class="secondary" type="button" hidden>连接已保存 Wi-Fi（用于联网申请）</button>
+<button id="fmoImportLegacy" class="secondary" type="button" hidden>从原 FMO 固件导入有效证书</button>
+<button id="fmoInit" class="secondary" type="button">创建本机 FMO 身份</button>
+<button id="fmoRefresh" class="secondary" type="button">查询本机与签发状态</button>
+<p id="fmoIdentity" class="help"></p>
+<button id="fmoCheckCrl" class="secondary" type="button">检查证书吊销列表</button>
+<p id="fmoCrlStatus" class="status" role="status" aria-live="polite"></p>
+<label for="fmoCallsign">业余无线电呼号</label><input id="fmoCallsign" type="text" maxlength="12" autocomplete="off" spellcheck="false" placeholder="填写自己的呼号">
+<label for="fmoPhoto">证件合照</label><input id="fmoPhoto" type="file" accept="image/*">
+<p class="help">提交后会将呼号、公钥和压缩后的证件合照发送给 <a href="https://fmo.simy.live/ca" target="_blank" rel="noopener noreferrer">fmo.simy.live</a> 审核。照片不保存在设备；只有你主动提交时才上传。</p>
+<button id="fmoApply" class="secondary" type="button">提交证书申请</button>
+<p id="fmoStatus" class="status" role="status" aria-live="polite"></p>
+<label for="fmoServerList">已发现的服务器</label><select id="fmoServerList"><option value="">尚无有效服务器信息</option></select>
+<button id="fmoRefreshServers" class="secondary" type="button">读取已发现列表</button>
+<button id="fmoSelectServer" class="secondary" type="button">使用所选服务器</button>
+<button id="fmoUseBuiltin" class="secondary" type="button">切换到 PASSPORT 内置中继台（兜底）</button>
+<p id="fmoBuiltinNote" class="help">无同链 PASS 中继广播时，设备将自动使用 PASSPORT 内置中继台（fmo.simy.asia:1883）作为兜底，确保可随时通联。</p>
+<p class="help">取得有效证书后，打开设备上的FMO自动接收并验证台站广播。本页读取其有效缓存；空列表不代表没有远程服务器，广播周期可能约十分钟。在线/峰值及范围来自广播快照，不是实时查询；缺失或过期时显示待更新。</p>
+<details class="sub"><summary>手动配置中继</summary><div class="detail-body">
+<p class="help">优先使用设备发现的中继。手动设置需要中继管理员提供完整身份参数，地址本身不足以完成认证。</p>
+<label for="fmoHost">中继主机</label><input id="fmoHost" type="text" maxlength="127" placeholder="主机名或 IP，不含协议前缀">
+<label for="fmoPort">MQTT 端口</label><input id="fmoPort" type="number" min="1" max="65535" value="1883">
+<label for="fmoRelayCall">中继呼号</label><input id="fmoRelayCall" type="text" maxlength="12">
+<label for="fmoRelayUid">中继 UID</label><input id="fmoRelayUid" type="number" min="1" max="4294967295">
+<label for="fmoFingerprint">中继证书指纹</label><input id="fmoFingerprint" type="text" maxlength="43" autocomplete="off">
+<button id="fmoSaveRelay" class="secondary" type="button">保存中继</button>
+</div></details></div></details>
+<details id="fmoStampSection"><summary>FMO 定制印章<small id="fmoStampSummary">12款内置 + 自定义图案</small></summary><div class="detail-body">
+<p class="help">选择 FMO Passport 12 款几何印章或上传自定义图案（支持透明底、白底、黑底或纯色底自动去底），离线压缩为 96×96 四级抗锯齿点阵保存在设备，可在设备 FMO“我的印章”与通联章册中查看。</p>
+<button id="fmoReadStamp" class="secondary" type="button">读取当前印章</button>
+<div class="stamp-preview-wrap"><canvas id="fmoStampPreview" width="96" height="96" aria-label="印章预览"></canvas><p id="fmoStampPreviewName" class="help">G001 · 双环圆章</p></div>
+<label for="fmoStampStyle">印章样式</label><select id="fmoStampStyle"><option value="G001">G001 · 双环圆章</option><option value="G002">G002 · 邮戳齿圆</option><option value="G003">G003 · 圆角方章</option><option value="G004">G004 · 方中带圆</option><option value="G005">G005 · 粗边圆章</option><option value="G006">G006 · 圆中带方</option><option value="G007">G007 · 八角印章</option><option value="G008">G008 · 徽章盾牌</option><option value="G009">G009 · 六角蜂巢</option><option value="G010">G010 · 爱心印章</option><option value="G011">G011 · 菱形印章</option><option value="G012">G012 · 邮票方章</option><option value="CUSTOM">CUSTOM · 自定义图案</option></select>
+<div id="fmoStampGrid" class="stamp-grid" aria-label="内置印章样式"></div>
+<div class="field"><label for="fmoStampColor">印泥颜色</label><div class="swatch-row" id="fmoStampSwatches"><input id="fmoStampColor" type="color" value="#FF7A1A" style="width:48px;height:36px;border:0;padding:0;background:none"></div></div>
+<div class="field"><label for="fmoStampLabel">印章铭文（最多 16 字节，不含逗号）</label><input id="fmoStampLabel" type="text" maxlength="16" autocomplete="off" value="AI PASSPORT" placeholder="如 AI PASSPORT 或网格"></div>
+<button id="fmoSaveStamp" class="secondary" type="button">保存印章样式与颜色</button>
+<div class="field"><label for="fmoStampFile">选择定制印章图案或点阵备份</label><input id="fmoStampFile" type="file" accept="image/*,.fmostamp"></div>
+<div class="field"><label for="fmoStampThreshold">去底灵敏度</label><input id="fmoStampThreshold" type="range" min="10" max="90" value="45" style="width:100%"></div>
+<label><input id="fmoStampInvert" type="checkbox">反转明暗（浅色背景深色线条可按需勾选）</label>
+<button id="fmoUploadStamp" class="secondary" type="button" disabled>上传定制图案到设备</button>
+<button id="fmoExportStamp" class="secondary" type="button">下载设备印章点阵</button>
+<button id="fmoClearStamp" class="secondary" type="button">清除定制图案，恢复内置章</button>
+<p id="fmoStampStatus" class="status" role="status" aria-live="polite"></p>
+</div></details>
+<details id="fmoBeepSection"><summary>FMO 结束信令音（Roger Beep）<small id="fmoBeepSummary">内置双音</small></summary><div class="detail-body">
+<p class="help">松开讲话键结束发射时，自动发送并本地播放结束信令音（对齐 FMO Passport v0.6.11）。支持内置高-低双音，或下载云端 FBEP 趣味信令音（上限 3 秒）。</p>
+<label><input id="fmoBeepEnabled" type="checkbox" checked>启用发射结束信令音</label>
+<label for="fmoBeepSelect">信令音样式</label><select id="fmoBeepSelect"><option value="0">内置双音（960→640 Hz）</option></select>
+<button id="fmoBeepRefresh" class="secondary" type="button">刷新云端信令音清单</button>
+<button id="fmoBeepPreview" class="secondary" type="button">试听所选信令音</button>
+<button id="fmoBeepApply" class="secondary" type="button">保存 / 下载到设备</button>
+<button id="fmoBeepClear" class="secondary" type="button" hidden>清除自定义音，恢复内置双音</button>
+<p id="fmoBeepStatus" class="status" role="status" aria-live="polite"></p>
+</div></details>
+<details id="fmoAprsSection"><summary>FMO APRS 广播<small>默认关闭</small></summary><div class="detail-body">
+<p class="help">开启后，可在设备快捷菜单主动发送CQ或友台信标，公开本人呼号和所填网格的中心位置；不使用天气/GPS坐标，不自动广播。需要有效证书及APRS服务器验证。</p>
+<label><input id="fmoAprsEnabled" type="checkbox">允许按键发送APRS广播</label>
+<label for="fmoAprsGrid">公开的Maidenhead网格</label><input id="fmoAprsGrid" maxlength="8" placeholder="4/6/8位，例如 PM06 或 PM06eb">
+<label for="fmoAprsSsid">APRS SSID</label><input id="fmoAprsSsid" type="number" min="0" max="15" value="15">
+<label for="fmoAprsFrequency">电台频率 MHz（发信标时必填）</label><input id="fmoAprsFrequency" inputmode="decimal" maxlength="15" placeholder="填写实际使用频率，100至1300">
+<label for="fmoAprsHeight">天线高度 米（0为不公开）</label><input id="fmoAprsHeight" type="number" min="0" max="999" value="0">
+<label for="fmoAprsRig">设备型号（最多24字节）</label><input id="fmoAprsRig" maxlength="24" value="AI Passport">
+<label for="fmoAprsAntenna">天线型号（可留空，最多24字节）</label><input id="fmoAprsAntenna" maxlength="24">
+<label><input id="fmoAprsLegacy" type="checkbox">友台信标使用原版APPASP/PAT-1格式（不带签名）</label>
+<p class="help">默认使用FMO V4签名信标；CQ始终使用V4。设备/天线不含逗号或换行。每类广播间隔至少一分钟；不会操作实体无线电发射机。</p>
+<button id="fmoReadAprs" class="secondary" type="button">读取广播设置</button>
+<button id="fmoSaveAprs" class="secondary" type="button">保存广播设置</button>
+<p id="fmoAprsStatus" class="status" role="status" aria-live="polite"></p>
+</div></details>
+<details id="fmoBookSection"><summary>FMO 护照章册与抄收册<small id="fmoBookCount">本机记录</small></summary><div class="detail-body">
+<p class="help">记录实际成功播放的友台语音与护照印章，含初次相遇、最近抄收和去重次数；不代表双方确认通联。最多保留64位友台，满后保留已有记录，不自动覆盖。没有录音或私钥。</p>
+<button id="fmoReadBook" class="secondary" type="button">读取护照章册</button>
+<button id="fmoExportBook" class="secondary" type="button" hidden>导出章册 JSON 备份</button>
+<label for="fmoRestoreBookFile">选择抄收备份 JSON</label>
+<input id="fmoRestoreBookFile" type="file" accept=".json,application/json">
+<button id="fmoRestoreBook" class="secondary" type="button">导入抄收记录</button>
+<label for="fmoBookSearch">搜索呼号</label><input id="fmoBookSearch" type="search" maxlength="12" autocomplete="off" placeholder="输入呼号筛选">
+<p id="fmoBookStatus" class="status" role="status" aria-live="polite"></p>
+<div id="fmoBookEntries"></div>
+</div></details>
+<details><summary>小智语音场景</summary><div class="detail-body">
+<p class="help">联网并配置小智后，双击设备确定键进入对话。</p>
+<p>“进入专注模式” · 25分钟专注，音量20%，亮度40%。</p>
+<p>“进入睡前模式” · 播放本地城市电台，30分钟后停止。</p>
+<p>“查看今日安排” · 读取设备提醒和未完成清单。</p>
+<p>“恢复桌面” · 返回首页，保留计时和设置。</p>
+<p class="help">可以附带音量、亮度；睡前模式可指定城市、电台和停止时间。切换应用后结束当前对话。本版需按键进入小智。</p>
+</div></details>
 <details id="voiceSection"><summary><span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21M8.5 21h7"/></svg></span>电脑语音输入<small>Windows</small></summary><div class="detail-body">
 <p class="help">电脑打开链接去配置即可使用。</p>
 <button class="secondary" id="copyVoiceTutorial" type="button">复制教程链接</button>
@@ -136,13 +218,7 @@ input[type=range]{width:100%;min-height:36px}.check{display:flex;align-items:cen
 <p id="voiceCopyStatus" class="status" role="status" aria-live="polite"></p>
 </div></details>
 
-<details id="museSection"><summary><span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 5.5A2.5 2.5 0 0 1 6.5 3h11A2.5 2.5 0 0 1 20 5.5v8a2.5 2.5 0 0 1-2.5 2.5H10l-4.5 4v-4A1.5 1.5 0 0 1 4 14.5z"/><path d="M12 6.5l.9 2.1 2.1.9-2.1.9-.9 2.1-.9-2.1-2.1-.9 2.1-.9z" fill="currentColor" stroke="none"/></svg></span>Muse 助手<small id="museState">可选配置</small></summary><div class="detail-body">
-<p class="help">需要 Muse 账号和 SDK Token（在 gadgets.muse.ai 申请）。保存后，在手机 Muse 中添加设备。<a href="https://github.com/manchunx7-bit/ai-passport-muse" target="_blank" rel="noopener noreferrer">查看教程</a></p>
-<p id="museSaved" class="saved" role="status">正在读取设备中的 Muse 配置…</p>
-<div><label for="museToken">SDK Token</label><input id="museToken" type="password" autocomplete="off" autocapitalize="off" spellcheck="false" maxlength="63" placeholder="mgst_…" aria-describedby="museSaved" disabled></div>
-<div class="proxy-settings"><p class="field-title">电脑代理（可选）</p><div class="pair proxy"><div><label for="museProxyHost">电脑 IP</label><input id="museProxyHost" inputmode="decimal" autocomplete="off" maxlength="15" placeholder="192.168.1.20" aria-label="电脑代理 IP"></div><div><label for="museProxyPort">端口</label><input id="museProxyPort" type="number" min="1" max="65535" inputmode="numeric" placeholder="7897" aria-label="代理端口"></div></div><p class="help">清空 IP 后保存即切回直连</p></div>
-<button id="useSavedMuse" type="button" class="secondary" hidden>使用已保存配置</button><button id="retryMuse" type="button" class="text-button" hidden>重新读取配置</button>
-<button id="saveMuse" type="button" class="secondary" disabled>保存 Muse 配置</button><p id="museStatus" class="status" role="status" aria-live="polite"></p></div></details>
+
 </div>
 
 <div id="saveStatus" class="status" role="status" aria-live="polite"></div>
@@ -152,7 +228,7 @@ input[type=range]{width:100%;min-height:36px}.check{display:flex;align-items:cen
 <section id="step3" class="complete" aria-labelledby="title3" hidden>
 <svg class="success-mark" viewBox="0 0 64 64" fill="none" aria-hidden="true"><circle cx="32" cy="32" r="29" fill="#e6efe6"/><path d="m20 32 8 8 16-17" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/></svg>
 <h1 id="title3" tabindex="-1">设置完成</h1>
-<div class="card recap"><strong id="doneName">AI 护照</strong><span id="doneSummary">资料已保存</span></div>
+<div class="card recap"><strong id="doneName">AI 护照</strong><span id="doneSummary">城市设置已保存</span></div>
 <p class="intro">设备即将回到首页，手机可切回常用 Wi-Fi。<br>以后修改：设备“设置 → 手机设置”</p>
 </section>
 </main>
@@ -190,33 +266,40 @@ $('locate').onclick=locatePhone;window.addEventListener('message',receiveLocatio
 // Keep the unconfigured HTTPS handoff out of the offline device flow.
 const canLocate=Boolean((window.isSecureContext&&navigator.geolocation)||locationHelper());$('locate').hidden=!canLocate;$('locationHelp').hidden=!canLocate;
 $('importLocation').onclick=()=>{const match=$('locationCode').value.trim().match(/^PPOS:([+-]?\d+(?:\.\d+)?),([+-]?\d+(?:\.\d+)?),(\d+(?:\.\d+)?)$/);if(!match){say('locationStatus','请完整粘贴定位页生成的结果，以 PPOS: 开头。',true);return}try{applyPhonePosition(Number(match[1]),Number(match[2]),Number(match[3]));cancelLocation()}catch(e){say('locationStatus',e.message,true)}};
-async function api(path,body){
+async function api(path,body,method,binary=false){
  const controller=new AbortController();
- // Avatar retries may include two socket waits; keep the client deadline outside them.
- const timer=setTimeout(()=>controller.abort(),path==='/api/avatar'?20000:12000);
+ const timer=setTimeout(()=>controller.abort(),(path.startsWith('/api/fmo/ca')||path.startsWith('/api/fmo/stamp')||(path==='/api/fmo'&&body?.action==='check_crl'))?90000:path==='/api/background'&&body instanceof Blob?90000:12000);
  const options={cache:'no-store',signal:controller.signal};
- if(body!==undefined){options.method='POST';options.body=body instanceof Uint8Array||body instanceof Blob?body:JSON.stringify(body);if(typeof options.body==='string')options.headers={'Content-Type':'application/json'}}
+ if(method)options.method=method;
+ if(body!==undefined){options.method=method||'POST';options.body=body instanceof Blob?body:JSON.stringify(body);options.headers={'Content-Type':body instanceof Blob?(body.type||'image/jpeg'):'application/json'}}
  let r,j={};
  try{
   r=await fetch(path+(path.includes('?')?'&':'?')+'t='+encodeURIComponent(window.__T||''),options);
+  if(binary&&r.ok)return await r.arrayBuffer();
   try{j=await r.json()}catch(e){if(controller.signal.aborted)throw e}
  }catch(e){e.path=path;throw e}finally{clearTimeout(timer)}
  if(!r.ok){
   const errors={
-   unauthorized:'设置页面已失效，请刷新后重试。',saved_not_found:'附近暂未发现可用的已保存网络。请选择指定网络重试，或只修改个人资料。',
+   unauthorized:'设置页面已失效，请刷新后重试。',saved_not_found:'附近暂未发现可用的已保存网络。请选择指定网络重试，或只修改城市设置。',
+   background_size:'背景超过 24 KB，请重新选择。',background_image:'请使用本页生成的背景图片。',background_recv:'上传中断，请保持连接设备热点后重试。',background_store:'背景保存未确认，请重试。存储未就绪或空间不足时请重试；不会自动清空已有数据。',
    network_required:'请先连接 Wi-Fi，再完成设置。',busy:'正在处理连接，请稍等。',credentials:'请检查网络名称与密码长度。',
-   storage_full:'设备存储空间不足，请先移除不需要的图片并保存，再添加新图片。',card_image:'图片格式不符合要求，请重新选择并压缩。',card_order:'图片列表未能保存，请重试。',
-   avatar_size:'头像数据长度不匹配，请刷新设置页并重新选择图片。',avatar_recv:'头像传输中断，请保持连接设备热点后重试。',
-   avatar_store:j.code==='ESP_ERR_NO_MEM'?'设备内存不足，头像未保存，请稍后重试。':'头像未能写入设备，原头像已保留。请重试；若持续失败，请反馈此提示。'
   };
-  const error=new Error(errors[j.error]||'设备未能保存，请重试。');
+  const error=new Error(errors[j.error]||(path.startsWith('/api/fmo')&&typeof j.error==='string'?j.error.slice(0,160):'设备未能保存，请重试。'));
   error.code=j.error||'rejected';error.deviceCode=j.code||'';error.path=path;throw error;
  }
  return j;
 }
-function step(n){page=n;if(n!==1)clearTimeout(scanTimer);for(let i=1;i<=3;i++){ $('step'+i).hidden=i!==n;const p=$('progress'+i);if(i===n)p.setAttribute('aria-current','step');else p.removeAttribute('aria-current');p.classList.toggle('done',i<n)}$('title'+n).focus({preventScroll:true});window.scrollTo(0,0)}
+let staConnected=false,staSsid='';
+function updateFmoWifiNotice(){
+ const notice=$('fmoWifiNotice'),btn=$('fmoConnectWifi');
+ if(!notice||!btn)return;
+ if(staConnected){notice.textContent='设备已连接路由器'+(staSsid?'（'+staSsid+'）':'')+'，可直接申请证书或检查吊销列表。';btn.hidden=true;}
+ else if(hasSaved){notice.textContent='当前处于离线修改模式。申请证书或检查吊销列表时，可点下方按钮一键连接已保存 Wi-Fi（无需离开本页）。';btn.hidden=false;}
+ else {notice.textContent='设备尚未连接可上网的 Wi-Fi。请先返回“网络设置”连接路由器，再申请证书。';btn.hidden=true;}
+}
+function step(n){page=n;if(n!==1)clearTimeout(scanTimer);for(let i=1;i<=3;i++){ $('step'+i).hidden=i!==n;const p=$('progress'+i);if(i===n)p.setAttribute('aria-current','step');else p.removeAttribute('aria-current');p.classList.toggle('done',i<n)}if(n===2)updateFmoWifiNotice();$('title'+n).focus({preventScroll:true});window.scrollTo(0,0)}
 function lockNetwork(lock){busy=lock;if(lock)clearTimeout(scanTimer);for(const id of ['connect','reuse','keepSaved','refresh','network','savedNetwork','ssid','password','manualToggle'])$(id).disabled=lock;$('network').disabled=lock||manual;$('connect').textContent=lock?'正在连接…':'连接并继续'}
-function networkReady(text){verified=true;lockNetwork(false);$('password').value='';$('connectionSummary').textContent=text;step(2)}
+function networkReady(text,ssid=''){verified=true;staConnected=true;if(ssid)staSsid=ssid;lockNetwork(false);$('password').value='';$('connectionSummary').textContent=text;step(2)}
 async function scan(reset=true){
  if(scanning||busy||page!==1)return;
  clearTimeout(scanTimer);if(reset)scanRound=0;scanRound++;scanning=true;
@@ -251,196 +334,547 @@ $('refresh').onclick=()=>scan();
 $('manualToggle').onclick=()=>{manual=!manual;$('manualField').hidden=!manual;$('manualToggle').setAttribute('aria-expanded',String(manual));$('manualToggle').textContent=manual?'返回附近的网络':'找不到网络？手动输入';$('network').disabled=manual;if(manual)$('ssid').focus()};
 $('network').onchange=()=>{const open=$('network').selectedOptions[0]?.dataset.secure==='false';$('passwordHelp').textContent=open?'开放网络，无需密码':'';if(open)$('password').value=''};
 $('showPassword').onclick=()=>{const visible=$('password').type==='password';$('password').type=visible?'text':'password';$('showPassword').textContent=visible?'隐藏':'显示';$('showPassword').setAttribute('aria-label',visible?'隐藏 Wi-Fi 密码':'显示 Wi-Fi 密码')};
-async function poll(){polls++;try{const state=await api('/api/setup');if(state.finishing){step(3);return}if(state.state==='connected'){networkReady('已连接 '+state.ssid);return}if(state.state==='failed'){lockNetwork(false);say('networkStatus','连接未成功。请检查密码、路由器是否开启，以及是否为 2.4 GHz 网络，然后重试。',true);return}say('networkStatus','正在连接'+(state.ssid?' '+state.ssid:' Wi-Fi')+'，请保持连接设备热点。')}catch(e){say('networkStatus','连接过程中热点可能短暂断开。请重新连接设备热点，此页面会继续检查。',true)}if(polls<180)pollTimer=setTimeout(poll,1500);else{lockNetwork(false);say('networkStatus','暂时联系不到设备。请连接设备热点后刷新页面，查看连接结果。',true)}}
-async function connect(saved=false){const ssid=manual?$('ssid').value:$('network').value,password=$('password').value;if(!saved){if(!ssid||bytes(ssid)>32){say('networkStatus','请选择 Wi-Fi，或输入不超过 32 字节的网络名称。',true);return}const n=bytes(password);if(n!==0&&(n<8||n>63)&&!/^[0-9a-fA-F]{64}$/.test(password)){say('networkStatus','Wi-Fi 密码通常为 8–63 字节，请检查后重试。',true);return}}clearTimeout(pollTimer);polls=0;verified=false;lockNetwork(true);say('networkStatus','正在连接，稍后会自动进入个人资料。');try{await api('/api/connect',{...(saved?{saved:true,ssid:$('savedNetwork').value}:{ssid,password}),epoch:Math.floor(Date.now()/1000),tz_minutes:-new Date().getTimezoneOffset()});}catch(e){if(e.code&&e.code!=='busy'){lockNetwork(false);say('networkStatus',e.message,true);return}say('networkStatus','正在确认设备是否已收到请求，请保持热点连接。')}pollTimer=setTimeout(poll,1000)}
-$('connect').onclick=()=>connect();$('reuse').onclick=()=>connect(true);$('keepSaved').onclick=()=>{$('connectionSummary').textContent='仅修改资料，完成后自动重连已保存网络';step(2)};$('back').onclick=()=>step(1);
-let museConfigured=false,musePaired=false,museSaving=false,museLoaded=false,museLoading=null,museProxyEdited=false;
-let savedMuseHost='',savedMusePort=0;
-function lockMuse(){for(const id of ['saveMuse','useSavedMuse','retryMuse','museToken','museProxyHost','museProxyPort'])$(id).disabled=museSaving||!!museLoading}
-function applyMuseConfig(m,restore=false){
- if(typeof m.token_set!=='boolean'||typeof m.paired!=='boolean'||typeof m.proxy_host!=='string'||!Number.isInteger(m.proxy_port))throw new Error('invalid Muse configuration');
- museConfigured=m.token_set;musePaired=m.paired;savedMuseHost=m.proxy_host;savedMusePort=m.proxy_port;museLoaded=true;
- $('museState').textContent=musePaired?'已配对':museConfigured?'已保存，待配对':'可选配置';
- $('museSaved').textContent=(museConfigured?'Token 已保存，无需重新填写':'尚未保存 Token')+' · '+(savedMuseHost?'电脑代理 '+savedMuseHost+':'+savedMusePort:'直连，不使用电脑代理');
- $('museToken').placeholder=museConfigured?'已保存，留空沿用；填写新 Token 可更换':'mgst_…';
- $('useSavedMuse').hidden=!museConfigured;$('retryMuse').hidden=true;
- if(restore||!museProxyEdited){$('museProxyHost').value=savedMuseHost;$('museProxyPort').value=savedMusePort||'';museProxyEdited=false}
+async function poll(){polls++;try{const state=await api('/api/setup');if(state.finishing){step(3);return}if(state.state==='connected'||state.sta_connected===true){networkReady('已连接 '+(state.sta_ssid||state.ssid),state.sta_ssid||state.ssid);return}if(state.state==='failed'){staConnected=false;lockNetwork(false);say('networkStatus','连接未成功。请检查密码、路由器是否开启，以及是否为 2.4 GHz 网络，然后重试。',true);return}say('networkStatus','正在连接'+(state.ssid?' '+state.ssid:' Wi-Fi')+'，请保持连接设备热点。')}catch(e){say('networkStatus','连接过程中热点可能短暂断开。请重新连接设备热点，此页面会继续检查。',true)}if(polls<180)pollTimer=setTimeout(poll,1500);else{lockNetwork(false);say('networkStatus','暂时联系不到设备。请连接设备热点后刷新页面，查看连接结果。',true)}}
+async function connect(saved=false){const ssid=manual?$('ssid').value:$('network').value,password=$('password').value;if(!saved){if(!ssid||bytes(ssid)>32){say('networkStatus','请选择 Wi-Fi，或输入不超过 32 字节的网络名称。',true);return}const n=bytes(password);if(n!==0&&(n<8||n>63)&&!/^[0-9a-fA-F]{64}$/.test(password)){say('networkStatus','Wi-Fi 密码通常为 8–63 字节，请检查后重试。',true);return}}clearTimeout(pollTimer);polls=0;verified=false;staConnected=false;lockNetwork(true);say('networkStatus','正在连接，稍后会自动进入城市设置。');try{await api('/api/connect',{...(saved?{saved:true,ssid:$('savedNetwork').value}:{ssid,password}),epoch:Math.floor(Date.now()/1000),tz_minutes:-new Date().getTimezoneOffset()});}catch(e){if(e.code&&e.code!=='busy'){lockNetwork(false);say('networkStatus',e.message,true);return}say('networkStatus','正在确认设备是否已收到请求，请保持热点连接。')}pollTimer=setTimeout(poll,1000)}
+$('connect').onclick=()=>connect();$('reuse').onclick=()=>connect(true);$('keepSaved').onclick=()=>{$('connectionSummary').textContent=staConnected?('已连接 '+staSsid):'仅修改资料，完成后自动重连已保存网络';step(2)};$('back').onclick=()=>step(1);
+let backgroundBlob=null,backgroundDelete=false,backgroundBusy=false,saveInProgress=false;
+let backgroundSource=null,backgroundRotation=0,backgroundDirty=false;
+async function loadBackground(){try{const state=await api('/api/background');if(backgroundBusy||backgroundBlob||backgroundDelete||saveInProgress)return;$('backgroundState').textContent=state.available?(state.present?'已有背景':'纯色'):'暂不可用';if(!state.available)say('backgroundStatus','背景存储暂不可用，已有数据不会清空。',true);}catch(e){say('backgroundStatus','背景状态读取失败，可重新选择图片后保存。',true)}}
+function encodeBackground(canvas,quality){return new Promise((resolve,reject)=>{
+ const timer=setTimeout(()=>reject(new Error('图片压缩超时，请换一张本地图片。')),10000);
+ try{canvas.toBlob(blob=>{clearTimeout(timer);if(!blob||blob.type!=='image/jpeg')reject(new Error('无法生成 JPEG 图片，请换一张本地图片。'));else resolve(blob)},'image/jpeg',quality)}catch(e){clearTimeout(timer);reject(e)}
+})}
+function backgroundControls(locked){
+ for(const id of ['backgroundFile','clearBackground','backgroundZoom','backgroundX','backgroundY','backgroundQuality','rotateBackground','applyBackground'])$(id).disabled=locked;
 }
-for(const id of ['museProxyHost','museProxyPort'])$(id).oninput=()=>{museProxyEdited=true};
-function pendingMuseConfig(){
- const host=$('museProxyHost').value.trim(),port=host?Number($('museProxyPort').value):0;
- return !!$('museToken').value.trim() || (museLoaded && (host!==savedMuseHost || port!==savedMusePort)) || (!museLoaded && !!host);
+function drawBackground(){
+ if(!backgroundSource)return null;
+ const rotated=document.createElement('canvas'),side=backgroundRotation%180!==0;
+ rotated.width=side?backgroundSource.height:backgroundSource.width;rotated.height=side?backgroundSource.width:backgroundSource.height;
+ const r=rotated.getContext('2d');r.translate(rotated.width/2,rotated.height/2);r.rotate(backgroundRotation*Math.PI/180);r.drawImage(backgroundSource,-backgroundSource.width/2,-backgroundSource.height/2);
+ const canvas=document.createElement('canvas');canvas.width=240;canvas.height=320;const g=canvas.getContext('2d');
+ const zoom=Math.max(1,Math.min(3,Number($('backgroundZoom').value)/100||1));
+ const scale=Math.max(240/rotated.width,320/rotated.height)*zoom,sw=240/scale,sh=320/scale;
+ const x=Math.max(0,Math.min(1,Number($('backgroundX').value)/100)),y=Math.max(0,Math.min(1,Number($('backgroundY').value)/100));
+ g.fillStyle='#000';g.fillRect(0,0,240,320);g.imageSmoothingEnabled=true;g.imageSmoothingQuality='high';
+ g.drawImage(rotated,(rotated.width-sw)*x,(rotated.height-sh)*y,sw,sh,0,0,240,320);
+ const preview=$('backgroundPreview');preview.getContext('2d').drawImage(canvas,0,0);preview.hidden=false;
+ return canvas;
 }
-async function saveMuseConfig(onlyPending=false){
- if(museSaving)throw new Error('Muse 配置正在保存，请稍等后再完成设置。');
- if(onlyPending&&!pendingMuseConfig())return;
- if(museLoading)await museLoading;
- if(!museLoaded&&!await loadMuse())throw new Error('请先重新读取已保存的 Muse 配置，再保存。');
- if(museSaving)throw new Error('Muse 配置正在保存，请稍等后再完成设置。');
- const token=$('museToken').value.trim(),host=$('museProxyHost').value.trim(),port=host?Number($('museProxyPort').value):0;
- if(token&&!/^mgst_[!-~]{7,58}$/.test(token))throw new Error('请填写官方发放的 mgst_ 开头 SDK Token。');
- if(!token&&!museConfigured)throw new Error('首次使用 Muse 请填写 SDK Token。');
- if(host&&(!/^(?:\d{1,3}\.){3}\d{1,3}$/.test(host)||host.split('.').some(n=>Number(n)>255)||Number(host.split('.')[0])===127||Number(host.split('.')[0])===0||Number(host.split('.')[0])>=224||Number(host.split('.').at(-1))===255||!Number.isInteger(port)||port<1||port>65535))throw new Error('请填写电脑局域网 IPv4 地址和有效端口。');
- museSaving=true;lockMuse();
+function editBackground(){if(backgroundBusy||saveInProgress||!backgroundSource)return;backgroundDirty=true;drawBackground();$('backgroundState').textContent='待压缩';say('backgroundStatus','构图已调整，应用或保存时自动压缩。')}
+for(const id of ['backgroundZoom','backgroundX','backgroundY'])$(id).oninput=editBackground;
+$('backgroundQuality').onchange=editBackground;
+$('rotateBackground').onclick=()=>{if(backgroundBusy||saveInProgress)return;backgroundRotation=(backgroundRotation+90)%360;editBackground()};
+async function prepareBackground(){
+ if(!backgroundSource||!backgroundDirty)return;
+ const canvas=drawBackground(),preset={fast:[8192,160,.58],balanced:[12288,200,.68],detail:[16384,240,.78]}[$('backgroundQuality').value]||[8192,160,.58];
+ // Remove fine detail on the phone before JPEG encoding. Device dimensions stay fixed.
+ if(preset[1]<240){const small=document.createElement('canvas');small.width=preset[1];small.height=Math.round(preset[1]*4/3);small.getContext('2d').drawImage(canvas,0,0,small.width,small.height);canvas.getContext('2d').drawImage(small,0,0,240,320)}
+ let blob;for(const quality of [preset[2],.45,.3,.18,.1]){blob=await encodeBackground(canvas,quality);if(blob.size<=preset[0])break}
+ if(!blob.size||blob.size>preset[0])throw new Error('压缩后仍超过所选档位，请调整构图或选择更简单的图片。');
+ backgroundBlob=blob;backgroundDelete=false;backgroundDirty=false;
+ $('backgroundPreview').getContext('2d').drawImage(canvas,0,0);$('backgroundState').textContent='待保存';
+ say('backgroundStatus',`背景已准备：240×320，${(blob.size/1024).toFixed(1)} KB。点击“保存并完成”后生效。`);
+}
+$('applyBackground').onclick=async()=>{
+ if(backgroundBusy||saveInProgress)return;backgroundBusy=true;backgroundControls(true);$('save').disabled=true;
+ try{await prepareBackground()}catch(e){say('backgroundStatus',e.message,true)}finally{backgroundBusy=false;backgroundControls(false);$('save').disabled=false}
+};
+$('backgroundFile').onchange=async()=>{
+ const file=$('backgroundFile').files[0];if(!file||backgroundBusy||saveInProgress)return;
+ if(!file.size||file.size>20*1024*1024||!file.type.startsWith('image/')){say('backgroundStatus','请选择不超过 20 MB 的图片。',true);return}
+ backgroundBusy=true;$('save').disabled=true;backgroundControls(true);let url,timer;
  try{
-  const config={proxy_host:host,proxy_port:port};if(token)config.sdk_token=token;
-  const m=await api('/api/muse',config);applyMuseConfig(m,true);$('museToken').value='';
-  say('museStatus',musePaired?'已保存。重新进入设备 Muse，按确定键重试连接。':'已保存。完成本页设置后，在手机 Muse 添加设备。');
- }finally{museSaving=false;lockMuse()}
-}
-$('saveMuse').onclick=async()=>{try{await saveMuseConfig()}catch(e){say('museStatus',e.code==='muse_active'?'请先退出设备上的 Muse 应用，再保存配置。':e.message,true)}};
-function loadMuse(restore=false){
- if(museSaving)return Promise.resolve(false);
- if(museLoading)return museLoading;
- museLoading=(async()=>{try{
-  const m=await api('/api/muse');applyMuseConfig(m,restore);if(restore)$('museToken').value='';
-  say('museStatus',restore?'已恢复设备中保存的配置，无需重新输入 Token。':'');return true;
- }catch(e){
-  if(!museLoaded){$('museState').textContent='待读取';$('museSaved').textContent='尚未读取到设备配置，请重试。'}
-  $('retryMuse').hidden=false;say('museStatus','读取失败，设备中已保存的配置不会被清除。请重新读取。',true);return false;
- }finally{museLoading=null;lockMuse()}})();
- lockMuse();return museLoading;
-}
-$('retryMuse').onclick=()=>loadMuse();$('useSavedMuse').onclick=()=>loadMuse(true);
-$('museSection').ontoggle=()=>{if($('museSection').open&&!museLoaded)return loadMuse()};
-
-// Portrait cropping happens on the phone, preserving the device's small memory budget.
-const VP={w:192,h:276},PORTRAIT={w:96,h:138};let portraitPalette=[0x03120b,0x3a5b45,0x719c80,0xa8edbb],portraitSubjectPalette=[0x254d36,0x4b8060,0x80b795,0xa8edbb];let zoom=1,ox=0,oy=0,base=1,portrait=null,shareImg=null,imageLoading=0,portraitPreset=3,portraitSampleCache=null,portraitPreparedCache=null;
-const CARD_MAX=6,CARD_BYTES=24576;let cards=[],cardsDirty=false,cardsReady=false,cardBusy=false,replaceSlot=null,cardStorage=null;
-function clamp(){if(!portrait)return;const s=base*zoom;ox=Math.min(0,Math.max(VP.w-portrait.naturalWidth*s,ox));oy=Math.min(0,Math.max(VP.h-portrait.naturalHeight*s,oy));$('pv').style.width=portrait.naturalWidth*s+'px';$('pv').style.left=ox+'px';$('pv').style.top=oy+'px'}
-function portraitPixels(){
- const key=[zoom,ox,oy,base].join(',');if(portraitSampleCache?.image===portrait&&portraitSampleCache.key===key)return portraitSampleCache.data;
- const c=document.createElement('canvas');c.width=PORTRAIT.w;c.height=PORTRAIT.h;const g=c.getContext('2d'),s=base*zoom;g.imageSmoothingEnabled=true;g.imageSmoothingQuality='high';g.drawImage(portrait,-ox/s,-oy/s,VP.w/s,VP.h/s,0,0,c.width,c.height);
- const data=g.getImageData(0,0,c.width,c.height).data;portraitSampleCache={image:portrait,key,data};return data;
-}
-function portraitLocalContrast(lum,mask,w,h){
- if(w<12||h<16)return lum;
- const cols=3,rows=4,tw=w/cols,th=h/rows,maps=[];
- for(let ty=0;ty<rows;ty++)for(let tx=0;tx<cols;tx++){
-  const hist=new Uint32Array(256);let count=0;
-  for(let y=Math.floor(ty*th);y<Math.floor((ty+1)*th);y++)for(let x=Math.floor(tx*tw);x<Math.floor((tx+1)*tw);x++){const p=y*w+x;if(mask[p]){hist[lum[p]]++;count++}}
-  const map=new Uint8Array(256);if(!count){for(let v=0;v<256;v++)map[v]=v;maps.push(map);continue}
-  const limit=Math.max(1,Math.floor(count*1.1/256));let excess=0;
-  for(let v=0;v<256;v++)if(hist[v]>limit){excess+=hist[v]-limit;hist[v]=limit}
-  const step=Math.floor(excess/256),rest=excess%256;let sum=0;
-  for(let v=0;v<256;v++){sum+=hist[v]+step+(Math.floor((v+1)*rest/256)>Math.floor(v*rest/256)?1:0);map[v]=Math.round(sum*255/count)}maps.push(map);
- }
- const out=new Uint8Array(lum.length);
- for(let y=0;y<h;y++)for(let x=0;x<w;x++){
-  const fx=Math.max(0,Math.min(cols-1,(x+.5)/tw-.5)),fy=Math.max(0,Math.min(rows-1,(y+.5)/th-.5)),a=Math.floor(fx),b=Math.floor(fy),c=Math.min(a+1,cols-1),d=Math.min(b+1,rows-1),dx=fx-a,dy=fy-b,p=y*w+x,v=lum[p];
-  const local=(maps[b*cols+a][v]*(1-dx)+maps[b*cols+c][v]*dx)*(1-dy)+(maps[d*cols+a][v]*(1-dx)+maps[d*cols+c][v]*dx)*dy;
-  out[p]=Math.round(v*.8+local*.2);
- }return out;
-}
-function portraitPrepare(data,w,h,removeBackground){
- if(portraitPreparedCache?.data===data&&portraitPreparedCache.removeBackground===removeBackground&&portraitPreparedCache.w===w&&portraitPreparedCache.h===h)return portraitPreparedCache;
- const count=w*h,background=new Uint8Array(count),lum=new Uint8Array(count),hist=new Uint32Array(256),mask=new Uint8Array(count);
- for(let p=0;p<count;p++){const i=p*4;lum[p]=(data[i]*77+data[i+1]*151+data[i+2]*28)>>8;if(data[i+3]<128)background[p]=1}
- if(removeBackground){
-  const border=[];for(let x=0;x<w;x++){border.push(x,(h-1)*w+x)}for(let y=1;y<h-1;y++){border.push(y*w,y*w+w-1)}
-  const center=[0,1,2].map(c=>{const values=border.map(p=>data[p*4+c]).sort((a,b)=>a-b);return values[values.length>>1]});
-  const matches=p=>{const i=p*4;return data[i+3]>=128&&center.reduce((sum,c,k)=>sum+(c-data[i+k])**2,0)<=18*18*3};
-  if(border.filter(matches).length>=border.length*.6){
-   const queue=new Uint16Array(count);let head=0,tail=0;
-   const visit=p=>{if(!background[p]&&matches(p)){background[p]=1;queue[tail++]=p}};
-   border.forEach(visit);while(head<tail){const p=queue[head++],x=p%w;if(x)visit(p-1);if(x<w-1)visit(p+1);if(p>=w)visit(p-w);if(p<count-w)visit(p+w)}
+  say('backgroundStatus','正在手机上处理背景图片…');url=URL.createObjectURL(file);const image=new Image();
+  await new Promise((resolve,reject)=>{timer=setTimeout(()=>reject(new Error('读取图片超时，请选择手机本地图片。')),15000);image.onload=resolve;image.onerror=()=>reject(new Error('无法读取这张图片。'));image.src=url});clearTimeout(timer);
+  if(!image.naturalWidth||!image.naturalHeight||image.naturalWidth*image.naturalHeight>64000000)throw new Error('图片尺寸无效或过大，请先缩小图片。');
+  const source=document.createElement('canvas'),scale=Math.min(1,1280/Math.max(image.naturalWidth,image.naturalHeight));
+  source.width=Math.max(1,Math.round(image.naturalWidth*scale));source.height=Math.max(1,Math.round(image.naturalHeight*scale));source.getContext('2d').drawImage(image,0,0,source.width,source.height);
+  backgroundSource=source;backgroundRotation=0;backgroundDirty=true;
+  $('backgroundZoom').value='100';$('backgroundX').value=$('backgroundY').value='50';$('backgroundEditor').hidden=false;
+  await prepareBackground();
+ }catch(e){say('backgroundStatus',e.message,true)}
+ finally{clearTimeout(timer);if(url)URL.revokeObjectURL(url);backgroundBusy=false;$('save').disabled=false;backgroundControls(false)}
+};
+$('clearBackground').onclick=()=>{if(backgroundBusy||saveInProgress)return;backgroundBlob=null;backgroundSource=null;backgroundDirty=false;backgroundDelete=true;$('backgroundFile').value='';$('backgroundPreview').hidden=true;$('backgroundEditor').hidden=true;$('backgroundState').textContent='待保存';say('backgroundStatus','保存后恢复纯色背景。')};
+let fmoBusy=false,fmoPollTimer=null,fmoPollCount=0;
+function stopFmoPoll(){clearTimeout(fmoPollTimer);fmoPollTimer=null;fmoPollCount=0}
+function lockFmo(locked){for(const id of ['fmoConnectWifi','fmoImportLegacy','fmoCheckCrl','fmoReadAprs','fmoSaveAprs','fmoAprsEnabled','fmoAprsLegacy','fmoAprsGrid','fmoAprsSsid','fmoAprsFrequency','fmoAprsHeight','fmoAprsRig','fmoAprsAntenna','fmoReadBook','fmoExportBook','fmoRestoreBookFile','fmoRestoreBook','fmoReadStamp','fmoStampStyle','fmoStampColor','fmoStampLabel','fmoSaveStamp','fmoStampFile','fmoStampThreshold','fmoStampInvert','fmoUploadStamp','fmoExportStamp','fmoClearStamp','fmoBeepEnabled','fmoBeepSelect','fmoBeepRefresh','fmoBeepPreview','fmoBeepApply','fmoBeepClear','fmoInit','fmoRefresh','fmoApply','fmoSaveRelay','fmoRefreshServers','fmoSelectServer','fmoUseBuiltin','fmoServerList','fmoPhoto','fmoCallsign','fmoHost','fmoPort','fmoRelayCall','fmoRelayUid','fmoFingerprint'])$(id).disabled=locked||((id==='fmoUploadStamp')&&!stampCustomPixels)}
+async function fmoOperation(work,target='fmoStatus'){if(fmoBusy||saveInProgress)return;fmoBusy=true;lockFmo(true);try{await work()}catch(e){say(target,e.message,true)}finally{fmoBusy=false;lockFmo(false)}}
+async function syncPhoneTime(){try{await api('/api/time',{epoch:Math.floor(Date.now()/1000),tz_minutes:-new Date().getTimezoneOffset()})}catch(e){}}
+async function ensureFmoWifi(target='fmoStatus'){
+ if(staConnected)return true;
+ if(!hasSaved)throw Error('设备尚未连接可上网的 Wi-Fi。请先点下方“返回网络设置”连接路由器，再申请证书。');
+ say(target,'正在自动连接已保存的 Wi-Fi（请保持连接设备热点）…');
+ await api('/api/connect',{saved:true,ssid:$('savedNetwork').value||'',epoch:Math.floor(Date.now()/1000),tz_minutes:-new Date().getTimezoneOffset()});
+ for(let i=0;i<24;++i){
+  await new Promise(r=>setTimeout(r,1000));
+  const st=await api('/api/setup');
+  if(st.sta_connected===true||st.state==='connected'){
+   staConnected=true;verified=true;staSsid=st.sta_ssid||st.ssid||'';
+   $('connectionSummary').textContent='已连接 '+(staSsid||'Wi-Fi');updateFmoWifiNotice();
+   return true;
   }
+  if(st.state==='failed')throw Error('自动连接已保存 Wi-Fi 失败，请返回“网络设置”检查密码或重选 2.4 GHz 网络。');
  }
- // Small bilateral kernel removes weak texture while retaining high-contrast eyes and glasses.
- const range=Float32Array.from({length:256},(_,i)=>Math.exp(-i*i/(2*24*24))),kernel=[];
- for(let dy=-2;dy<=2;dy++)for(let dx=-2;dx<=2;dx++)kernel.push([dx,dy,Math.exp(-(dx*dx+dy*dy)/(2*1.2*1.2))]);
- const smooth=new Uint8Array(count);let used=0;
- for(let y=0;y<h;y++)for(let x=0;x<w;x++){const p=y*w+x;if(background[p])continue;let total=0,weight=0;
-  for(const [dx,dy,spatial] of kernel){const xx=x+dx,yy=y+dy;if(xx<0||xx>=w||yy<0||yy>=h)continue;const q=yy*w+xx;if(background[q])continue;const k=spatial*range[Math.abs(lum[q]-lum[p])];total+=lum[q]*k;weight+=k}
-  smooth[p]=Math.round(total/weight);hist[smooth[p]]++;mask[p]=1;used++;
+ throw Error('等待 Wi-Fi 连接超时，请返回“网络设置”手动连接后重试。');
+}
+async function fmoOnlineRequest(fn,target='fmoStatus'){
+ try{return await fn();}
+ catch(e){
+  if(e.deviceCode==='wifi_required'){
+   staConnected=false;updateFmoWifiNotice();
+   await ensureFmoWifi(target);
+   return await fn();
+  }
+  throw e;
  }
- const percentile=part=>{let n=0;for(let v=0;v<256;v++){n+=hist[v];if(n>=Math.max(1,used*part))return v}return 255};
- let low=percentile(.02),high=percentile(.98);if(high-low<40){low=0;high=255}
- for(let p=0;p<count;p++)smooth[p]=Math.max(0,Math.min(255,Math.round((smooth[p]-low)*255/(high-low))));
- portraitPreparedCache={data,w,h,removeBackground,mask,gray:portraitLocalContrast(smooth,mask,w,h)};return portraitPreparedCache;
 }
-function portraitLevels(data,w,h,removeBackground,brightness,preset=3){
- const {gray,mask}=portraitPrepare(data,w,h,removeBackground),levels=new Uint8Array(w*h),bayer=[0,8,2,10,12,4,14,6,3,11,1,9,15,7,13,5];
- for(let p=0;p<levels.length;p++)if(mask[p]){
-  const x=p%w,y=Math.floor(p/w),v=Math.max(0,Math.min(255,gray[p]+brightness)),t=(bayer[(y%4)*4+x%4]+.5)/16;
-  if(preset===1){const edge=(x>0&&!mask[p-1])||(x<w-1&&!mask[p+1])||(y>0&&!mask[p-w])||(y<h-1&&!mask[p+w]);levels[p]=.13+.78*(v/255)**.95>t||(edge&&(x+y)%3===0)?3:0}
-  else{const value=v+(preset===3?(t-.5)*34:0);levels[p]=value<57?0:value<124?1:value<190?2:3}
- }return {levels,mask};
+const STAMP_STYLES=[
+ ['G001','双环圆章',"<circle cx='50' cy='50' r='45' fill='none' stroke='currentColor' stroke-width='4.5'/><circle cx='50' cy='50' r='38' fill='none' stroke='currentColor' stroke-width='1.4'/><line x1='29' y1='37' x2='71' y2='37' stroke='currentColor' stroke-width='2'/><line x1='29' y1='78' x2='71' y2='78' stroke='currentColor' stroke-width='2'/>"],
+ ['G002','邮戳齿圆',"<circle cx='50' cy='50' r='43' fill='none' stroke='currentColor' stroke-width='9' stroke-dasharray='2.4 4.3'/><circle cx='50' cy='50' r='36' fill='none' stroke='currentColor' stroke-width='1.4'/><line x1='29' y1='37' x2='71' y2='37' stroke='currentColor' stroke-width='2'/><line x1='29' y1='78' x2='71' y2='78' stroke='currentColor' stroke-width='2'/>"],
+ ['G003','圆角方章',"<rect x='6' y='6' width='88' height='88' rx='5' fill='none' stroke='currentColor' stroke-width='4.5'/><rect x='18' y='18' width='64' height='64' rx='3' fill='none' stroke='currentColor' stroke-width='1.4'/><line x1='27' y1='37' x2='73' y2='37' stroke='currentColor' stroke-width='2'/><line x1='27' y1='78' x2='73' y2='78' stroke='currentColor' stroke-width='2'/>"],
+ ['G004','方中带圆',"<rect x='5' y='5' width='90' height='90' rx='9' fill='none' stroke='currentColor' stroke-width='4.5'/><circle cx='50' cy='50' r='33' fill='none' stroke='currentColor' stroke-width='2'/><line x1='31' y1='37' x2='69' y2='37' stroke='currentColor' stroke-width='2'/><line x1='31' y1='78' x2='69' y2='78' stroke='currentColor' stroke-width='2'/>"],
+ ['G005','粗边圆章',"<circle cx='50' cy='50' r='45' fill='none' stroke='currentColor' stroke-width='8'/><circle cx='50' cy='50' r='34' fill='none' stroke='currentColor' stroke-width='2'/><line x1='29' y1='37' x2='71' y2='37' stroke='currentColor' stroke-width='2'/><line x1='29' y1='78' x2='71' y2='78' stroke='currentColor' stroke-width='2'/>"],
+ ['G006','圆中带方',"<circle cx='50' cy='50' r='45' fill='none' stroke='currentColor' stroke-width='4.5'/><rect x='17' y='17' width='66' height='66' rx='3' fill='none' stroke='currentColor' stroke-width='1.4'/><line x1='29' y1='37' x2='71' y2='37' stroke='currentColor' stroke-width='2'/><line x1='29' y1='78' x2='71' y2='78' stroke='currentColor' stroke-width='2'/>"],
+ ['G007','八角印章',"<polygon points='26,4 74,4 96,26 96,74 74,96 26,96 4,74 4,26' fill='none' stroke='currentColor' stroke-width='4.5'/><polygon points='30,17 70,17 83,30 83,70 70,83 30,83 17,70 17,30' fill='none' stroke='currentColor' stroke-width='1.4'/><line x1='29' y1='37' x2='71' y2='37' stroke='currentColor' stroke-width='2'/><line x1='29' y1='78' x2='71' y2='78' stroke='currentColor' stroke-width='2'/>"],
+ ['G008','徽章盾牌',"<path d='M8 8 H92 V58 C92 82 78 94 50 97 C22 94 8 82 8 58 Z' fill='none' stroke='currentColor' stroke-width='4.5'/><path d='M17 17 H83 V58 C83 76 70 86 50 89 C30 86 17 76 17 58 Z' fill='none' stroke='currentColor' stroke-width='1.4'/><line x1='30' y1='37' x2='70' y2='37' stroke='currentColor' stroke-width='2'/><line x1='30' y1='78' x2='70' y2='78' stroke='currentColor' stroke-width='2'/>"],
+ ['G009','六角蜂巢',"<polygon points='50,2 91.6,26 91.6,74 50,98 8.4,74 8.4,26' fill='none' stroke='currentColor' stroke-width='4.5'/><polygon points='50,10 84.6,30 84.6,70 50,90 15.4,70 15.4,30' fill='none' stroke='currentColor' stroke-width='1.4'/><line x1='27' y1='37' x2='73' y2='37' stroke='currentColor' stroke-width='2'/><line x1='27' y1='78' x2='73' y2='78' stroke='currentColor' stroke-width='2'/>"],
+ ['G010','爱心印章',"<path d='M50,90 C20,62 4,48 4,30 C4,16 15,5 29,5 C37,5 45,9 50,15 C55,9 63,5 71,5 C85,5 96,16 96,30 C96,48 80,62 50,90 Z' fill='none' stroke='currentColor' stroke-width='3.6'/><line x1='38' y1='71' x2='62' y2='71' stroke='currentColor' stroke-width='2'/>"],
+ ['G011','菱形印章',"<polygon points='50,3 97,50 50,97 3,50' fill='none' stroke='currentColor' stroke-width='4.5'/><polygon points='50,14 86,50 50,86 14,50' fill='none' stroke='currentColor' stroke-width='1.4'/><line x1='32' y1='37' x2='68' y2='37' stroke='currentColor' stroke-width='2'/><line x1='32' y1='78' x2='68' y2='78' stroke='currentColor' stroke-width='2'/>"],
+ ['G012','邮票方章',"<rect x='5' y='5' width='90' height='90' fill='none' stroke='currentColor' stroke-width='6' stroke-dasharray='2.4 4.4'/><rect x='16' y='16' width='68' height='68' rx='2' fill='none' stroke='currentColor' stroke-width='1.4'/><line x1='26' y1='37' x2='74' y2='37' stroke='currentColor' stroke-width='2'/><line x1='26' y1='78' x2='74' y2='78' stroke='currentColor' stroke-width='2'/>"],
+];
+const STAMP_SWATCHES=['#FF7A1A','#2E8B57','#E04338','#3B82F6','#EAB308','#A855F7'];
+let stampCustomSource=null,stampCustomPixels=null,stampCustomOnDevice=false,stampGridButtons=[];
+function stampSvgMarkup(styleId){const found=STAMP_STYLES.find(s=>s[0]===styleId)||STAMP_STYLES[0];return `<svg viewBox="0 0 100 100" aria-hidden="true">${found[2]}</svg>`}
+function hexToRgb(hex){const m=/^#([0-9a-fA-F]{6})$/.exec(hex||'');if(!m)return [255,122,26];const v=parseInt(m[1],16);return [(v>>16)&255,(v>>8)&255,v&255]}
+function renderStampPreview(){
+ const canvas=$('fmoStampPreview'),ctx=canvas.getContext('2d');
+ const styleId=$('fmoStampStyle').value||'G001',color=$('fmoStampColor').value||'#FF7A1A';
+ const found=STAMP_STYLES.find(s=>s[0]===styleId);
+ $('fmoStampPreviewName').textContent=styleId==='CUSTOM'?'CUSTOM · 定制图案':`${found?found[0]:styleId} · ${found?found[1]:'印章'}`;
+ for(const b of stampGridButtons)b.setAttribute('aria-pressed',String(b.dataset.style===styleId));
+ ctx.fillStyle='#111518';ctx.fillRect(0,0,96,96);
+ if(styleId==='CUSTOM'&&stampCustomPixels&&ctx.createImageData&&ctx.putImageData){
+  const img=ctx.createImageData(96,96),[r,g,b]=hexToRgb(color);
+  for(let i=0;i<96*96;++i){const byte=stampCustomPixels[i>>1];const lv=(i&1)?(byte&15):(byte>>4);const p=i*4;img.data[p]=Math.round(r*lv/15);img.data[p+1]=Math.round(g*lv/15);img.data[p+2]=Math.round(b*lv/15);img.data[p+3]=255;}
+  ctx.putImageData(img,0,0);return;
+ }
+ if(ctx.strokeStyle!==undefined&&ctx.beginPath){
+  ctx.strokeStyle=color;ctx.lineWidth=3.5;ctx.beginPath();
+  if(['G003','G004','G012'].includes(styleId))ctx.strokeRect(8,8,80,80);
+  else if(styleId==='G011'){ctx.moveTo(48,5);ctx.lineTo(91,48);ctx.lineTo(48,91);ctx.lineTo(5,48);ctx.closePath();ctx.stroke();}
+  else {ctx.arc(48,48,41,0,Math.PI*2);ctx.stroke();}
+  if(ctx.fillText){ctx.fillStyle=color;ctx.font='bold 14px sans-serif';ctx.textAlign='center';ctx.fillText(($('fmoCallsign').value||styleId).toUpperCase().slice(0,8),48,53);}
+ }
 }
-function portraitPacked(){
- const {levels,mask}=portraitLevels(portraitPixels(),PORTRAIT.w,PORTRAIT.h,$('portraitBackground').checked,Number($('portraitBrightness').value)||0,portraitPreset),count=PORTRAIT.w*PORTRAIT.h,packed=new Uint8Array(8+count/4+count/8);
- packed.set([80,84,51,53,portraitPreset,0,0,0]);for(let p=0;p<count;p++){packed[8+(p>>2)]|=levels[p]<<(6-2*(p&3));if(mask[p])packed[8+count/4+(p>>3)]|=128>>(p&7)}return packed;
+function initStampPalette(){
+ const grid=$('fmoStampGrid');grid.replaceChildren();stampGridButtons=[];
+ for(const [id,name] of STAMP_STYLES){
+  const btn=document.createElement('button');btn.type='button';btn.className='stamp-opt';btn.dataset.style=id;btn.setAttribute('aria-pressed',String(id==='G001'));
+  btn.innerHTML=stampSvgMarkup(id)+'<span>'+id+'</span>';btn.title=name;
+  btn.onclick=()=>{$('fmoStampStyle').value=id;renderStampPreview()};
+  grid.append(btn);stampGridButtons.push(btn);
+ }
+ const sw=$('fmoStampSwatches');
+ for(const hex of STAMP_SWATCHES){
+  const b=document.createElement('button');b.type='button';b.className='swatch';b.style.background=hex;b.setAttribute('aria-label','印泥颜色 '+hex);
+  b.onclick=()=>{$('fmoStampColor').value=hex;renderStampPreview()};
+  sw.append(b);
+ }
+ renderStampPreview();
 }
-function portraitColor(packed,p){
- const count=PORTRAIT.w*PORTRAIT.h,visible=packed[8+count/4+(p>>3)]&(128>>(p&7)),level=(packed[8+(p>>2)]>>(6-2*(p&3)))&3;
- return !visible||(packed[4]===1&&!level)?portraitPalette[0]:portraitSubjectPalette[level];
+function detectStampBg(data){
+ const S=96;let trans=0;
+ for(let i=0;i<S;++i){
+  if(data[i*4+3]<32)trans++;if(data[((S-1)*S+i)*4+3]<32)trans++;
+  if(data[i*S*4+3]<32)trans++;if(data[(i*S+S-1)*4+3]<32)trans++;
+ }
+ if(trans>=16)return {kind:'transparent',r:0,g:0,b:0};
+ const corners=[[0,0],[S-6,0],[0,S-6],[S-6,S-6]],sm=[];
+ for(const [cx,cy] of corners){
+  let r=0,g=0,b=0,k=0;
+  for(let y=cy;y<cy+6;++y)for(let x=cx;x<cx+6;++x){const q=(y*S+x)*4;r+=data[q];g+=data[q+1];b+=data[q+2];k++;}
+  sm.push([r/k,g/k,b/k]);
+ }
+ let sp=0;for(let ch=0;ch<3;++ch){const mn=Math.min(...sm.map(s=>s[ch])),mx=Math.max(...sm.map(s=>s[ch]));sp=Math.max(sp,mx-mn);}
+ const ar=sm.reduce((a,s)=>a+s[0],0)/4,ag=sm.reduce((a,s)=>a+s[1],0)/4,ab=sm.reduce((a,s)=>a+s[2],0)/4;
+ if(sp<=40&&ar>=235&&ag>=235&&ab>=235)return {kind:'white',r:ar,g:ag,b:ab};
+ if(sp<=40&&ar<=25&&ag<=25&&ab<=25)return {kind:'black',r:ar,g:ag,b:ab};
+ if(sp<=40)return {kind:'solid',r:ar,g:ag,b:ab};
+ return {kind:'luma',r:255,g:255,b:255};
 }
-function previewPortrait(){if(!portrait)return;const packed=portraitPacked(),g=$('binc').getContext('2d'),o=g.createImageData(PORTRAIT.w,PORTRAIT.h);for(let p=0;p<PORTRAIT.w*PORTRAIT.h;p++){const color=portraitColor(packed,p),i=p*4;o.data[i]=color>>16;o.data[i+1]=(color>>8)&255;o.data[i+2]=color&255;o.data[i+3]=255}g.putImageData(o,0,0)}
-function setPortraitPreset(value){portraitPreset=[1,2,3].includes(value)?value:3;for(const [i,id] of ['portraitPresetDot','portraitPresetFlat','portraitPresetHybrid'].entries())$(id).checked=portraitPreset===i+1;previewPortrait()}
-for(const [i,id] of ['portraitPresetDot','portraitPresetFlat','portraitPresetHybrid'].entries())$(id).onchange=()=>{if($(id).checked)setPortraitPreset(i+1)};
-$('portraitBrightness').oninput=previewPortrait;$('portraitBackground').onchange=previewPortrait;
-async function imageFile(input){const file=input.files[0];if(!file)return null;if(!file.size)throw new Error('图片文件为空，请重新选择。');if(file.size>20*1024*1024)throw new Error('图片超过 20 MB，请选择较小的图片。');const url=URL.createObjectURL(file);let timer;imageLoading++;try{const img=new Image();await new Promise((resolve,reject)=>{timer=setTimeout(()=>reject(new Error('读取图片超时，请将图片保存到手机本地后重试。')),15000);img.onload=resolve;img.onerror=()=>reject(new Error('无法读取图片，请换一张 JPEG 或 PNG 图片。'));img.src=url});if(!img.naturalWidth||!img.naturalHeight)throw new Error('图片尺寸无效，请重新选择。');return img}catch(e){URL.revokeObjectURL(url);throw e}finally{clearTimeout(timer);imageLoading--}}
-async function selectPortrait(input){say('avatarStatus','正在读取图片…');try{const img=await imageFile(input);if(!img){say('avatarStatus',portrait?'已保留之前选择的人像。':'未选择图片。');return}if(portrait)URL.revokeObjectURL(portrait.src);portrait=img;$('pv').src=img.src;base=Math.max(VP.w/img.naturalWidth,VP.h/img.naturalHeight);zoom=1;$('zm').value=100;ox=(VP.w-img.naturalWidth*base)/2;oy=(VP.h-img.naturalHeight*base)/2;clamp();previewPortrait();$('photoTools').hidden=false;say('avatarStatus','已选择，将在完成设置时保存。')}catch(e){input.value='';say('avatarStatus',e.message,true)}}
-$('zm').oninput=()=>{if(!portrait)return;const z=Number($('zm').value)/100;ox=VP.w/2-(VP.w/2-ox)*z/zoom;oy=VP.h/2-(VP.h/2-oy)*z/zoom;zoom=z;clamp();previewPortrait()};let drag=null;
-$('vp').onpointerdown=e=>{if(!portrait)return;drag={x:e.clientX,y:e.clientY,ox,oy};$('vp').setPointerCapture(e.pointerId)};$('vp').onpointermove=e=>{if(!drag)return;ox=drag.ox+e.clientX-drag.x;oy=drag.oy+e.clientY-drag.y;clamp()};$('vp').onpointerup=$('vp').onpointercancel=()=>{if(drag){drag=null;previewPortrait()}};
-function drawShare(){const c=$('sharec'),g=c.getContext('2d');g.fillStyle='#fff';g.fillRect(0,0,240,320);const scale=Math.min(240/shareImg.naturalWidth,320/shareImg.naturalHeight),w=Math.round(shareImg.naturalWidth*scale),h=Math.round(shareImg.naturalHeight*scale);g.imageSmoothingEnabled=true;g.imageSmoothingQuality='high';g.drawImage(shareImg,Math.floor((240-w)/2),Math.floor((320-h)/2),w,h)}
-function cardUrl(slot){return '/api/share?slot='+slot+'&t='+encodeURIComponent(window.__T||'')}
-function galleryUsage(){const total=cards.reduce((n,c)=>n+c.bytes,0);$('shareState').textContent=cards.length+' / '+CARD_MAX+' 张';$('cardUsage').textContent='已选 '+cards.length+' / '+CARD_MAX+' 张 · '+(total/1024).toFixed(1)+' / 144 KB'+(cardStorage?' · 设备剩余约 '+Math.floor(cardStorage.storage_free/1024)+' KB':'');}
-function renderCards(){$('sharePickLabel').textContent=cards.length===CARD_MAX?'图片已满，可移除或替换':'一次添加多张图片（还可添加 '+(CARD_MAX-cards.length)+' 张）';const list=$('cardList');list.replaceChildren();galleryUsage();if(!cards.length){const empty=document.createElement('p');empty.className='card-empty';empty.textContent='还没有名片图片。可以添加微信名片、联系方式或其它展示图片。';list.appendChild(empty)}for(const [i,card] of cards.entries()){const row=document.createElement('div');row.className='card-row';const img=document.createElement('img');img.className='card-thumb';img.alt='名片图片 '+(i+1);img.src=card.preview||cardUrl(card.slot);const meta=document.createElement('div');meta.className='card-meta';const title=document.createElement('p');title.textContent='第 '+(i+1)+' 张 · '+(card.bytes/1024).toFixed(1)+' KB'+(card.blob?' · 待保存':'');const actions=document.createElement('div');actions.className='card-actions';for(const [label,action,disabled] of [['替换',()=>chooseReplacement(card.slot),false],['上移',()=>moveCard(i,-1),i===0],['下移',()=>moveCard(i,1),i===cards.length-1],['移除',()=>removeCard(i),false]]){const button=document.createElement('button');button.type='button';button.textContent=label;button.setAttribute('aria-label',label+'第 '+(i+1)+' 张图片');button.disabled=disabled||cardBusy||$('save').disabled;if(label==='移除')button.className='remove';button.onclick=action;actions.appendChild(button)}meta.appendChild(title);meta.appendChild(actions);row.appendChild(img);row.appendChild(meta);list.appendChild(row)}}
-function chooseReplacement(slot){if(cardBusy||$('save').disabled)return;replaceSlot=slot;$('shareReplace').value='';$('shareReplace').click();say('shareStatus','请选择 1 张图片替换当前图片；批量添加请使用上面的多选入口。')}
-function moveCard(i,delta){if(cardBusy||$('save').disabled||i+delta<0||i+delta>=cards.length)return;[cards[i],cards[i+delta]]=[cards[i+delta],cards[i]];cardsDirty=true;renderCards();say('shareStatus','顺序已调整，将在完成设置时保存。')}
-function removeCard(i){if(cardBusy||$('save').disabled)return;const [card]=cards.splice(i,1);if(card.preview)URL.revokeObjectURL(card.preview);cardsDirty=true;renderCards();say('shareStatus','已从待保存列表移除。点击完成设置后生效。')}
-async function selectShare(input){
- if(cardBusy||$('save').disabled)return;
- if(!cardsReady){say('shareStatus','请先读取设备图片列表，刷新页面后重试。',true);return}
- const files=Array.from(input.files||[]);
- if(!files.length){say('shareStatus',cards.length?'已保留之前选择的名片。':'未收到图片，请重试；若仍无效，请在 Safari 打开 http://192.168.4.1 后选择手机本地的 JPEG 或 PNG 图片。',!cards.length);return}
- const replacement=input===$('shareReplace')?replaceSlot:null;replaceSlot=null;
- if(replacement!==null&&files.length!==1){say('shareStatus','替换时请只选择 1 张图片。',true);return}
- if(replacement===null&&cards.length+files.length>CARD_MAX){say('shareStatus','最多保存 6 张图片，请减少选择数量或先移除图片。',true);return}
- cardBusy=true;renderCards();
+function packCustomStamp(){
+ if(!stampCustomSource)return null;
+ const canvas=document.createElement('canvas');canvas.width=96;canvas.height=96;
+ const ctx=canvas.getContext('2d');
+ if(ctx.clearRect)ctx.clearRect(0,0,96,96);
+ const sw=stampCustomSource.width,sh=stampCustomSource.height,side=Math.min(sw,sh);
+ ctx.drawImage(stampCustomSource,(sw-side)/2,(sh-side)/2,side,side,0,0,96,96);
+ const packed=new Uint8Array(4608);
+ if(!ctx.getImageData){packed.fill(0x88);stampCustomPixels=packed;$('fmoStampStyle').value='CUSTOM';$('fmoUploadStamp').disabled=false;renderStampPreview();return {kind:'transparent',ink:4608};}
+ const data=ctx.getImageData(0,0,96,96).data,bg=detectStampBg(data);
+ const thr=Math.max(10,Math.min(90,Number($('fmoStampThreshold').value)||45))/100;
+ const inv=$('fmoStampInvert').checked;
+ let ink=0;
+ for(let i=0;i<96*96;++i){
+  const q=i*4,r=data[q],g=data[q+1],b=data[q+2],a=data[q+3]/255;
+  let v=0;
+  if(bg.kind==='transparent'){v=a;}
+  else if(bg.kind==='white'){const lum=(0.299*r+0.587*g+0.114*b)/255;v=(1-lum)*a;}
+  else if(bg.kind==='black'){const lum=(0.299*r+0.587*g+0.114*b)/255;v=lum*a;}
+  else if(bg.kind==='solid'){const dist=Math.sqrt((r-bg.r)**2+(g-bg.g)**2+(b-bg.b)**2)/441.67;v=Math.min(1,dist*1.6)*a;}
+  else {const lum=(0.299*r+0.587*g+0.114*b)/255;v=(1-lum)*a;}
+  if(inv)v=1-v;
+  // Soft threshold ramp for crisp anti-aliased stamp lines
+  const cut=thr*0.55;
+  v=v<=cut?0:Math.min(1,(v-cut)/Math.max(0.15,1-cut));
+  const lv=Math.max(0,Math.min(15,Math.round(v*15)));
+  if(lv>=3)ink++;
+  if((i&1)===0)packed[i>>1]|=(lv<<4);else packed[i>>1]|=lv;
+ }
+ stampCustomPixels=packed;$('fmoStampStyle').value='CUSTOM';$('fmoUploadStamp').disabled=false;renderStampPreview();
+ return {kind:bg.kind,ink};
+}
+function applyStampState(st){
+ if(!st)return;
+ stampCustomOnDevice=Boolean(st.custom_present);
+ if(st.style_id)$('fmoStampStyle').value=st.style_id;
+ if(st.color)$('fmoStampColor').value=st.color;
+ if(typeof st.label==='string')$('fmoStampLabel').value=st.label;
+ $('fmoStampSummary').textContent=(st.style_id||'G001')+(stampCustomOnDevice?' · 含定制图':'');
+ renderStampPreview();
+}
+$('fmoStampStyle').onchange=renderStampPreview;
+$('fmoStampColor').oninput=renderStampPreview;
+$('fmoStampThreshold').oninput=()=>{if(stampCustomSource)packCustomStamp()};
+$('fmoStampInvert').onchange=()=>{if(stampCustomSource)packCustomStamp()};
+$('fmoStampFile').onchange=async()=>{
+ const file=$('fmoStampFile').files[0];if(!file||fmoBusy||saveInProgress)return;
+ if(/\.fmostamp$/i.test(file.name||'')){
+  try{
+   if(file.size!==4608)throw Error('印章备份应为 4608 字节。');
+   const pixels=new Uint8Array(await file.arrayBuffer());
+   if($('fmoStampFile').files[0]!==file||fmoBusy||saveInProgress)return;
+   if(pixels.length!==4608||!pixels.some(value=>value!==0))throw Error('印章备份格式无效。');
+   stampCustomSource=null;stampCustomPixels=pixels;
+   $('fmoStampStyle').value='CUSTOM';$('fmoUploadStamp').disabled=false;renderStampPreview();
+   say('fmoStampStatus','已载入点阵备份。确认预览后，点击“上传定制图案到设备”。');
+  }catch(e){say('fmoStampStatus',e.message,true)}
+  return;
+ }
+
+ if(!file.size||file.size>10*1024*1024||!file.type.startsWith('image/')){say('fmoStampStatus','请选择不超过 10 MB 的 PNG/JPG 图案。',true);return}
+ let url,timer;
  try{
-  for(const [i,file] of files.entries()){
-   const position=(i+1)+' / '+files.length;
-   say('shareStatus','正在读取 '+position+' 张…');
-   if(file.type&&!file.type.startsWith('image/'))throw new Error('请选择 JPEG、PNG 或 WebP 图片，不支持文档或视频。');
-   shareImg=await imageFile({files:[file]});
-   try{
-    drawShare();say('shareStatus','正在压缩 '+position+' 张…');
-    const blob=await shareBlob();
-    const slot=replacement===null?Array.from({length:CARD_MAX},(_,n)=>n).find(n=>!cards.some(c=>c.slot===n)):replacement;
-    const at=cards.findIndex(c=>c.slot===slot),card={slot,blob,bytes:blob.size,preview:URL.createObjectURL(blob)};
-    if(at>=0){if(cards[at].preview)URL.revokeObjectURL(cards[at].preview);cards[at]=card}else cards.push(card);
-    cardsDirty=true;$('sharec').hidden=false;
-   }finally{if(shareImg)URL.revokeObjectURL(shareImg.src);shareImg=null}
-  }
-  say('shareStatus','已选择并压缩，将在完成设置时保存。');
- }catch(e){say('shareStatus',e.message+' 已成功压缩的图片会保留。',true)}
- finally{cardBusy=false;renderCards()}
-}
-async function loadCards(){try{const data=await api('/api/cards');if(!Array.isArray(data.images)||data.images.length>CARD_MAX||data.images.some(c=>!Number.isInteger(c.slot)||c.slot<0||c.slot>=CARD_MAX||!Number.isInteger(c.bytes)||c.bytes<0||c.bytes>CARD_BYTES)||new Set(data.images.map(c=>c.slot)).size!==data.images.length)throw new Error('invalid gallery');if(cards.some(c=>c.preview))for(const c of cards)if(c.preview)URL.revokeObjectURL(c.preview);cards=data.images.map(c=>({slot:c.slot,bytes:c.bytes,blob:null,preview:null}));cardStorage=data;cardsDirty=false;cardsReady=true;renderCards()}catch(e){cardsReady=false;say('shareStatus','无法读取图片列表，请刷新重试；已有图片不会被改动。',true)}}
-async function saveCards(){if(!cardsDirty)return;if(!cardsReady)throw new Error('图片列表未读取，请刷新后重试。');for(const [i,card] of cards.entries())if(card.blob){say('saveStatus','正在保存名片 '+(i+1)+' / '+cards.length+'…');await api('/api/share?slot='+card.slot,card.blob);card.blob=null;}await api('/api/cards',{order:cards.map(c=>c.slot)});cardsDirty=false;for(const c of cards){if(c.preview)URL.revokeObjectURL(c.preview);c.preview=null;}renderCards()}
-
-// Keep file inputs native: deferred .click() can lose the user gesture, and
-// showPicker() is not available in every browser used on the device's HTTP AP.
-// No accept filter on the fallback lets phones use their document provider
-// when the image/gallery provider cannot open. Both paths decode an image.
-for(const [id,status,select,selected] of [['file','avatarStatus',selectPortrait,()=>portrait],['fileFallback','avatarStatus',selectPortrait,()=>portrait],['shareFile','shareStatus',selectShare,()=>cards.length],['shareFileFallback','shareStatus',selectShare,()=>cards.length],['shareReplace','shareStatus',selectShare,()=>cards.length]]){const input=$(id);input.onclick=()=>{if(id.startsWith('share')){if(cardBusy||$('save').disabled)return;input.value=''}if(id==='shareFile'||id==='shareFileFallback'){replaceSlot=null;say(status,'正在打开多选入口，可长按图片后勾选多张。若相册只能单选，请改用文件多选。')}else say(status,id==='shareReplace'?'正在选择替换图片（单张）。':'正在打开选择器。若没有弹出，请展开“从文件选择”使用备用入口。')};input.onchange=()=>select(input);input.oncancel=()=>{if(id.startsWith('share'))replaceSlot=null;say(status,selected()?'已保留之前选择的图片。':'未选择图片，可重试或使用备用入口。')}}
-async function shareBlob(){
- for(const quality of [.86,.78,.68,.58,.48,.38,.28]){
-  const blob=await new Promise((resolve,reject)=>{
-   const timer=setTimeout(()=>reject(new Error('图片压缩超时，请重新选择；若仍无效，请在 Safari 打开 http://192.168.4.1 后重试。')),10000);
-   try{$('sharec').toBlob(value=>{clearTimeout(timer);resolve(value)},'image/jpeg',quality)}catch(e){clearTimeout(timer);reject(new Error('无法压缩图片，请换一张本地 JPEG 或 PNG 图片。'))}
-  });
-  if(!blob||!blob.size)throw new Error('图片压缩失败，请换一张本地 JPEG 或 PNG 图片。');
-  if(blob.type!=='image/jpeg')throw new Error('浏览器未能生成 JPEG 图片，请在 Safari 打开 http://192.168.4.1 后重试。');
-  if(blob.size<=CARD_BYTES)return blob;
+  say('fmoStampStatus','正在解析并自动去底…');url=URL.createObjectURL(file);const image=new Image();
+  await new Promise((resolve,reject)=>{timer=setTimeout(()=>reject(Error('印章图片读取超时。')),15000);image.onload=resolve;image.onerror=()=>reject(Error('无法读取这张图片。'));image.src=url});clearTimeout(timer);
+  if(!image.naturalWidth||!image.naturalHeight)throw Error('图片尺寸无效。');
+  const src=document.createElement('canvas');src.width=image.naturalWidth;src.height=image.naturalHeight;src.getContext('2d').drawImage(image,0,0);
+  stampCustomSource=src;const info=packCustomStamp();
+  const names={transparent:'透明底',white:'白底自动去底',black:'黑底自动去底',solid:'纯色底自动去底',luma:'按灰度提取'};
+  say('fmoStampStatus',info.ink<16?'提取图案几乎为空白，请调整“去底灵敏度”或勾选“反转明暗”。':`已生成 96×96 定制印章（${names[info.kind]||info.kind}，4.5 KB），点击“上传定制图案到设备”生效。`,info.ink<16);
+ }catch(e){say('fmoStampStatus',e.message,true)}
+ finally{clearTimeout(timer);if(url)URL.revokeObjectURL(url)}
+};
+$('fmoReadStamp').onclick=()=>fmoOperation(async()=>{const st=await api('/api/fmo/stamp');applyStampState(st);say('fmoStampStatus',st.available?`当前印章：${st.style_id}${st.custom_present?'（已存定制图案）':''}。`:'印章配置暂不可读，未覆盖原数据。',!st.available)},'fmoStampStatus');
+$('fmoSaveStamp').onclick=()=>fmoOperation(async()=>{
+ const style_id=$('fmoStampStyle').value,color=$('fmoStampColor').value.toUpperCase(),label=$('fmoStampLabel').value.trim();
+ if(!/^#([0-9A-F]{6})$/.test(color))throw Error('请选择有效的印泥颜色。');
+ if(bytes(label)>16||/[,\x00-\x1f\x7f]/.test(label))throw Error('印章铭文最多 16 字节，且不含逗号或换行。');
+ if(style_id==='CUSTOM'&&!stampCustomOnDevice){
+  if(stampCustomPixels){
+   say('fmoStampStatus','正在上传定制图案并保存印章设置…');
+   await api('/api/fmo/stamp',new Blob([stampCustomPixels],{type:'application/octet-stream'}));
+   stampCustomOnDevice=true;
+  }else throw Error('请先选择并上传定制图案，或选择 G001–G012 内置印章。');
  }
- throw new Error('名片图片过于复杂，压缩后仍较大，请换一张图片。');
+ const state=await api('/api/fmo',{action:'stamp',style_id,color,label});applyStampState(state.stamp);
+ say('fmoStampStatus','印章样式与颜色已保存到设备，重新打开 FMO 即可查看。');
+},'fmoStampStatus');
+$('fmoExportStamp').onclick=()=>fmoOperation(async()=>{
+ const data=await api('/api/fmo/stamp?raw=1',undefined,undefined,true);
+ if(data.byteLength!==4608)throw Error('设备返回的印章点阵长度无效。');
+ const url=URL.createObjectURL(new Blob([data],{type:'application/octet-stream'}));
+ const link=document.createElement('a');link.href=url;link.download='passport-custom.fmostamp';link.click();
+ setTimeout(()=>URL.revokeObjectURL(url),1000);
+ say('fmoStampStatus','已下载设备当前保存的印章点阵。');
+},'fmoStampStatus');
+$('fmoUploadStamp').onclick=()=>fmoOperation(async()=>{
+ if(!stampCustomPixels||stampCustomPixels.length!==4608)throw Error('请先选择一张定制印章图案。');
+ say('fmoStampStatus','正在上传 96×96 定制印章点阵到设备…');
+ const state=await api('/api/fmo/stamp',new Blob([stampCustomPixels],{type:'application/octet-stream'}));
+ stampCustomOnDevice=true;applyStampState(state.stamp);
+ say('fmoStampStatus','定制印章已保存到设备，在 FMO 菜单“我的印章”即可查看。');
+},'fmoStampStatus');
+$('fmoClearStamp').onclick=()=>fmoOperation(async()=>{
+ const state=await api('/api/fmo/stamp',undefined,'DELETE');
+ stampCustomSource=null;stampCustomPixels=null;stampCustomOnDevice=false;$('fmoStampFile').value='';$('fmoUploadStamp').disabled=true;
+ applyStampState(state.stamp||{style_id:'G001',color:$('fmoStampColor').value,label:$('fmoStampLabel').value,custom_present:false});
+ say('fmoStampStatus','定制图案已清除，已恢复内置几何印章。');
+},'fmoStampStatus');
+initStampPalette();
+let fmoContacts=[];
+function showAprs(config){
+ if(!config?.available)throw Error('APRS设置暂不可读，未更改原配置。');
+ $('fmoAprsEnabled').checked=config.enabled;$('fmoAprsLegacy').checked=config.legacy_beacon;
+ for(const [id,key] of [['fmoAprsGrid','grid'],['fmoAprsSsid','ssid'],['fmoAprsFrequency','frequency'],['fmoAprsHeight','antenna_height'],['fmoAprsRig','rig'],['fmoAprsAntenna','antenna']])$(id).value=String(config[key]);
 }
-async function save(){if(imageLoading||cardBusy){say('saveStatus','图片还在读取，请稍等。',true);return}if(!verified&&!hasSaved){step(1);say('networkStatus','请先连接 Wi-Fi。',true);return}let selected;try{selected=selectedCityProfile()}catch(e){say('saveStatus',e.message,true);return}const profile={name:$('name').value,signature:$('sig').value,address:loadedProfile.address||'',...selected};for(const [key,max] of [['name',31],['signature',95],['address',127],['city',47],['region',31],['radio_city',47],['lat',15],['lon',15]])if(bytes(profile[key])>max){say('saveStatus','有一项内容过长，请缩短后再保存。',true);return}$('save').disabled=true;$('back').disabled=true;try{renderCards();if(pendingMuseConfig()){say('saveStatus','正在保存 Muse 配置…');await saveMuseConfig(true)}say('saveStatus','正在保存个人资料…');await api('/api/profile',profile);if(portrait){say('saveStatus','正在保存人像…');await api('/api/avatar',portraitPacked())}await saveCards();say('saveStatus','正在完成设置…');await api('/api/finish',{});$('doneName').textContent=profile.name||'AI 护照';$('doneSummary').textContent='个人资料'+(portrait?'、人像':'')+(cards.length?'、'+cards.length+' 张彩色名片':'')+'已保存';step(3)}catch(e){say('saveStatus',e.message+' 尚未完成的内容可再次保存。',true)}finally{$('save').disabled=false;$('back').disabled=false;renderCards()}}
+$('fmoReadAprs').onclick=()=>fmoOperation(async()=>{showAprs((await api('/api/fmo')).aprs);say('fmoAprsStatus','已读取广播设置。')},'fmoAprsStatus');
+$('fmoSaveAprs').onclick=()=>fmoOperation(async()=>{
+ const enabled=$('fmoAprsEnabled').checked,legacy_beacon=$('fmoAprsLegacy').checked,grid=$('fmoAprsGrid').value.trim().toUpperCase(),frequency=$('fmoAprsFrequency').value.trim(),ssid=Number($('fmoAprsSsid').value),antenna_height=Number($('fmoAprsHeight').value),rig=$('fmoAprsRig').value.trim(),antenna=$('fmoAprsAntenna').value.trim();
+ if((enabled||grid)&&!/^[A-R]{2}[0-9]{2}(?:[A-X]{2}(?:[0-9]{2})?)?$/.test(grid))throw Error('请填写4/6/8位Maidenhead网格。');
+ if(!Number.isInteger(ssid)||ssid<0||ssid>15||!Number.isInteger(antenna_height)||antenna_height<0||antenna_height>999)throw Error('SSID或天线高度无效。');
+ if(frequency&&(!/^\d+(?:\.\d{1,4})?$/.test(frequency)||Number(frequency)<100||Number(frequency)>1300))throw Error('频率应为100至1300MHz，最多四位小数。');
+ if([rig,antenna].some(s=>new TextEncoder().encode(s).length>24||/[,\x00-\x1f\x7f]/.test(s)))throw Error('设备/天线最多24字节，且不能含逗号或换行。');
+ const state=await api('/api/fmo',{action:'aprs',enabled,legacy_beacon,grid,frequency,ssid,antenna_height,rig,antenna});showAprs(state.aprs);
+ say('fmoAprsStatus',enabled?'已开启按键广播。重新打开设备FMO后生效；本次保存不会发送广播。':'广播已关闭，重新打开设备FMO后生效。');
+},'fmoAprsStatus');
+function renderFmoBook(){
+ const query=$('fmoBookSearch').value.trim().toUpperCase();$('fmoBookEntries').replaceChildren();
+ const matches=fmoContacts.filter(c=>c.callsign.includes(query)).sort((a,b)=>b.last_seen-a.last_seen||a.callsign.localeCompare(b.callsign));
+ $('fmoExportBook').hidden=!fmoContacts.length;
+ for(const c of matches){
+  const entry=document.createElement('div');entry.className='book-card';
+  const title=document.createElement('strong');title.textContent=c.callsign;
+  const detail=document.createElement('p');detail.className='help';
+  const date=seconds=>new Date(seconds*1000).toLocaleString('zh-CN',{hour12:false});
+  detail.textContent=`初次：${date(c.first_seen)} · 最近：${date(c.last_seen)} · ${c.receptions}次 · UID ${c.uid}`;
+  const badge=document.createElement('span');badge.innerHTML=stampSvgMarkup(c.stamp_style||'G001');
+  entry.append(title,detail,badge);$('fmoBookEntries').append(entry);
+ }
+ if(!matches.length){const empty=document.createElement('p');empty.className='help';empty.textContent=fmoContacts.length?'没有匹配的呼号。':'还没有保存的语音抄收记录。';$('fmoBookEntries').append(empty)}
+}
+$('fmoBookSearch').oninput=renderFmoBook;
+$('fmoExportBook').onclick=()=>{
+ if(!fmoContacts.length)return;
+ const blob=new Blob([JSON.stringify({v:1,exported_at:Math.floor(Date.now()/1000),contacts:fmoContacts},null,2)],{type:'application/json'});
+ const a=document.createElement('a');const u=URL.createObjectURL(blob);a.href=u;a.download='passport-qso-book.json';if(a.click)a.click();setTimeout(()=>URL.revokeObjectURL(u),1000);
+ say('fmoBookStatus',`已导出 ${fmoContacts.length} 位友台章册备份。`);
+};
+$('fmoReadBook').onclick=()=>fmoOperation(async()=>{
+ const contacts=[];let total=0,capacity=64;
+ for(let page=0;page<8;++page){
+  const state=await api('/api/fmo?book='+page);
+  if(!state.contacts_available)throw Error('抄收册读取失败，设备没有覆盖原数据。请保留现场后重试。');
+  if(!Number.isInteger(state.total)||state.total<0||state.total>64||!Array.isArray(state.contacts)||state.contacts.length>8)throw Error('抄收册响应无效。');
+  if(page&&state.total!==total)throw Error('抄收册发生变化，请重新读取。');
+  total=state.total;capacity=state.contacts_capacity;
+  for(const c of state.contacts){
+   if(typeof c.callsign!=='string'||!/^[A-Z0-9/\-]{2,12}$/.test(c.callsign)||!Number.isInteger(c.uid)||c.uid<1||c.uid>4294967295||!Number.isInteger(c.first_seen)||c.first_seen<1700000000||!Number.isInteger(c.last_seen)||c.last_seen<c.first_seen||!Number.isInteger(c.receptions)||c.receptions<1)throw Error('抄收记录格式无效。');
+   contacts.push(c);
+  }
+  if(contacts.length>=total)break;
+ }
+ if(contacts.length!==total||new Set(contacts.map(c=>c.uid+':'+c.callsign)).size!==total)throw Error('抄收册数据不完整，请重试。');
+ fmoContacts=contacts;renderFmoBook();$('fmoBookCount').textContent=`${total}/${capacity}位友台`;
+ say('fmoBookStatus',total>=capacity?'容量已满，已有记录继续更新，新友台暂不加入。':'已读取本机保存记录；设备在语音空闲时批量保存，正常退出FMO会保存本轮。');
+},'fmoBookStatus');
+$('fmoRestoreBook').onclick=()=>fmoOperation(async()=>{
+ const file=$('fmoRestoreBookFile').files[0];
+ if(!file||file.size>32768)throw Error('请选择不超过 32 KiB 的 JSON 备份。');
+ const backup=JSON.parse(await file.text());
+ if(backup?.v!==1||!Array.isArray(backup.contacts)||backup.contacts.length>64)throw Error('抄收备份格式无效。');
+ const keys=['callsign','uid','relay_uid','first_seen','last_seen','receptions','stamp_style'];
+ const contacts=backup.contacts.map(record=>Object.fromEntries(keys.map(key=>[key,record?.[key]])));
+ const result=await api('/api/fmo',{action:'restore_contacts',v:1,contacts});
+ if(!Number.isInteger(result.added)||!Number.isInteger(result.skipped)||result.added<0||result.skipped<0||result.added+result.skipped!==contacts.length)throw Error('导入结果无法识别。');
+ fmoContacts=[];$('fmoBookEntries').replaceChildren();$('fmoExportBook').hidden=true;
+ $('fmoBookCount').textContent='请重新读取抄收册';$('fmoRestoreBookFile').value='';
+ if(!Number.isInteger(result.styles_added)||result.styles_added<0||!Number.isInteger(result.styles_skipped)||result.styles_skipped<0||typeof result.styles_saved!=='boolean')throw Error('印章导入结果无法识别。');
+ const styles=result.styles_saved?`已补充 ${result.styles_added} 个印章样式，跳过 ${result.styles_skipped} 个。`:'抄收记录已处理，新增印章样式保存失败。';
+ say('fmoBookStatus',`已添加 ${result.added} 条抄收记录，跳过 ${result.skipped} 条。${styles}请重新读取抄收册。`,!result.styles_saved);
+},'fmoBookStatus');
+async function fmoLocal(){
+ const state=await api('/api/fmo');$('fmoIdentity').textContent=state.pubkey?(state.ready?`证书有效：${state.callsign} · UID ${state.uid}`:'本机身份已创建，等待有效证书'):'尚未创建本机身份';
+ if(typeof state.sta_connected==='boolean'){staConnected=state.sta_connected;updateFmoWifiNotice();}
+ const leg=state.legacy_cred;
+ if(leg&&leg.available&&!state.ready){$('fmoImportLegacy').hidden=false;$('fmoImportLegacy').textContent=`从原 FMO 固件导入证书（${leg.callsign||''}）`;}
+ else $('fmoImportLegacy').hidden=true;
+ if(state.stamp)applyStampState(state.stamp);
+ if(state.beep)applyBeepState(state.beep,state.callsign||'');
+ if(state.callsign&&!$('fmoCallsign').value)$('fmoCallsign').value=state.callsign;
+ const previous=$('fmoServerList').value;
+ $('fmoServerList').replaceChildren(new Option('请选择已发现服务器',''));
+ for(const server of state.servers||[]){
+  const known=server.stats_known===true&&[server.online,server.peak,server.range_km].every(n=>Number.isInteger(n)&&n>=0&&n<=4294967295);
+  const snapshot=known?`广播在线 ${server.online}/${server.peak} · ${server.range_km}km`:'广播在线数待更新';
+  $('fmoServerList').add(new Option(`${server.name||server.host} · ${server.callsign} · ${snapshot}`,String(server.uid)));
+ }
+ const choice=(state.servers||[]).find(s=>String(s.uid)===previous)||(state.servers||[]).find(s=>s.uid===state.relay?.uid);
+ if(choice)$('fmoServerList').value=String(choice.uid);
+ if(state.relay){$('fmoHost').value=state.relay.host;$('fmoPort').value=String(state.relay.port);$('fmoRelayCall').value=state.relay.callsign;$('fmoRelayUid').value=String(state.relay.uid);$('fmoFingerprint').value=state.relay.fingerprint}
+ const bi=state.builtin_relay;
+ if(bi&&$('fmoBuiltinNote'))$('fmoBuiltinNote').textContent=bi.active?`当前已启用内置兜底中继：${bi.name}（${bi.host}:${bi.port}）。`:`当前使用已选/手动中继；无同链 PASS 中继时可随时切换回 ${bi.name}（${bi.host}:${bi.port}）。`;
+ return state;
+}
+let beepCatalog=[],beepState={enabled:true,use_custom:false,custom_present:false,custom_id:0},beepCall='';
+function renderBeepOptions(){
+ const sel=$('fmoBeepSelect');if(!sel)return;
+ const curId=(beepState.use_custom&&beepState.custom_present)?Number(beepState.custom_id||0):0;
+ sel.replaceChildren(new Option('内置双音（960→640 Hz）','0'));
+ let hit=false;
+ for(const item of beepCatalog){
+  if(item.id===curId)hit=true;
+  sel.add(new Option(`${item.name} (#${item.id})`,String(item.id)));
+ }
+ if(curId>0&&!hit)sel.add(new Option(`已下载自定义音 #${curId}`,String(curId)));
+ sel.value=String(curId);
+}
+function applyBeepState(bp,call){
+ beepState=bp||beepState;if(call)beepCall=call.replace(/^P-/i,'').toUpperCase();
+ if($('fmoBeepEnabled'))$('fmoBeepEnabled').checked=beepState.enabled!==false;
+ if($('fmoBeepClear'))$('fmoBeepClear').hidden=!beepState.custom_present;
+ if($('fmoBeepSummary'))$('fmoBeepSummary').textContent=!beepState.enabled?'已关闭':(beepState.use_custom&&beepState.custom_present?`自定义音 #${beepState.custom_id}`:'内置双音');
+ renderBeepOptions();
+}
+function playBuiltinBeepWeb(){
+ const AC=window.AudioContext||window.webkitAudioContext;if(!AC){say('fmoBeepStatus','当前浏览器不支持试听，内置双音为 960→640 Hz 高低双音。');return}
+ const ctx=new AC(),now=ctx.currentTime;
+ const tone=(freq,start,dur)=>{const o=ctx.createOscillator(),g=ctx.createGain();o.type='sine';o.frequency.value=freq;g.gain.setValueAtTime(0.001,now+start);g.gain.linearRampToValueAtTime(0.22,now+start+0.005);g.gain.setValueAtTime(0.22,now+start+dur-0.005);g.gain.linearRampToValueAtTime(0.001,now+start+dur);o.connect(g);g.connect(ctx.destination);o.start(now+start);o.stop(now+start+dur);};
+ tone(960,0,0.12);tone(640,0.15,0.16);
+ say('fmoBeepStatus','正在试听内置双音（960→640 Hz）。');
+}
+async function loadBeepCatalog(){
+ say('fmoBeepStatus','正在从 fmo.simy.live 读取云端信令音清单…');
+ const r=await fetch('https://fmo.simy.live/fw/beep/list.json',{cache:'no-store'});
+ if(!r.ok)throw Error(`清单请求失败 (${r.status})`);
+ const j=await r.json();const arr=[];
+ for(const k of Object.keys(j||{})){
+  const id=Number(k);if(!Number.isInteger(id)||id<=0||id>255||String(id)!==k)continue;
+  const v=j[k];let nm='',sc='all',cs=[];
+  if(typeof v==='string')nm=v;else if(v&&typeof v==='object'){nm=v.n||`信令音 #${id}`;sc=v.s||'all';cs=Array.isArray(v.c)?v.c:[];}else continue;
+  if(sc!=='all'&&(sc!=='call'||!beepCall||!cs.some(c=>typeof c==='string'&&c.toUpperCase()===beepCall)))continue;
+  arr.push({id,name:String(nm)});
+ }
+ arr.sort((a,b)=>a.id-b.id);beepCatalog=arr;renderBeepOptions();
+ say('fmoBeepStatus',arr.length?`已加载 ${arr.length} 款云端信令音。`:'云端暂无可用自定义信令音，可使用内置双音。');
+}
+$('fmoBeepRefresh').onclick=()=>fmoOperation(loadBeepCatalog,'fmoBeepStatus');
+$('fmoBeepPreview').onclick=()=>{
+ const id=Number($('fmoBeepSelect').value||0);
+ if(!id){playBuiltinBeepWeb();return}
+ const a=new Audio(`https://fmo.simy.live/fw/beep/${id}.wav`);
+ a.play().then(()=>say('fmoBeepStatus',`正在试听云端信令音 #${id}。`)).catch(()=>say('fmoBeepStatus','试听失败，请确认手机可访问 fmo.simy.live。',true));
+};
+$('fmoBeepApply').onclick=()=>fmoOperation(async()=>{
+ const enabled=$('fmoBeepEnabled').checked,id=Number($('fmoBeepSelect').value||0);
+ if(!id||!enabled){
+  const state=await api('/api/fmo',{action:'beep',enabled,use_custom:false});
+  if(state.beep)applyBeepState(state.beep,state.callsign||'');
+  say('fmoBeepStatus',enabled?'已保存：使用内置双音结束信令音。':'已保存：关闭发射结束信令音。');
+  return;
+ }
+ if(beepState.custom_present&&Number(beepState.custom_id)===id){
+  const state=await api('/api/fmo',{action:'beep',enabled:true,use_custom:true});
+  if(state.beep)applyBeepState(state.beep,state.callsign||'');
+  say('fmoBeepStatus',`已启用设备中已保存的自定义信令音 #${id}。`);
+  return;
+ }
+ say('fmoBeepStatus',`正在下载信令音 #${id} 到设备…`);
+ let blob;
+ try{
+  const r=await fetch(`https://fmo.simy.live/fw/beep/${id}.bin`,{cache:'no-store'});
+  if(!r.ok)throw Error(`下载失败 (${r.status})`);
+  const file=await r.blob();
+  const header=new Uint8Array(await file.slice(0,6).arrayBuffer());
+  if(file.size<16||file.size>48016||header[0]!==70||header[1]!==66||header[2]!==69
+     ||header[3]!==80||header[4]!==1||header[5]!==id)throw Error('云端信令音编号或格式不匹配');
+  blob=new Blob([file],{type:'application/octet-stream'});
+ }catch(_){}
+ // A failed device write is reported to the user. Only a failed browser
+ // download may fall back to downloading on the device.
+ const state=blob?await api('/api/fmo/beep',blob)
+  :await fmoOnlineRequest(()=>api('/api/fmo/beep',{download_id:id}),'fmoBeepStatus');
+ if(state.beep)applyBeepState(state.beep,state.callsign||'');
+ say('fmoBeepStatus',`自定义信令音 #${id} 已保存，下次松开讲话键时生效。`);
+},'fmoBeepStatus');
+$('fmoBeepClear').onclick=()=>fmoOperation(async()=>{
+ const state=await api('/api/fmo/beep',undefined,'DELETE');
+ if(state.beep)applyBeepState(state.beep,state.callsign||'');
+ say('fmoBeepStatus','已清除自定义信令音，恢复内置双音。');
+},'fmoBeepStatus');
+function scheduleFmoPoll(){if(fmoPollTimer||fmoPollCount>=120)return;fmoPollTimer=setTimeout(async()=>{fmoPollTimer=null;if(fmoBusy||saveInProgress){scheduleFmoPoll();return}++fmoPollCount;await fmoOperation(fmoCheck)},5000)}
+async function fmoCheck(){
+ const local=await fmoLocal();if(!local.pubkey){say('fmoStatus','请先创建本机身份。');return}
+ if(local.clock_valid===false){say('fmoStatus','正在同步手机时间并校准设备时钟，随后查询证书状态…');await syncPhoneTime();}
+ const state=await fmoOnlineRequest(()=>api('/api/fmo/ca'));
+ if(state.revoked||state.expired){stopFmoPoll();say('fmoStatus','服务端提示证书已撤销或过期，请按审核要求重新申请。',true);return}
+ if(state.state==='ready'){
+  if(!state.cert||typeof state.cert!=='string'||state.cert.length>16384)throw Error('签发数据格式不受支持，未更改现有身份。');
+  const result=await api('/api/fmo',{action:'import',certificate:state.cert});if(!result.ready)throw Error(result.message||'证书未能生效。');
+  stopFmoPoll();await fmoLocal();say('fmoStatus','证书已校验并保存，可以返回设备打开 FMO。');
+ }else if(state.state==='rejected'){stopFmoPoll();say('fmoStatus',state.message||'申请未通过，请更正信息后重试。',true)}
+ else if(state.state==='pending'){say('fmoStatus','等待签发服务审核，本页每五秒查询一次。也可稍后重新打开查询。');scheduleFmoPoll()}
+ else if(state.state==='none'){stopFmoPoll();say('fmoStatus','签发服务没有本机申请记录，请填写资料后主动提交。')}
+ else throw Error('签发服务返回未知状态，未导入证书。');
+}
+$('fmoConnectWifi').onclick=()=>fmoOperation(async()=>{await ensureFmoWifi('fmoStatus');say('fmoStatus','路由器已连接，现在可以查询状态、申请证书或检查吊销列表。')});
+$('fmoImportLegacy').onclick=()=>fmoOperation(async()=>{stopFmoPoll();await syncPhoneTime();const state=await api('/api/fmo',{action:'import_legacy'});if(!state.ready)throw Error(state.message||'原 FMO 固件证书未能导入。');await fmoLocal();say('fmoStatus','已只读导入原 FMO 固件有效证书（原固件凭据未修改），可返回设备打开 FMO。')});
+$('fmoInit').onclick=()=>fmoOperation(async()=>{stopFmoPoll();await api('/api/fmo',{action:'init'});await fmoLocal();say('fmoStatus','本机身份已准备；已有密钥会继续使用。')});
+$('fmoCheckCrl').onclick=()=>fmoOperation(async()=>{
+ stopFmoPoll();say('fmoCrlStatus','正在分别查询根与用户吊销列表…');
+ const result=await fmoOnlineRequest(()=>api('/api/fmo',{action:'check_crl'}),'fmoCrlStatus');
+ if(!['unknown','current','revoked'].includes(result.state)||typeof result.root?.updated!=='boolean'||typeof result.user?.updated!=='boolean'||result.persistence!=='signed_banks'||typeof result.root?.saved!=='boolean'||typeof result.user?.saved!=='boolean'||!['restored','missing','unavailable'].includes(result.root?.cache)||!['restored','missing','unavailable'].includes(result.user?.cache)||result.enforced!==true)throw Error('吊销查询结果无法识别，请重试。');
+ const text={unknown:'吊销状态暂无法确认。',current:'缓存中的两级列表均有效，未命中本机证书。',revoked:'已验证列表命中本机身份或签发机构吊销。'}[result.state];
+ const detail=(v)=>`${v.updated?(v.saved?'本次已验证并保存':'本次已验证，保存未确认'):String(v.message||'本次未更新').slice(0,120)}${v.cache==='restored'?'（已恢复签名缓存）':v.cache==='unavailable'?'（旧缓存未能恢复）':''}`;
+ say('fmoCrlStatus',`${text} 根列表：${detail(result.root)}；用户列表：${detail(result.user)}。重启仅恢复可读取且复验通过的缓存；已知吊销将阻止本机FMO通联，未知不等于未吊销。`,result.state!=='current');
+},'fmoCrlStatus');
+$('fmoRefresh').onclick=()=>fmoOperation(async()=>{stopFmoPoll();await fmoCheck()});
+async function fmoPhotoData(file){
+ if(!file||!file.type.startsWith('image/')||!file.size||file.size>20*1024*1024)throw Error('请选择不超过20 MB的证件合照。');
+ let url,timer;
+ try{url=URL.createObjectURL(file);const image=new Image();await new Promise((resolve,reject)=>{timer=setTimeout(()=>reject(Error('证件图片读取超时。')),15000);image.onload=resolve;image.onerror=()=>reject(Error('证件图片无法读取。'));image.src=url});clearTimeout(timer);
+ if(!image.naturalWidth||!image.naturalHeight||image.naturalWidth*image.naturalHeight>64000000)throw Error('证件图片尺寸无效或过大。');
+ const canvas=document.createElement('canvas'),scale=Math.min(1,800/Math.max(image.naturalWidth,image.naturalHeight));canvas.width=Math.max(1,Math.round(image.naturalWidth*scale));canvas.height=Math.max(1,Math.round(image.naturalHeight*scale));canvas.getContext('2d').drawImage(image,0,0,canvas.width,canvas.height);
+ let blob;for(const q of [.78,.6,.45,.3]){blob=await encodeBackground(canvas,q);if(blob.size<=100*1024)break}if(blob.size>100*1024)throw Error('证件图片压缩后过大，请重新选择。');
+ return await new Promise((resolve,reject)=>{const reader=new FileReader();const timer=setTimeout(()=>reject(Error('证件图片处理超时。')),10000);reader.onload=()=>{clearTimeout(timer);resolve(reader.result)};reader.onerror=()=>{clearTimeout(timer);reject(Error('证件图片处理失败。'))};reader.readAsDataURL(blob)});
+ }finally{clearTimeout(timer);if(url)URL.revokeObjectURL(url)}
+}
+$('fmoApply').onclick=()=>fmoOperation(async()=>{
+ const callsign=$('fmoCallsign').value.trim().toUpperCase();if(!/^[A-Z0-9][A-Z0-9/\-]{1,11}$/.test(callsign))throw Error('请填写有效的本人呼号。');
+ const local=await fmoLocal();if(!local.pubkey)throw Error('请先创建本机身份。');
+ if(local.clock_valid===false){say('fmoStatus','正在同步手机时间并校准设备时钟，随后检查已有申请…');await syncPhoneTime();}
+ const existing=await fmoOnlineRequest(()=>api('/api/fmo/ca'));
+ if(existing.state==='pending'){say('fmoStatus','已有申请正在审核，不重复上传资料。');scheduleFmoPoll();return}
+ if(existing.state==='ready'&&!existing.revoked&&!existing.expired){await fmoCheck();return}
+ if(!['none','rejected','ready'].includes(existing.state))throw Error('无法确认现有申请状态，未上传资料。');
+ const photo_b64=await fmoPhotoData($('fmoPhoto').files[0]);say('fmoStatus','正在提交给签发服务…');
+ const result=await fmoOnlineRequest(()=>api('/api/fmo/ca',{callsign,pubkey:local.pubkey,photo_b64}));
+ if(result.error||result.ok===false)throw Error(result.message||result.error||'申请被服务端拒绝。');
+ $('fmoPhoto').value='';stopFmoPoll();say('fmoStatus','已提交，正在查询审核状态…');await fmoCheck();
+});
+$('fmoRefreshServers').onclick=()=>fmoOperation(async()=>{const state=await fmoLocal();say('fmoStatus',(state.servers||[]).length?`已读取 ${state.servers.length} 台有效服务器。`:'尚未缓存有效服务器。请取得证书后打开设备FMO，等待签名广播。')});
+$('fmoSelectServer').onclick=()=>fmoOperation(async()=>{const uid=Number($('fmoServerList').value);if(!Number.isInteger(uid)||uid<1||uid>4294967295)throw Error('请先选择有效服务器。');await api('/api/fmo',{action:'select_relay',uid});await fmoLocal();say('fmoStatus','服务器已选定，返回设备打开FMO即可连接。')});
+$('fmoUseBuiltin').onclick=()=>fmoOperation(async()=>{await api('/api/fmo',{action:'select_builtin_relay'});await fmoLocal();say('fmoStatus','已切换到 PASSPORT 内置中继台（兜底），返回设备打开 FMO 即可连接。')});
+$('fmoSaveRelay').onclick=()=>fmoOperation(async()=>{
+ const host=$('fmoHost').value.trim(),callsign=$('fmoRelayCall').value.trim().toUpperCase(),uid=Number($('fmoRelayUid').value),port=Number($('fmoPort').value),fingerprint=$('fmoFingerprint').value.trim();
+ if(!/^[A-Za-z0-9.:-]{1,127}$/.test(host)||!/^[-A-Z0-9/]{1,12}$/.test(callsign)||!Number.isInteger(uid)||uid<1||uid>4294967295||!Number.isInteger(port)||port<1||port>65535||!/^[-_A-Za-z0-9]{43}$/.test(fingerprint))throw Error('请填写管理员提供的完整中继参数。');
+ await api('/api/fmo',{action:'relay',host,callsign,uid,port,fingerprint});say('fmoStatus','中继已保存，重新打开FMO后使用。');
+});
+async function save(){
+ if(fmoBusy){say('saveStatus','FMO操作尚未完成，请稍等。',true);return}
+ stopFmoPoll();
+ if(saveInProgress)return;
+ if(backgroundBusy){say('saveStatus','背景还在处理中，请稍等。',true);return}
+ if(!verified&&!hasSaved){step(1);say('networkStatus','请先连接 Wi-Fi。',true);return}
+ let profile;try{profile=selectedCityProfile()}catch(e){say('saveStatus',e.message,true);return}
+ for(const [key,max] of [['city',47],['region',31],['radio_city',47],['lat',15],['lon',15]]){
+  if(bytes(profile[key])>max){say('saveStatus','有一项内容过长，请缩短后再保存。',true);return}
+ }
+ saveInProgress=true;backgroundControls(true);$('save').disabled=true;$('back').disabled=true;$('backgroundFile').disabled=true;$('clearBackground').disabled=true;
+ try{
+  say('saveStatus','正在保存城市设置…');await api('/api/profile',profile);
+  await prepareBackground();
+  if(backgroundBlob){say('saveStatus','正在保存背景…');await api('/api/background',backgroundBlob);backgroundBlob=null}
+  else if(backgroundDelete){await api('/api/background',undefined,'DELETE');backgroundDelete=false}
+  say('saveStatus','正在完成设置…');await api('/api/finish',{});
+  $('doneName').textContent='AI 护照';$('doneSummary').textContent=profile.city?'城市设置已保存':'暂未设置城市';step(3);
+ }catch(e){say('saveStatus',e.message+' 尚未完成的内容可再次保存。',true)}
+ finally{saveInProgress=false;backgroundControls(false);$('save').disabled=false;$('back').disabled=false;$('backgroundFile').disabled=false;$('clearBackground').disabled=false}
+}
 $('save').onclick=()=>{cancelLocation();return save()};
-async function load(){try{const [profile,state]=await Promise.all([api('/api/profile'),api('/api/setup')]);await loadCities();for(const [id,key] of [['name','name'],['sig','signature']])$(id).value=profile[key]||'';if(Array.isArray(profile.portrait_palette)&&profile.portrait_palette.length===4)portraitPalette=profile.portrait_palette;if(Array.isArray(profile.portrait_subject_palette)&&profile.portrait_subject_palette.length===4)portraitSubjectPalette=profile.portrait_subject_palette;previewPortrait();restoreCity(profile);$('avatarState').textContent=profile.avatar?'已有，可替换':'可稍后上传';await loadCards();hasSaved=state.saved_network;$('reuse').hidden=!hasSaved;$('keepSaved').hidden=!hasSaved;$('savedField').hidden=!hasSaved;const selected=$('savedNetwork').value;$('savedNetwork').replaceChildren(new Option('自动选择附近已保存的网络',''));for(const name of state.saved_networks||[])$('savedNetwork').add(new Option(name,name));if((state.saved_networks||[]).includes(selected))$('savedNetwork').value=selected;$('connect').disabled=false;say('networkStatus','');if(state.finishing){step(3);return}if(state.state==='connected')networkReady('已连接 '+state.ssid);else if(state.state==='connecting'){lockNetwork(true);polls=0;pollTimer=setTimeout(poll,1000)}await scan()}catch(e){say('networkStatus','无法读取设备。请确认手机已连接设备热点，然后刷新页面。',true)}}
+async function load(){try{const [profile,state]=await Promise.all([api('/api/profile'),api('/api/setup')]);await loadCities();restoreCity(profile);hasSaved=state.saved_network;staConnected=state.sta_connected===true||state.state==='connected';staSsid=state.sta_ssid||state.ssid||'';$('reuse').hidden=!hasSaved;$('keepSaved').hidden=!hasSaved;$('savedField').hidden=!hasSaved;const selected=$('savedNetwork').value;$('savedNetwork').replaceChildren(new Option('自动选择附近已保存的网络',''));for(const name of state.saved_networks||[])$('savedNetwork').add(new Option(name,name));if((state.saved_networks||[]).includes(selected))$('savedNetwork').value=selected;$('connect').disabled=false;say('networkStatus','');updateFmoWifiNotice();if(state.finishing){step(3);return}if(state.state==='connected'||state.sta_connected===true)networkReady('已连接 '+staSsid,staSsid);else if(state.state==='connecting'){lockNetwork(true);polls=0;pollTimer=setTimeout(poll,1000)}await scan()}catch(e){say('networkStatus','无法读取设备。请确认手机已连接设备热点，然后刷新页面。',true)}}
 $('copyVoiceTutorial').onclick=async()=>{
  const link=$('voiceTutorialLink'),url='https://github.com/manchunx7-bit/passport-os';
  let copied=false;
@@ -453,5 +887,5 @@ $('copyVoiceTutorial').onclick=async()=>{
  say('voiceCopyStatus',copied?'教程链接已复制，请在电脑打开。':'请长按链接复制，再在电脑打开。');
  if(!copied){link.focus();link.select();link.setSelectionRange(0,url.length)}
 };
-load().finally(()=>loadMuse());
+load().finally(()=>loadBackground());
 </script></body></html>

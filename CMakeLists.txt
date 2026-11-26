@@ -1,8 +1,11 @@
 cmake_minimum_required(VERSION 3.16)
-set(PROJECT_VER "0.2.0-rc.59")
+set(PROJECT_VER "0.2.0-rc.59-minimal.32")
 option(PASSPORT_RADIO_HLS_TEST "Use curated HLS/global radio test stations" OFF)
 option(PASSPORT_PUBLIC_RELEASE "Build with distribution-safe defaults and no personal configuration" OFF)
-option(PASSPORT_MUSE_USE_JOLLYBOT "Build Muse with the official Jollybot artwork" ON)
+set(PASSPORT_FMO_DISCOVERY_ROOT "" CACHE FILEPATH "Public root certificate for an additional FMO discovery chain")
+set(PASSPORT_FMO_DISCOVERY_INTERMEDIATE "" CACHE FILEPATH "Public intermediate certificate for additional FMO discovery")
+set(EXCLUDE_COMPONENTS passport_muse noise_core)
+set(COMPONENTS main)
 
 include($ENV{IDF_PATH}/tools/cmake/project.cmake)
 # LVGL's default assert handler is `while(1);`, which freezes the screen with
@@ -17,7 +20,6 @@ project(passport-os)
 # that exact drift removed about 19 KB from the first internal-heap region and
 # made the 22 KB Xiaozhi worker stack impossible to create on the real device.
 foreach(required_option
-        CONFIG_BT_CTRL_RUN_IN_FLASH_ONLY
         CONFIG_ESP_WIFI_DYNAMIC_RX_MGMT_BUFFER
         CONFIG_MBEDTLS_DYNAMIC_BUFFER
         CONFIG_MBEDTLS_ASYMMETRIC_CONTENT_LEN)

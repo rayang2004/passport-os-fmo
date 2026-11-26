@@ -39,8 +39,6 @@ bool ui_theme_is_multicolor(void);
 uint32_t ui_theme_color(ui_color_role_t role);
 // Dark artwork scenes keep the same hues with foregrounds suited to a dark ground.
 uint32_t ui_theme_color_on_dark(ui_color_role_t role);
-uint32_t ui_theme_portrait_color(uint8_t level);
-uint32_t ui_theme_portrait_subject_color(uint8_t level);
 const char *ui_theme_name(ui_theme_t theme);
 
 #ifdef __cplusplus

@@ -198,25 +198,6 @@ constexpr IconGlyph kIconGlyphs[] = {
         ".................",
         ".................",
     }},
-    {APP_ID_MUSE, {  // chat bubble with sparkle
-        ".................",
-        "..............#..",
-        ".............###.",
-        "..............#..",
-        ".###########.....",
-        "#...........#....",
-        "#...........#....",
-        "#...........#....",
-        "#..#..#..#..#....",
-        "#...........#....",
-        "#...........#....",
-        "#...........#....",
-        ".#.#########.....",
-        ".##..............",
-        ".#...............",
-        ".................",
-        ".................",
-    }},
     {APP_ID_POMODORO, {  // tomato clock
         "........#........",
         "......##.##......",
@@ -291,6 +272,25 @@ constexpr IconGlyph kIconGlyphs[] = {
         "..#...........#..",
         "..#############..",
         ".................",
+        ".................",
+    }},
+    {APP_ID_FMO, { // handheld radio
+        ".................",
+        "...........#.....",
+        "...........#.....",
+        "...........#.....",
+        "...........#.....",
+        "....#########....",
+        "....#.......#....",
+        "....#.......#....",
+        "....#.#####.#....",
+        "....#.......#....",
+        "....#.#####.#....",
+        "....#.......#....",
+        "....#...#...#....",
+        "....#...#...#....",
+        "....#.......#....",
+        "....#########....",
         ".................",
     }},
     {APP_ID_TETRIS, {  // T tetromino
@@ -407,7 +407,7 @@ void update_card_content() {
     uint32_t color = kPhos;
     if (ui_theme_is_multicolor()) {
         switch (app->id) {
-            case APP_ID_RADIO: case APP_ID_GAME: case APP_ID_POMODORO: color = UI_TERTIARY; break;
+            case APP_ID_RADIO: case APP_ID_FMO: case APP_ID_GAME: case APP_ID_POMODORO: color = UI_TERTIARY; break;
             case APP_ID_VOICE: case APP_ID_TETRIS: color = UI_SECONDARY; break;
             case APP_ID_XIAOZHI: case APP_ID_STOPWATCH: case APP_ID_LISTS: color = UI_SUCCESS; break;
             case APP_ID_REMINDERS: color = UI_WARNING; break;

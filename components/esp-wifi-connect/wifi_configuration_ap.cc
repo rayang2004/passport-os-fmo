@@ -45,7 +45,13 @@ std::vector<wifi_ap_record_t> WifiConfigurationAp::GetAccessPoints()
 {
     std::lock_guard<std::mutex> lock(mutex_);
     return ap_records_;
-}   
+}
+
+std::string WifiConfigurationAp::GetStaSsid()
+{
+    std::lock_guard<std::mutex> lock(mutex_);
+    return sta_connected_.load() ? sta_ssid_ : "";
+}
 
 WifiConfigurationAp::~WifiConfigurationAp()
 {
@@ -103,7 +109,7 @@ void WifiConfigurationAp::Start(bool external_portal, bool device_only)
     esp_timer_create_args_t timer_args = {
         .callback = [](void* arg) {
             auto* self = static_cast<WifiConfigurationAp*>(arg);
-            if (!self->is_connecting_) {
+            if (!self->is_connecting_.load() && !self->sta_connected_.load()) {
                 self->StartScan();
             }
         },
@@ -121,6 +127,9 @@ void WifiConfigurationAp::Start(bool external_portal, bool device_only)
 }
 
 void WifiConfigurationAp::StartScan() {
+    if (is_connecting_.load() || sta_connected_.load()) {
+        return;
+    }
     wifi_scan_config_t config = {};
     config.scan_type = WIFI_SCAN_TYPE_ACTIVE;
     config.scan_time.active.min = 20;
@@ -724,6 +733,11 @@ bool WifiConfigurationAp::ConnectToWifi(const std::string &ssid, const std::stri
     }
     
     is_connecting_ = true;
+    sta_connected_ = false;
+    if (scan_timer_) {
+        esp_timer_stop(scan_timer_);
+    }
+    esp_wifi_scan_stop();
     last_disconnect_reason_ = 0;
     esp_wifi_disconnect();
     vTaskDelay(pdMS_TO_TICKS(100));
@@ -827,9 +841,25 @@ bool WifiConfigurationAp::ConnectToWifi(const std::string &ssid, const std::stri
 
     if (connected) {
         ESP_LOGI(TAG, "Connected to WiFi %s", ssid.c_str());
-        if (!keep_connected) esp_wifi_disconnect();
+        if (keep_connected) {
+            {
+                std::lock_guard<std::mutex> lock(mutex_);
+                sta_ssid_ = ssid;
+            }
+            sta_connected_ = true;
+            if (scan_timer_) {
+                esp_timer_stop(scan_timer_);
+            }
+        } else {
+            sta_connected_ = false;
+            esp_wifi_disconnect();
+        }
         return true;
     } else {
+        sta_connected_ = false;
+        if (scan_timer_) {
+            esp_timer_start_once(scan_timer_, 5000000);
+        }
         ESP_LOGE(TAG,
             "Failed to connect to WiFi %s after %d attempts",
             ssid.c_str(), kMaxAttempts);
@@ -860,6 +890,11 @@ void WifiConfigurationAp::WifiEventHandler(void* arg, esp_event_base_t event_bas
     } else if (event_id == WIFI_EVENT_STA_CONNECTED) {
         // Association alone is insufficient: wait for DHCP in IpEventHandler.
     } else if (event_id == WIFI_EVENT_STA_DISCONNECTED) {
+        self->sta_connected_ = false;
+        {
+            std::lock_guard<std::mutex> lock(self->mutex_);
+            self->sta_ssid_.clear();
+        }
         self->last_disconnect_reason_ = static_cast<wifi_event_sta_disconnected_t *>(event_data)->reason;
         xEventGroupSetBits(self->event_group_, WIFI_FAIL_BIT);
     } else if (event_id == WIFI_EVENT_SCAN_DONE) {
@@ -876,8 +911,8 @@ void WifiConfigurationAp::WifiEventHandler(void* arg, esp_event_base_t event_bas
             self->ap_records_.clear();
         }
 
-        // Avoid interrupting phone uploads with frequent off-channel scans.
-        if (self->scan_timer_ != nullptr) {
+        // Avoid interrupting phone uploads or an active AP+STA uplink with off-channel scans.
+        if (self->scan_timer_ != nullptr && !self->is_connecting_.load() && !self->sta_connected_.load()) {
             esp_timer_start_once(self->scan_timer_, 30 * 1000000);
         }
     }
@@ -889,6 +924,7 @@ void WifiConfigurationAp::IpEventHandler(void* arg, esp_event_base_t event_base,
     if (event_id == IP_EVENT_STA_GOT_IP) {
         ip_event_got_ip_t* event = (ip_event_got_ip_t*) event_data;
         ESP_LOGI(TAG, "Got IP:" IPSTR, IP2STR(&event->ip_info.ip));
+        self->sta_connected_ = true;
         xEventGroupSetBits(self->event_group_, WIFI_CONNECTED_BIT);
     }
 }
@@ -1003,5 +1039,11 @@ void WifiConfigurationAp::Stop() {
     }
 
     ESP_LOGI(TAG, "Wifi configuration AP stopped");
-    std::vector<wifi_ap_record_t>().swap(ap_records_);
+    sta_connected_ = false;
+    is_connecting_ = false;
+    {
+        std::lock_guard<std::mutex> lock(mutex_);
+        sta_ssid_.clear();
+        std::vector<wifi_ap_record_t>().swap(ap_records_);
+    }
 }

@@ -28,7 +28,7 @@ int main() {
     fresh.finish(WeatherSchedule::Air,17000,ESP_OK);
     // A new Home worker has a later entry time but shares the original deadlines.
     assert(fresh.due(115000,100000,false,city)==0);
-    std::snprintf(city.name,sizeof(city.name),"New name");
+    std::snprintf(city.radio_city,sizeof(city.radio_city),"New radio city");
     assert(fresh.due(115000,100000,false,city)==0);
     // Weather refreshes every 15 minutes; air quality keeps its 30-minute ceiling.
     assert(fresh.due(915999,900000,false,city)==0);

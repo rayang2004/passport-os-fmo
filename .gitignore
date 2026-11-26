@@ -27,3 +27,4 @@ ui_chars.txt
 
 # Frozen local binary; inspect only when needed
 firmware/
+.DS_Store

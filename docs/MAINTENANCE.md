@@ -27,6 +27,19 @@ python3 tools/verify_firmware.py build
 
 `python3 tools/check_repo.py --firmware-fork` 做仓库检查；`bash tools/validate.sh --static` 还会运行 actionlint 和完整主机测试，首次缺工具时安装脚本需要联网。Git 关联与当前审阅分支以 `docs/CURRENT.md` 为准。
 
+## FMO 服务器发现证书链
+
+默认使用本机身份所属的证书链验证服务器广播。若已从可信来源获得另一条公开证书链，可以在独立的 ESP-IDF 构建目录传入以下两个配置项。
+
+```bash
+idf.py -B build-discovery \
+  -DPASSPORT_FMO_DISCOVERY_ROOT=/absolute/path/root.json \
+  -DPASSPORT_FMO_DISCOVERY_INTERMEDIATE=/absolute/path/intermediate.json \
+  build
+```
+
+两个文件各限 4096 字节，只提供公开证书。先独立核对根证书指纹，再将其嵌入固件。额外的链用于核对服务器、友台、附近信标和活动公告广播的签发者，设备仍逐级校验证书和报文签名。远端的登录授权由服务器自身的信任配置决定。改回默认配置时，将这两个 CMake 参数设为空或使用新构建目录。
+
 ## 设备更新
 
 先确认实际串口和用户当前操作范围。用户明确要求全新安装时，可以在备份后全片擦除并写入完整镜像；其他升级默认保留现场资料；新鲜整片备份留在本地诊断目录，核对分区后仅更新 `0x10000` 应用分区，读回验证并确认非应用区保持。未获得全清授权时，不要全片擦除或将合并镜像覆盖已有设备资料。

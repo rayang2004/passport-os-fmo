@@ -12,6 +12,8 @@ extern "C" {
 
 // 幂等启动 SNTP(需网络已就绪)。重复调用无害。
 void home_clock_start(void);
+// Lets a short-lived caller avoid stopping an existing SNTP owner's session.
+bool home_clock_running(void);
 
 // 停止 SNTP 并释放网络依赖(离开首页时调用)。已校准的系统时间继续走时。
 void home_clock_stop(void);

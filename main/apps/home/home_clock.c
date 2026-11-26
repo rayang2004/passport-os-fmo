@@ -27,6 +27,7 @@ void home_clock_start(void) {
     esp_sntp_init();
     ESP_LOGI(TAG, "SNTP started (ntp.aliyun.com)");
 }
+bool home_clock_running(void) { return esp_sntp_enabled(); }
 
 void home_clock_stop(void) {
     if (esp_sntp_enabled()) {

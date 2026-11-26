@@ -24,7 +24,7 @@
 #include "device_control.h"
 #include "apps/lists/list_service.h"
 #include "esp_log.h"
-#include "passport_muse.h"
+#include "esp_sleep.h"
 #include "esp_timer.h"
 #include "esp_system.h"
 #include "esp_heap_caps.h"
@@ -72,7 +72,7 @@ static QueueHandle_t s_key_queue = nullptr;
 alignas(16) static StackType_t s_button_stack[2048 / sizeof(StackType_t)];
 alignas(16) static StackType_t s_input_stack[8192 / sizeof(StackType_t)];
 alignas(16) static StackType_t s_serial_stack[2048 / sizeof(StackType_t)];
-alignas(16) static StackType_t s_monitor_stack[2560 / sizeof(StackType_t)];
+alignas(16) static StackType_t s_monitor_stack[3072 / sizeof(StackType_t)];
 static StaticTask_t s_system_tasks[4];
 static StaticQueue_t s_key_queue_control;
 static uint8_t s_key_queue_storage[16 * sizeof(KeyMessage)];
@@ -337,12 +337,6 @@ static void handle_serial_command(int c) {
         app_registry_switch_to(APP_ID_SOUND_JUMP);
     } else if (c == 't') {
         app_registry_switch_to(APP_ID_POMODORO);
-    } else if (c == 'm') {
-        app_registry_switch_to(APP_ID_MUSE);
-    } else if (c == 'M') {
-        if (app_registry_get_active() == APP_ID_MUSE) passport_muse_diagnostic_ble_cycle();
-    } else if (c == '?') {
-        passport_muse_log_diagnostics();
     } else if (c >= '1' && c <= '9') {
         int target_id = c - '0';
         ESP_LOGI(TAG, "[SerialCmd] Direct switch to App ID %d", target_id);
@@ -387,9 +381,11 @@ extern "C" void app_main(void) {
         gpio_set_level((gpio_num_t)BSP_LCD_BL, 0);
         // Power off holds this pin low through deep sleep; LEDC needs it back.
         gpio_hold_dis((gpio_num_t)BSP_LCD_BL);
+        gpio_deep_sleep_hold_dis();
     }
 
-    ESP_LOGI(TAG, "=== FoloToy AI Passport OS Starting ===");
+    ESP_LOGI(TAG, "=== FoloToy AI Passport OS Starting (reset=%d wake=%d) ===",
+             (int)esp_reset_reason(), (int)esp_sleep_get_wakeup_cause());
     const esp_pm_config_t pm_config = { .max_freq_mhz = 160, .min_freq_mhz = 40,
                                         .light_sleep_enable = true };
     ESP_ERROR_CHECK(esp_pm_configure(&pm_config));
@@ -404,13 +400,6 @@ extern "C" void app_main(void) {
     ESP_ERROR_CHECK(ret);
     reminders::initialize();
     lists::initialize();
-
-    // 头像/名片分区在后台挂载;残留其他固件时在此格式化(十余秒),
-    // 不让手机上传请求承担这段耗时。堆此时最完整,SPIFFS 缓冲也放在低地址。
-    xTaskCreate([](void *) {
-        home_profile_storage_prepare();
-        vTaskDelete(nullptr);
-    }, "storage_prep", 3584, nullptr, tskIDLE_PRIORITY + 1, nullptr);
 
     // 2. 硬件总线与外设初始化
     ESP_ERROR_CHECK(bsp_i2c_init());

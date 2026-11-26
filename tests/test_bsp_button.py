@@ -21,6 +21,13 @@ prelude = r'''
 #define ESP_LOGI(...) ((void)0)
 #define ESP_LOGE(...) ((void)0)
 #define ESP_LOGW(...) ((void)0)
+#define pdTRUE 1
+#define pdMS_TO_TICKS(x) (x)
+typedef int StaticSemaphore_t;
+typedef StaticSemaphore_t *SemaphoreHandle_t;
+static SemaphoreHandle_t xSemaphoreCreateMutexStatic(StaticSemaphore_t *buf) { *buf = 1; return buf; }
+static int xSemaphoreTake(SemaphoreHandle_t s, int wait) { (void)wait; assert(s && *s == 1); *s = 0; return pdTRUE; }
+static int xSemaphoreGive(SemaphoreHandle_t s) { assert(s && *s == 0); *s = 1; return pdTRUE; }
 #define BSP_BTN_ADC_UNIT 1
 #define BSP_BTN_ADC_CHANNEL 0
 #define ADC_ATTEN_DB_12 3
@@ -41,7 +48,7 @@ typedef struct { adc_oneshot_unit_handle_t *adc_handle; int unit_id, adc_channel
 typedef struct { int long_press_time; } button_config_t;
 typedef struct { int unit_id, chan, atten, bitwidth; } adc_cali_curve_fitting_config_t;
 static adc_mock_t mock_adc;
-static int calibration, new_calls, config_calls, delete_calls, cal_calls, callback_devices, read_calls;
+static int calibration, new_calls, config_calls, delete_calls, cal_calls, cal_delete_calls, callback_devices, read_calls;
 static int config_error, new_error, cal_error, input_mv;
 static int64_t now;
 static int64_t esp_timer_get_time(void) { return now; }
@@ -67,6 +74,9 @@ static esp_err_t adc_cali_create_scheme_curve_fitting(const adc_cali_curve_fitti
     if (cal_error) return cal_error;
     calibration = cfg->atten; *out = &calibration; return ESP_OK;
 }
+static esp_err_t adc_cali_delete_scheme_curve_fitting(adc_cali_handle_t handle) {
+    assert(handle == &calibration); ++cal_delete_calls; return ESP_OK;
+}
 static esp_err_t adc_oneshot_read(adc_oneshot_unit_handle_t adc, int channel, int *raw) {
     assert(adc == &mock_adc && adc->configured && channel == BSP_BTN_ADC_CHANNEL);
     ++read_calls; *raw = input_mv; return ESP_OK;
@@ -87,8 +97,8 @@ static esp_err_t iot_button_register_cb(button_handle_t handle, int event, void 
 '''
 checks = r'''
 static void reset(void) {
-    s_adc = NULL; s_cali = NULL; s_cb = NULL; s_ignore_until_us = 0;
-    mock_adc = (adc_mock_t){0}; new_calls = config_calls = delete_calls = cal_calls = 0;
+    s_adc = NULL; s_cali = NULL; s_cb = NULL; s_ignore_until_us = 0; s_sleeping = false;
+    mock_adc = (adc_mock_t){0}; new_calls = config_calls = delete_calls = cal_calls = cal_delete_calls = 0;
     callback_devices = read_calls = config_error = new_error = cal_error = 0; now = 1;
 }
 static void callback(bsp_btn_t btn, bsp_btn_ev_t event, void *user) { (void)btn; (void)event; (void)user; }
@@ -108,6 +118,12 @@ int main(void) {
     // The existing panel-glitch window must still reject ADC reads briefly.
     bsp_button_suppress_panel_glitch(); assert(bsp_button_read_mv() == -1 && read_calls == 4);
     now += 600001; assert(bsp_button_read_mv() == input_mv && read_calls == 5);
+    // Deep-sleep teardown stops polling and releases calibration + ADC1 unit cleanly.
+    bsp_button_prepare_sleep();
+    assert(s_sleeping && s_adc == NULL && s_cali == NULL && delete_calls == 1 && cal_delete_calls == 1);
+    assert(bsp_button_read_mv() == -1 && read_calls == 5);
+    bsp_button_prepare_sleep();
+    assert(delete_calls == 1 && cal_delete_calls == 1);
     reset(); config_error = ESP_FAIL;
     assert(bsp_button_init(NULL, NULL) == ESP_FAIL);
     assert(config_calls == 1 && delete_calls == 1 && !cal_calls && !callback_devices && s_adc == NULL);

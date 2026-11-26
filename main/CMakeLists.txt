@@ -1,15 +1,24 @@
-option(PASSPORT_MUSE_USE_JOLLYBOT "Build Muse with the official Jollybot artwork" ON)
-if(PASSPORT_MUSE_USE_JOLLYBOT)
-    set(PASSPORT_MUSE_AVATAR "apps/muse/muse_avatar_frames.c")
-else()
-    set(PASSPORT_MUSE_AVATAR "apps/muse/muse_avatar_public_frames.c")
-endif()
 idf_component_register(
     EMBED_FILES "apps/home/cities.json.gz"
+    EMBED_TXTFILES "apps/fmo/passport_root.json"
     SRCS
         "main.cc"
         "device_control.cc"
         "device_control_mcp.cc"
+        "scene_mcp.cc"
+        "apps/fmo/fmo_wire.cc"
+        "apps/fmo/fmo_crypto.cc"
+        "apps/fmo/fmo_store.cc"
+        "apps/fmo/fmo_book.cc"
+        "apps/fmo/fmo_favorites.cc"
+        "apps/fmo/fmo_stamp.cc"
+        "apps/fmo/fmo_beep.cc"
+        "apps/fmo/fmo_aprs.cc"
+        "apps/fmo/fmo_aprs_store.cc"
+        "apps/fmo/fmo_crl_store.cc"
+        "apps/fmo/fmo_revocation_service.cc"
+        "apps/fmo/fmo_http.cc"
+        "apps/fmo/app_fmo.cc"
         "voice_intent.cc"
         "apps/lists/list_service.cc"
         "apps/lists/list_mcp.cc"
@@ -73,10 +82,10 @@ idf_component_register(
         "apps/netease/netease_lyrics.cc"
         "apps/netease/netease_player.cc"
         "apps/netease/netease_ui.cc"
+        "apps/home/home_background.c"
         "apps/home/home_profile.c"
         "apps/home/home_clock.c"
         "apps/home/home_weather.c"
-        "apps/home/band_art.c"
         "apps/home/home_upload.cc"
         "apps/home/app_home.cc"
         "apps/game/game_core.c"
@@ -93,8 +102,6 @@ idf_component_register(
         "apps/pomodoro/app_pomodoro.cc"
         "apps/pomodoro/pomodoro_font_20.c"
         "apps/pomodoro/pomodoro_digits_48.c"
-        "apps/muse/app_muse.cc"
-        "${PASSPORT_MUSE_AVATAR}"
         "apps/game/tetris_core.c"
         "apps/game/app_tetris.cc"
     INCLUDE_DIRS
@@ -109,7 +116,6 @@ idf_component_register(
         "ui"
         "fonts"
     REQUIRES
-        passport_muse
         bsp
         esp-wifi-connect
         esp_wifi
@@ -127,6 +133,8 @@ idf_component_register(
         esp_http_server
         spiffs
         lwip
+        libsodium
+        mqtt
 )
 target_link_options(${COMPONENT_LIB} INTERFACE
     "-Wl,--undefined=__wrap_opus_encoder_create,--undefined=__wrap_opus_encoder_destroy"
@@ -144,6 +152,24 @@ add_custom_command(OUTPUT "${phone_setup_gz}"
 add_custom_target(phone_setup_gz DEPENDS "${phone_setup_gz}")
 add_dependencies(${COMPONENT_LIB} phone_setup_gz)
 target_add_binary_data(${COMPONENT_LIB} "${phone_setup_gz}" BINARY)
+
+if(PASSPORT_FMO_DISCOVERY_ROOT OR PASSPORT_FMO_DISCOVERY_INTERMEDIATE)
+    if(NOT IS_ABSOLUTE "${PASSPORT_FMO_DISCOVERY_ROOT}" OR NOT IS_ABSOLUTE "${PASSPORT_FMO_DISCOVERY_INTERMEDIATE}")
+        message(FATAL_ERROR "Set both FMO discovery certificate paths to absolute paths")
+    endif()
+    foreach(kind ROOT INTERMEDIATE)
+        set(cert "${PASSPORT_FMO_DISCOVERY_${kind}}")
+        file(SIZE "${cert}" cert_size)
+        if(cert_size LESS 1 OR cert_size GREATER 4096)
+            message(FATAL_ERROR "FMO discovery certificate must be between 1 and 4096 bytes")
+        endif()
+        string(TOLOWER "${kind}" kind_lower)
+        set(embedded "${CMAKE_CURRENT_BINARY_DIR}/fmo_discovery_${kind_lower}.json")
+        configure_file("${cert}" "${embedded}" COPYONLY)
+        target_add_binary_data(${COMPONENT_LIB} "${embedded}" TEXT)
+    endforeach()
+    target_compile_definitions(${COMPONENT_LIB} PRIVATE PASSPORT_FMO_EXTRA_DISCOVERY_CHAIN=1)
+endif()
 
 if(PASSPORT_RADIO_HLS_TEST)
     target_compile_definitions(${COMPONENT_LIB} PRIVATE PASSPORT_RADIO_HLS_TEST=1)

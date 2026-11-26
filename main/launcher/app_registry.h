@@ -54,6 +54,8 @@ void app_registry_keep_awake(void);
 bool app_registry_wake_for_notice(void);
 // Caller holds LVGL lock. Never wait for the lifecycle lock or seize audio.
 bool app_registry_sound_notice(void);
+// Stop the active foreground worker cooperatively before power_off tears down Wi-Fi/audio.
+void app_registry_prepare_power_off(void);
 
 #ifdef __cplusplus
 }

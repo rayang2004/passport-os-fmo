@@ -2,6 +2,7 @@
 #include "../main/apps/reminders/reminder_service.cc"
 #include "../main/apps/reminders/reminder_core.cc"
 #include "../main/apps/reminders/reminder_mcp.cc"
+namespace scenes {size_t tool_count(){return 0;}const char *tool_schema(size_t){return nullptr;}std::string call(const char*,const cJSON*,uint64_t){return {};}}
 namespace aihot {size_t tool_count(){return 0;}const char *tool_schema(size_t){return nullptr;}std::string call(const char*,const cJSON*){return {};}}
 namespace lists {size_t tool_count(){return 0;}const char *tool_schema(size_t){return nullptr;}std::string call(const char*,const cJSON*){return {};}}
 namespace device_control {size_t tool_count(){return 0;} const char *tool_schema(size_t){return nullptr;} std::string call(const char*,const cJSON*,uint64_t){return {};} }

@@ -30,6 +30,9 @@ esp_err_t bsp_display_fill(uint16_t color);
 // 背光亮度 0..100(%)。LEDC PWM,0=全灭。
 void bsp_display_backlight(uint8_t percent);
 
+// 关机进深睡前停止背光 LEDC 并释放轻睡眠保活(LEDC_SLEEP_MODE_KEEP_ALIVE / RC_FAST)。
+void bsp_display_prepare_sleep(void);
+
 // 整机亮度上限 0..100(%)。App 仍可熄屏或临时调暗，但不能越过用户设置。
 void bsp_display_set_master_brightness(uint8_t percent);
 uint8_t bsp_display_get_master_brightness(void);
