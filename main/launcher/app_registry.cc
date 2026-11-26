@@ -490,12 +490,13 @@ void app_registry_switch_to(passport_app_id_t id) {
     if (id != APP_ID_XIAOZHI) s_start_xiaozhi_conversation = false;
     const passport_app_t *current = app_registry_get_by_id(s_active_id);
 #ifdef ESP_PLATFORM
-    const bool keep_bg = audio_focus::will_keep_background(s_active_id, id);
+    const bool focus_owns_leave = audio_focus::will_keep_background(s_active_id, id) ||
+                                  audio_focus::will_suspend_for_exclusive(s_active_id, id);
 #else
-    const bool keep_bg = false;
+    const bool focus_owns_leave = false;
 #endif
     if (boot_chime_busy() || (!feedback_allowed(id) && !ui_sfx_prepare_stop()) ||
-        (!keep_bg && current && current->prepare_stop && !current->prepare_stop())) {
+        (!focus_owns_leave && current && current->prepare_stop && !current->prepare_stop())) {
         if (s_pending_target.exchange(id) == APP_ID_COUNT)
             ESP_LOGI(TAG, "Deferring switch until current worker releases resources");
         return;

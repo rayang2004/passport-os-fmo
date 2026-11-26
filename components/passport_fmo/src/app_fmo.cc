@@ -339,7 +339,7 @@ void normal_view(){
     if(screen){stamp_widget_hide();ui_apply_mode(fmo::Page::Main);lv_obj_set_height(relay_label,40);lv_obj_remove_flag(call_label,LV_OBJ_FLAG_HIDDEN);fmo_pixel_label_set_text(hint_label,"上键选台 · 下键菜单\n长按确定讲话 · 调音量");}
     bsp_lvgl_unlock();
 }
-constexpr const char *kMenuItems[]={"选择服务器","抄收记录","播放音量","手机配置","返回通联","退出FMO","发送APRS CQ","发送友台信标","友台广播","活动公告","收藏服务器","我的印章","短消息","结束信令音","连接内置中继","后台守听插播"};
+constexpr const char *kMenuItems[]={"选择服务器","抄收记录","播放音量","手机配置","返回通联","退出FMO","发送APRS CQ","发送友台信标","友台广播","活动公告","收藏服务器","我的印章","短消息","结束信令音","连接内置中继","后台守听插播","转后台守听"};
 constexpr unsigned kMenuSize=sizeof(kMenuItems)/sizeof(*kMenuItems);
 
 void menu_view(unsigned index){
@@ -653,6 +653,7 @@ fmo::UiAction process_controls(fmo::Navigation &nav,fmo::RelayList &servers,cons
         }
         case 14:return fmo::UiAction::ConnectBuiltin;
         case 15:return fmo::UiAction::ToggleSentinel;
+        case 16:return fmo::UiAction::BackgroundListen;
         }
     }else if(page==fmo::Page::Stamp){return fmo::UiAction::SaveStamp;}
     else if(page==fmo::Page::Beep){return fmo::UiAction::SaveBeep;}
@@ -666,7 +667,7 @@ fmo::UiAction process_controls(fmo::Navigation &nav,fmo::RelayList &servers,cons
     return fmo::UiAction::None;
 }
 void navigate(fmo::UiAction action){
-    if(action==fmo::UiAction::PhoneSetup||action==fmo::UiAction::Exit){
+    if(action==fmo::UiAction::PhoneSetup||action==fmo::UiAction::Exit||action==fmo::UiAction::BackgroundListen){
         talk_requested=false;
         // running remains true: registry cooperatively defers teardown until
         // this worker has stopped networking, saved its book and parked.
@@ -937,7 +938,10 @@ void run(void *){
     auto cleanup=[&](){std::string{}.swap(aprs_login_text);std::string{}.swap(aprs_login_call);cleanup_session(identity,secret,uri,password,error,aprs,audio);if(cache_dirty&&scratch)fmo::save_relay_cache(scratch->servers,time(nullptr));if(book_dirty)fmo::save_contact_book(*book);if(peer_stamps_dirty&&peer_stamps)fmo::save_peer_stamps(*peer_stamps);book.reset();peers.reset();announcements.reset();inbox.reset();favorites.reset();peer_stamps.reset();custom_stamp.reset();scratch.reset();};
     fmo::Navigation nav;
     auto service_controls=[&](){if(announcements&&announcements->prune(time(nullptr))&&page==fmo::Page::Announcements)announcement_view(announcements.get(),nav);
-        const auto action=process_controls(nav,servers,book.get(),book_writable,peers.get(),announcements.get(),favorites.get(),favorites_writable,&stamp_cfg,custom_stamp.get(),peer_stamps.get(),identity.callsign,inbox.get(),&beep_cfg);navigate(action);
+        const auto action=process_controls(nav,servers,book.get(),book_writable,peers.get(),announcements.get(),favorites.get(),favorites_writable,&stamp_cfg,custom_stamp.get(),peer_stamps.get(),identity.callsign,inbox.get(),&beep_cfg);
+        if(action==fmo::UiAction::BackgroundListen)fmo::set_sentinel_enabled(true);
+        navigate(action);
+        if(action==fmo::UiAction::BackgroundListen)return fmo::UiAction::None;
         if(action==fmo::UiAction::SaveStamp){
             const char *msg="印章配置不可写，未覆盖";
             if(stamp_writable){

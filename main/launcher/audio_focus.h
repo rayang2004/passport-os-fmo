@@ -45,6 +45,11 @@ bool allows_sentinel(passport_app_id_t active_id);
 // background (so app_registry skips prepare_stop() and stop()).
 bool will_keep_background(passport_app_id_t prev_id, passport_app_id_t next_id);
 
+// True when leaving playing prev_id toward an exclusive app (e.g. Xiaozhi or
+// FMO) so handle_leaving() should run ops->suspend(true) directly instead of
+// letting current->prepare_stop() discard the resume point first.
+bool will_suspend_for_exclusive(passport_app_id_t prev_id, passport_app_id_t next_id);
+
 // True when entering next_id will re-attach UI to an already running
 // background player (so app_registry must skip clean_launch heap checks).
 bool will_reattach(passport_app_id_t next_id);

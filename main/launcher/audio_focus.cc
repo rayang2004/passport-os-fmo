@@ -178,6 +178,15 @@ bool will_keep_background(passport_app_id_t prev_id, passport_app_id_t next_id) 
     return ops && ops->is_running && ops->is_running() && ops->is_playing && ops->is_playing();
 }
 
+bool will_suspend_for_exclusive(passport_app_id_t prev_id, passport_app_id_t next_id) {
+    Lock lock(pdMS_TO_TICKS(500));
+    if (!lock.ok || can_keep_background(next_id)) return false;
+    if (next_id == APP_ID_RADIO || next_id == APP_ID_NETEASE) return false;
+    const Source src = source_for_app(prev_id);
+    const auto *ops = ops_for(src);
+    return ops && ops->is_running && ops->is_running() && ops->is_playing && ops->is_playing();
+}
+
 bool will_reattach(passport_app_id_t next_id) {
     Lock lock(pdMS_TO_TICKS(500));
     if (!lock.ok) return false;
@@ -320,9 +329,11 @@ void on_foreground_ready(passport_app_id_t active_id) {
     s_foreground = active_id;
 
     // If we returned from an exclusive app (Xiaozhi/FMO) to a background-friendly
-    // screen while media was suspended for that app, automatically resume it!
+    // screen while media was suspended for that app, automatically resume it first
+    // and let the next periodic tick start sentinels once media heap settles!
     if (s_state == State::SuspendedApp && can_keep_background(active_id)) {
         schedule_resume();
+        return;
     }
 
     if (allows_sentinel(active_id)) {

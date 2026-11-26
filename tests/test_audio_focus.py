@@ -212,6 +212,7 @@ int main() {
     assert(g_radio.resume_calls == 1 && g_radio.running && g_radio.playing);
     assert(audio_focus::current_state() == audio_focus::State::Playing);
     assert(audio_focus::background_active());
+    audio_focus::tick();
     assert(s_sentinel_allowed);
 
     // 4. FMO voice break-in while Radio is playing on Home -> pauses Radio, resumes after end_breakin

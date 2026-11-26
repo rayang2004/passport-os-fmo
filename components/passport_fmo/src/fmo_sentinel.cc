@@ -40,8 +40,11 @@ constexpr size_t kRingCapacityBytes = 5120;
 constexpr size_t kMaxFrameBytes = 336;  // covers both Opus (~80 B) and RADPCM (328 B)
 constexpr int64_t kBreakinSilenceUs = 3500000;  // 3.5 seconds silence before auto-resume
 constexpr uint32_t kBreakinTaskStack = 6144;
-constexpr size_t kMinFreeHeapToStart = 22 * 1024;
-constexpr size_t kMinLargestBlockToStart = 10 * 1024;
+// Require generous headroom before spawning the 6 KB fmo_sinit crypto/MQTT
+// handshake so sentinel startup NEVER collides with NetEase/Radio TLS peaks
+// or trips app_registry's s_heap_strained clean-launch reboot flag.
+constexpr size_t kMinFreeHeapToStart = 36 * 1024;
+constexpr size_t kMinLargestBlockToStart = 16 * 1024;
 
 struct FrameHeader {
     uint32_t uid;
@@ -513,6 +516,15 @@ void start_locked() {
     config.buffer.size = 2048;
     // FMO 4.0 SAS4 CONNECT carries full user+intermediate cert JSON (~2-3 KB).
     config.buffer.out_size = 3584;
+
+    // Re-check free heap right before creating MQTT client & task (~12 KB total)
+    // in case background Radio/NetEase resumed during identity verification.
+    if (esp_get_free_heap_size() < 24 * 1024 ||
+        heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL) < 10 * 1024) {
+        if (!password.empty()) sodium_memzero(password.data(), password.size());
+        stop_locked(false);
+        return;
+    }
 
     s_mqtt = esp_mqtt_client_init(&config);
     if (!password.empty()) sodium_memzero(password.data(), password.size());
