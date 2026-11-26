@@ -49,6 +49,8 @@ typedef struct {
     void (*switch_to_launcher)(void);
     void (*switch_to_wifi_setup)(void);
     void (*keep_awake)(void);
+    // Wake a blanked panel for a visual top-layer notice (caller must hold LVGL lock).
+    bool (*wake_for_notice)(void);
 
     // Settings & clock
     uint8_t (*get_volume)(void);

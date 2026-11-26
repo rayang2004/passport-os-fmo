@@ -98,6 +98,10 @@ inline void fmo_keep_awake() {
     const auto *h = fmo_host();
     if (h && h->keep_awake) h->keep_awake();
 }
+inline bool fmo_wake_for_notice() {
+    const auto *h = fmo_host();
+    return h && h->wake_for_notice && h->wake_for_notice();
+}
 
 inline const lv_font_t *fmo_font_16() {
     const auto *h = fmo_host();
@@ -154,6 +158,7 @@ void home_storage_release(void);
 #define fmo_switch_to_launcher() app_registry_switch_to(APP_ID_LAUNCHER)
 #define fmo_switch_to_wifi_setup() app_registry_switch_to(APP_ID_WIFI)
 #define fmo_keep_awake app_registry_keep_awake
+#define fmo_wake_for_notice() (true)
 #define fmo_font_16() (&buddy_font_16)
 #define fmo_font_20() (&ui_font_20)
 #define fmo_pixel_label ui_pixel_label

@@ -4,6 +4,7 @@
 
 #include "bsp_audio.h"
 #include "bsp_audio_workspace.h"
+#include "bsp_display.h"
 #include "esp_heap_caps.h"
 #include "esp_log.h"
 #include "esp_timer.h"
@@ -152,6 +153,76 @@ std::atomic<bool> s_breakin_running{false};
 std::atomic<bool> s_start_task_running{false};
 std::atomic<bool> s_want_sentinel{false};
 
+// On-demand top-layer LVGL callsign banner (zero heap when idle).
+lv_obj_t *s_banner_card = nullptr;
+lv_obj_t *s_banner_call = nullptr;
+lv_obj_t *s_banner_relay = nullptr;
+
+void breakin_banner_show(const char *callsign, const char *relay_tag) {
+    if (!callsign || !callsign[0]) return;
+    if (!bsp_lvgl_lock(60)) return;
+    fmo_wake_for_notice();
+    if (!s_banner_card) {
+        s_banner_card = lv_obj_create(lv_layer_top());
+        if (s_banner_card) {
+            lv_obj_remove_flag(s_banner_card, LV_OBJ_FLAG_SCROLLABLE);
+            lv_obj_set_pos(s_banner_card, 10, 8);
+            lv_obj_set_size(s_banner_card, 220, 62);
+            lv_obj_set_style_radius(s_banner_card, 10, 0);
+            lv_obj_set_style_bg_color(s_banner_card, lv_color_hex(0x145C40), 0);
+            lv_obj_set_style_bg_opa(s_banner_card, LV_OPA_COVER, 0);
+            lv_obj_set_style_border_width(s_banner_card, 2, 0);
+            lv_obj_set_style_border_color(s_banner_card, lv_color_hex(0x2EA073), 0);
+            lv_obj_set_style_pad_all(s_banner_card, 0, 0);
+
+            lv_obj_t *dot = lv_obj_create(s_banner_card);
+            lv_obj_remove_flag(dot, LV_OBJ_FLAG_SCROLLABLE);
+            lv_obj_set_pos(dot, 10, 10);
+            lv_obj_set_size(dot, 8, 8);
+            lv_obj_set_style_radius(dot, 4, 0);
+            lv_obj_set_style_bg_color(dot, lv_color_hex(0x7EF0C2), 0);
+            lv_obj_set_style_bg_opa(dot, LV_OPA_COVER, 0);
+            lv_obj_set_style_border_width(dot, 0, 0);
+
+            lv_obj_t *tag = fmo_pixel_label(s_banner_card, "FMO 守听插播", fmo_font_16(), 0xD9F7EA);
+            if (tag) {
+                lv_obj_set_pos(tag, 24, 5);
+                lv_obj_set_size(tag, 112, 20);
+            }
+
+            s_banner_relay = fmo_pixel_label(s_banner_card, "", fmo_font_16(), 0xA9E5CE);
+            if (s_banner_relay) {
+                lv_obj_set_pos(s_banner_relay, 134, 5);
+                lv_obj_set_size(s_banner_relay, 76, 20);
+                lv_obj_set_style_text_align(s_banner_relay, LV_TEXT_ALIGN_RIGHT, 0);
+                lv_label_set_long_mode(s_banner_relay, LV_LABEL_LONG_DOT);
+            }
+
+            s_banner_call = fmo_pixel_label(s_banner_card, "", fmo_font_20(), 0xFFFFFF);
+            if (s_banner_call) {
+                lv_obj_set_pos(s_banner_call, 10, 29);
+                lv_obj_set_size(s_banner_call, 200, 26);
+                lv_obj_set_style_text_align(s_banner_call, LV_TEXT_ALIGN_CENTER, 0);
+                lv_label_set_long_mode(s_banner_call, LV_LABEL_LONG_DOT);
+            }
+        }
+    }
+    if (s_banner_call) fmo_pixel_label_set_text(s_banner_call, callsign);
+    if (s_banner_relay) fmo_pixel_label_set_text(s_banner_relay, relay_tag ? relay_tag : "");
+    bsp_lvgl_unlock();
+}
+
+void breakin_banner_hide() {
+    if (!bsp_lvgl_lock(500)) return;
+    if (s_banner_card) {
+        lv_obj_delete(s_banner_card);
+        s_banner_card = nullptr;
+        s_banner_call = nullptr;
+        s_banner_relay = nullptr;
+    }
+    bsp_lvgl_unlock();
+}
+
 void ensure_mutexes() {
     if (!s_ctrl_mutex) s_ctrl_mutex = xSemaphoreCreateMutexStatic(&s_ctrl_mutex_buf);
     if (!s_ring_mutex) s_ring_mutex = xSemaphoreCreateMutexStatic(&s_ring_mutex_buf);
@@ -281,6 +352,7 @@ void breakin_task(void *) {
                 last_stream = f.stream_begin;
                 std::snprintf(speaker, sizeof(speaker), "%.12s", f.callsign);
                 ESP_LOGI(kTag, "Voice break-in RX from %s (uid=%lu)", speaker, (unsigned long)f.uid);
+                breakin_banner_show(speaker, s_relay.callsign);
             }
             last_rx_us = now;
             if (now - last_awake_us >= 2000000) {
@@ -304,6 +376,7 @@ void breakin_task(void *) {
         bsp_audio_deinit();
     }
 
+    breakin_banner_hide();
     sodium_memzero(audio_workspace::storage, audio_workspace::kBytes);
     audio_workspace::release(audio_workspace::Owner::Plugin);
     uint32_t dropped = 0;
