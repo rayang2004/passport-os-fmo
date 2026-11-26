@@ -1,5 +1,8 @@
 #include "launcher/app_registry.h"
 #include "passport_plugin.h"
+#ifdef ESP_PLATFORM
+#include "launcher/audio_focus.h"
+#endif
 #include "launcher/timer_resume.h"
 #include "bsp_memory.h"
 #include "bsp_memory.h"
@@ -129,6 +132,9 @@ void build_app_list() {
     s_active_apps[s_app_count++] = s_apps[kBuiltinAppCount - 1]; // Settings last
 }
 bool feedback_allowed(passport_app_id_t id) {
+#ifdef ESP_PLATFORM
+    if (audio_focus::background_active()) return false;
+#endif
     return id == APP_ID_HOME || id == APP_ID_LAUNCHER || id == APP_ID_SETTINGS ||
            id == APP_ID_WIFI || id == APP_ID_STOPWATCH || id == APP_ID_POMODORO || id == APP_ID_TETRIS || id == APP_ID_REMINDERS || id == APP_ID_LISTS;
 }
@@ -160,6 +166,9 @@ struct SwitchGuard {
 // 桌面/首页/设置等待机前台放宽到 MAX modem sleep(下行延迟可到 ~1s,对
 // 天气/SNTP/上传服务无感),是待机电流的最大单项优化。
 WifiPowerSaveLevel power_save_level_for(passport_app_id_t id) {
+#ifdef ESP_PLATFORM
+    if (audio_focus::background_active()) return WifiPowerSaveLevel::BALANCED;
+#endif
     if (const passport_plugin_t *p = passport_plugin_find_by_app_id(id)) {
         return (p->caps & PASSPORT_PLUGIN_CAP_BALANCED_WIFI)
             ? WifiPowerSaveLevel::BALANCED : WifiPowerSaveLevel::LOW_POWER;
@@ -381,6 +390,9 @@ void show_clean_launch_notice(passport_app_id_t id) {
 } // namespace
 
 void app_registry_init(void) {
+#ifdef ESP_PLATFORM
+    audio_focus::init();
+#endif
     build_app_list();
     ESP_LOGI(TAG, "Initializing app registry with %u apps (%u plugins)...",
              (unsigned)s_app_count, (unsigned)passport_plugin_count());
@@ -477,8 +489,13 @@ void app_registry_switch_to(passport_app_id_t id) {
 
     if (id != APP_ID_XIAOZHI) s_start_xiaozhi_conversation = false;
     const passport_app_t *current = app_registry_get_by_id(s_active_id);
+#ifdef ESP_PLATFORM
+    const bool keep_bg = audio_focus::will_keep_background(s_active_id, id);
+#else
+    const bool keep_bg = false;
+#endif
     if (boot_chime_busy() || (!feedback_allowed(id) && !ui_sfx_prepare_stop()) ||
-        (current && current->prepare_stop && !current->prepare_stop())) {
+        (!keep_bg && current && current->prepare_stop && !current->prepare_stop())) {
         if (s_pending_target.exchange(id) == APP_ID_COUNT)
             ESP_LOGI(TAG, "Deferring switch until current worker releases resources");
         return;
@@ -496,16 +513,26 @@ void app_registry_switch_to(passport_app_id_t id) {
     }
     s_pending_target = APP_ID_COUNT;
 
-    // 1. 退出前一个 App 并清理资源
+    // 1. 退出前一个 App 并清理资源（若音频应用切往轻量前台，则仅分离 UI 保持后台播放）
     if (s_active_id != APP_ID_LAUNCHER) {
-        const passport_app_t *prev = app_registry_get_by_id(s_active_id);
-        if (prev && prev->stop) {
-            ESP_LOGI(TAG, "Stopping app: %s", prev->name);
-            prev->stop();
+        bool handled_by_focus = false;
+#ifdef ESP_PLATFORM
+        handled_by_focus = audio_focus::handle_leaving(s_active_id, id);
+#endif
+        if (!handled_by_focus) {
+            const passport_app_t *prev = app_registry_get_by_id(s_active_id);
+            if (prev && prev->stop) {
+                ESP_LOGI(TAG, "Stopping app: %s", prev->name);
+                prev->stop();
+            }
         }
     } else {
         launcher_ui_hide();
     }
+
+#ifdef ESP_PLATFORM
+    audio_focus::prepare_entering(id);
+#endif
 
     // Socket calls made by this long-lived caller lazily create a thread-local
     // semaphore. Once synchronous teardown has returned, no call is waiting on
@@ -524,31 +551,45 @@ void app_registry_switch_to(passport_app_id_t id) {
         s_heap_strained = true;
     }
     const size_t largest = heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL);
-    if (!s_fresh_heap && needs_clean_launch(id, largest, free_heap)) clean_launch(id);
+#ifdef ESP_PLATFORM
+    const bool reattaching = audio_focus::will_reattach(id);
+#else
+    const bool reattaching = false;
+#endif
+    if (!reattaching && !s_fresh_heap && needs_clean_launch(id, largest, free_heap)) clean_launch(id);
     s_fresh_heap = false;
-    if (heavy_app(id)) s_failures_at_entry = bsp_memory_failures();
+    if (heavy_app(id) && !reattaching) s_failures_at_entry = bsp_memory_failures();
 
     bsp_memory_phase(next ? next->name : "launcher");
     s_active_id = id;
     // manager 未初始化时只记忆档位,StartStation 后自动生效(见 wifi_manager)
     WifiManager::GetInstance().SetPowerSaveLevel(power_save_level_for(id));
 
-    // 3. 启动新目标
+    // 3. 启动新目标（若返回正在后台播放的音频应用，则直接重新挂载 UI 无缝续听）
     if (id == APP_ID_LAUNCHER) {
         launcher_ui_show();
     } else if (next) {
-        ESP_LOGI(TAG, "Starting app: %s", next->name);
-        if (next->init && !s_initialized[id]) {
-            next->init();
-            s_initialized[id] = true;
+        bool reattached = false;
+#ifdef ESP_PLATFORM
+        reattached = audio_focus::try_reattach(id);
+#endif
+        if (!reattached) {
+            ESP_LOGI(TAG, "Starting app: %s", next->name);
+            if (next->init && !s_initialized[id]) {
+                next->init();
+                s_initialized[id] = true;
+            }
+            if (next->start) next->start();
         }
-        if (next->start) next->start();
     }
     if (id == APP_ID_XIAOZHI && s_start_xiaozhi_conversation) {
         s_start_xiaozhi_conversation = false;
         xiaozhi_app_request_conversation();
     }
     finish_screen_handoff();
+#ifdef ESP_PLATFORM
+    audio_focus::on_foreground_ready(id);
+#endif
     lwip_socket_thread_cleanup();
     ESP_LOGI(TAG, "Target ready: app=%d elapsed_ms=%lld free=%u", id,
              (long long)((esp_timer_get_time() - switch_started_us) / 1000),
@@ -705,6 +746,9 @@ void app_registry_dispatch_key(uint8_t btn, app_btn_event_t event, uint16_t mv) 
 }
 
 void app_registry_tick(void) {
+#ifdef ESP_PLATFORM
+    audio_focus::tick();
+#endif
     if (bsp_lvgl_lock(50)) {
         if (!s_building_target.load() && s_handoff_screen && lv_screen_active() != s_handoff_screen) {
             lv_obj_delete(s_handoff_screen);

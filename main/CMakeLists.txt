@@ -55,6 +55,7 @@ idf_component_register(
         "boot_splash.c"
         "launcher/launcher.cc"
         "launcher/app_registry.cc"
+        "launcher/audio_focus.cc"
         "launcher/plugin_host.cc"
         "launcher/wifi_setup.cc"
         "launcher/wifi_picker.cc"

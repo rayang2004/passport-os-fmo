@@ -9,6 +9,7 @@
 #include "apps/voice/time_sync.h"
 #include "fonts/app_fonts.h"
 #include "launcher/app_registry.h"
+#include "launcher/audio_focus.h"
 #include "launcher/settings.h"
 #include "ui_pixel.h"
 
@@ -50,6 +51,8 @@ const passport_plugin_host_t s_host = {
     .storage_acquire = home_profile_storage_acquire,
     .storage_release = home_profile_storage_release,
     .http_token_ok = home_upload_token_ok,
+    .audio_focus_begin_breakin = audio_focus::begin_breakin,
+    .audio_focus_end_breakin = audio_focus::end_breakin,
 };
 
 } // namespace

@@ -14,6 +14,7 @@ if(CONFIG_PASSPORT_PLUGIN_FMO)
         "src/fmo_crl_store.cc"
         "src/fmo_revocation_service.cc"
         "src/fmo_http.cc"
+        "src/fmo_sentinel.cc"
         "src/app_fmo.cc"
     )
     set(FMO_EMBED_TXTFILES "src/passport_root.json")

@@ -174,4 +174,25 @@ bool save_relay_cache(const RelayList &list,uint32_t now){
     std::lock_guard<std::mutex> guard(mutex);nvs_handle_t h;auto e=nvs_open(kNamespace,NVS_READWRITE,&h);if(e!=ESP_OK)return false;
     e=nvs_set_blob(h,"relay_cache",saved.get(),sizeof(SavedRelays));if(e==ESP_OK)e=nvs_set_blob(h,"relay_stats",stats.get(),sizeof(*stats));if(e==ESP_OK)e=nvs_commit(h);nvs_close(h);return e==ESP_OK;
 }
+bool sentinel_enabled(){
+    std::lock_guard<std::mutex> guard(mutex);
+    nvs_handle_t h;
+    if(nvs_open(kNamespace,NVS_READONLY,&h)!=ESP_OK)return true;
+    uint8_t val=1;
+    size_t n=sizeof(val);
+    const auto e=nvs_get_blob(h,"sentinel",&val,&n);
+    nvs_close(h);
+    return (e==ESP_OK&&n==sizeof(val))?(val!=0):true;
+}
+bool set_sentinel_enabled(bool enabled){
+    std::lock_guard<std::mutex> guard(mutex);
+    nvs_handle_t h;
+    auto e=nvs_open(kNamespace,NVS_READWRITE,&h);
+    if(e!=ESP_OK)return false;
+    const uint8_t val=enabled?1:0;
+    e=nvs_set_blob(h,"sentinel",&val,sizeof(val));
+    if(e==ESP_OK)e=nvs_commit(h);
+    nvs_close(h);
+    return e==ESP_OK;
+}
 }

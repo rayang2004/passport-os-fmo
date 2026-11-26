@@ -164,6 +164,7 @@ python3 tests/test_media_startup.py
 "${CXX:-c++}" -std=c++17 -Wall -Wextra -Werror -fsanitize=address,undefined -Imain \
     -Itests/registry_mocks tests/test_netease_performance.cc main/apps/netease/netease_json.cc -o "$test_dir/netease-performance"
 "$test_dir/netease-performance"
+python3 tests/test_audio_focus.py
 if [ -d components/passport_fmo/tests ]; then
     for plugin_test in components/passport_fmo/tests/test_fmo*.py; do
         python3 "$plugin_test"

@@ -16,4 +16,8 @@ bool save_relay(const Relay &relay, std::string *error);
 bool clear_relay(std::string *error);
 bool load_relay_cache(RelayList *list,uint32_t now);
 bool save_relay_cache(const RelayList &list,uint32_t now);
+// Background sentinel (FMO/RAW voice break-in while Radio/NetEase/Home is active).
+// Defaults to enabled when unset in NVS fmo_os/sentinel.
+bool sentinel_enabled();
+bool set_sentinel_enabled(bool enabled);
 }

@@ -3,6 +3,7 @@
 #include "apps/radio/radio_player.h"
 #include "apps/radio/radio_catalog.h"
 #include "apps/home/home_profile.h"
+#include "launcher/audio_focus.h"
 #include "voice_intent.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/semphr.h"
@@ -45,6 +46,87 @@ std::atomic<voice_intent::Request *> s_voice{nullptr};
 // valid for the notification that ends it.
 TaskHandle_t s_stop_task = nullptr;
 std::atomic<bool> s_stop_running{false};
+RadioStation s_resume_station{};
+std::atomic<bool> s_has_resume_station{false};
+
+void radio_focus_detach_ui(void) {
+    s_ui_alive.store(false);
+    radio_ui_hide();
+}
+
+bool radio_focus_reattach_ui(void) {
+    if (!s_player_ready.load()) return false;
+    radio_ui_show_main();
+    const std::size_t idx = radio_player_station_index();
+    const std::size_t cnt = radio_player_station_count();
+    radio_ui_set_station(idx, cnt, radio_player_station(idx));
+    radio_ui_set_volume(radio_player_volume());
+    const bool wifi = WifiManager::GetInstance().IsConnected();
+    radio_ui_set_network(wifi, wifi ? "Wi-Fi已连接" : "Wi-Fi未连接");
+    radio_ui_set_playback(radio_player_is_playing() ? RadioPlaybackState::Playing : RadioPlaybackState::Stopped);
+    s_ui_alive.store(true);
+    return true;
+}
+
+bool radio_focus_is_playing(void) {
+    return s_player_ready.load() && radio_player_is_playing();
+}
+
+bool radio_focus_is_running(void) {
+    return s_player_ready.load();
+}
+
+bool radio_focus_has_saved_resume(void) {
+    return s_has_resume_station.load() && s_resume_station.url[0] != '\0';
+}
+
+void radio_focus_clear_saved_resume(void) {
+    s_has_resume_station.store(false);
+    s_resume_station = {};
+}
+
+bool radio_focus_suspend(bool save_resume) {
+    if (save_resume && s_player_ready.load()) {
+        s_resume_station = radio_player_station(radio_player_station_index());
+        s_has_resume_station.store(s_resume_station.url[0] != '\0');
+    } else if (!save_resume) {
+        radio_focus_clear_saved_resume();
+    }
+    radio_app_stop();
+    return !s_player_ready.load();
+}
+
+bool radio_focus_resume_background(void) {
+    if (!radio_focus_has_saved_resume() || !WifiManager::GetInstance().IsConnected()) return false;
+    if (s_player_ready.load()) return true;
+    if (!s_catalog_commit) s_catalog_commit = xSemaphoreCreateMutex();
+    if (!radio_player_init(false)) return false;
+    radio_player_replace_stations(&s_resume_station, 1);
+    s_player_ready.store(true);
+    s_radio_active.store(true);
+    s_catalog_installed.store(true);
+    s_ui_alive.store(false);
+    radio_player_set_network(true);
+    radio_player_set_playing(true);
+    ESP_LOGI(TAG, "Resumed background radio: %s", s_resume_station.name);
+    return true;
+}
+
+void radio_register_audio_focus(void) {
+    static bool registered = false;
+    if (registered) return;
+    registered = true;
+    audio_focus::register_source(audio_focus::Source::Radio, {
+        .is_playing = radio_focus_is_playing,
+        .is_running = radio_focus_is_running,
+        .detach_ui = radio_focus_detach_ui,
+        .reattach_ui = radio_focus_reattach_ui,
+        .suspend = radio_focus_suspend,
+        .resume_background = radio_focus_resume_background,
+        .has_saved_resume = radio_focus_has_saved_resume,
+        .clear_saved_resume = radio_focus_clear_saved_resume,
+    });
+}
 
 void stop_worker(void *arg) {
     const uint32_t minutes = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(arg));
@@ -187,6 +269,7 @@ void on_wifi_event(WifiEvent event, const std::string &data) {
 
 void radio_app_init(void) {
     ESP_LOGI(TAG, "Initializing Radio App subsystems...");
+    radio_register_audio_focus();
     radio_ui_init();
     static StaticSemaphore_t catalog_commit_storage;
     s_catalog_commit = xSemaphoreCreateMutexStatic(&catalog_commit_storage);
@@ -194,6 +277,8 @@ void radio_app_init(void) {
 
 void radio_app_start(void) {
     ESP_LOGI(TAG, "Starting Radio App...");
+    radio_register_audio_focus();
+    radio_focus_clear_saved_resume();
     if (s_radio_active.load()) {
         ESP_LOGW(TAG, "Radio App is already active");
         return;

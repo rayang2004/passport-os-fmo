@@ -28,6 +28,7 @@
 //   美术显示走 LVGL A8 快速路径(alpha 蒙版 + image_recolor 纯色),已核对
 //   lv_draw_sw_img.c:233 与 lv_draw_sw_blend_to_rgb565.c。
 #include "apps/home/app_home.h"
+#include "launcher/audio_focus.h"
 
 #include "apps/home/band_art.h"
 #include "apps/home/home_clock.h"
@@ -1176,7 +1177,9 @@ void home_task(void *arg) {
         // 首次进入延迟 15s;跨页面复用样本,到期自动刷新,手动刷新或换城市立即请求。
         // 熄屏期间不发请求(省电);亮屏后若已到期,下一轮循环立即刷新。
         home_profile_get(&prof);
-        const unsigned requests = connected && app_registry_screen_is_on()
+        // 后台电台/网易云正在播流时跳过首页 30 KB HTTPS 天气握手，避免与解码器抢堆；
+        // 首页仍即时显示缓存天气，等后台音频停止后下一轮自动刷新。
+        const unsigned requests = connected && app_registry_screen_is_on() && !audio_focus::background_active()
             ? s_weather_schedule.due(now_ms, start_ms, s_force_weather.load(), prof) : 0;
         if (requests) {
             s_force_weather.store(false);
@@ -1200,7 +1203,8 @@ void home_task(void *arg) {
                 if (s_home_active.load()) s_weather_schedule.finish(WeatherSchedule::Air, esp_timer_get_time() / 1000, result);
             }
             WifiManager::GetInstance().SetPowerSaveLevel(
-                home_upload_active() ? WifiPowerSaveLevel::BALANCED : WifiPowerSaveLevel::LOW_POWER);
+                (home_upload_active() || audio_focus::background_active())
+                    ? WifiPowerSaveLevel::BALANCED : WifiPowerSaveLevel::LOW_POWER);
             s_weather_fetching = false;
             if (!s_home_active.load()) break;
             // 无论成败都要刷新一次:成功换天气图标,失败把 spinner 撤下来

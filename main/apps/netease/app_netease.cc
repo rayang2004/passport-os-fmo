@@ -23,6 +23,7 @@
 #include "freertos/queue.h"
 #include "freertos/semphr.h"
 #include "freertos/task.h"
+#include "launcher/audio_focus.h"
 #include "launcher/settings.h"
 #include "bsp_audio.h"
 #include "apps/reminders/reminder_service.h"
@@ -80,6 +81,21 @@ voice_intent::Request *s_intent = nullptr;  // heap; taken at start, run once af
 esp_timer_handle_t s_sleep_timer = nullptr;
 std::atomic<bool> s_sleep_due{false};
 int64_t s_started_us = 0;  // serial timing only
+std::atomic<bool> s_save_resume_on_stop{false};
+std::atomic<bool> s_bg_resume_mode{false};
+std::atomic<bool> s_ui_attached{false};
+
+struct ResumeSnapshot {
+    bool valid = false;
+    uint64_t song_id = 0;
+    Song song{};
+    char url[kUrlBytes]{};
+    int64_t url_at = 0;
+    bool downgraded = false;
+    uint32_t offset = 0;
+    uint32_t total = 0;
+};
+ResumeSnapshot s_resume{};
 
 int elapsed_ms() { return static_cast<int>((esp_timer_get_time() - s_started_us) / 1000); }
 
@@ -624,7 +640,21 @@ void play_from(uint16_t index) {
                 break;
             }
             if (o.end == PlayEnd::Interrupted) {
-                if (shutting_down()) return;
+                if (shutting_down()) {
+                    if (s_save_resume_on_stop.load(std::memory_order_acquire) && t.url[0]) {
+                        s_resume.valid = true;
+                        s_resume.song_id = t.id;
+                        s_resume.song = t.song;
+                        std::snprintf(s_resume.url, sizeof(s_resume.url), "%s", t.url);
+                        s_resume.url_at = t.url_at;
+                        s_resume.downgraded = t.downgraded;
+                        s_resume.offset = o.position;
+                        s_resume.total = o.total_bytes;
+                        ESP_LOGI(kTag, "Saved resume point: %s @ %lu/%lu B",
+                                 t.song.name, (unsigned long)o.position, (unsigned long)o.total_bytes);
+                    }
+                    return;
+                }
                 if (reminders::sound_pending()) {
                     if (!service_reminder_audio()) return;
                     offset = o.position;
@@ -881,14 +911,116 @@ void play_requested() {
     play_from(0);
 }
 
+void play_resumed_track() {
+    if (!s_resume.valid || !s_resume.url[0]) return;
+    Track t{};
+    t.id = s_resume.song_id;
+    t.song = s_resume.song;
+    std::snprintf(t.url, sizeof(t.url), "%s", s_resume.url);
+    t.url_at = s_resume.url_at;
+    t.downgraded = s_resume.downgraded;
+    uint32_t offset = s_resume.offset;
+    uint32_t total = s_resume.total;
+    {
+        Guard g;
+        Model &m = model();
+        m.page_id = Page::Player;
+        m.now = t.song;
+        m.now.id = t.id;
+        m.now_index = 0;
+        m.track_count = 1;
+        m.ids[0] = t.id;
+        m.paused = false;
+        m.lyrics_ready = false;
+    }
+    bool refreshed = false;
+    for (;;) {
+        if (shutting_down()) return;
+        if (esp_timer_get_time() - t.url_at > kUrlLifetimeUs && !refreshed) {
+            refreshed = true;
+            bool trial = false;
+            if (song_url(s_cookie, t.id, t.url, sizeof(t.url), &trial, interrupted) == Result::Ok) {
+                t.url_at = esp_timer_get_time();
+                prefer_plain_http(t);
+            }
+        }
+        {
+            Guard g;
+            model().session = true;
+        }
+        const PlayOutcome o = play({t.url, offset, total, t.song.duration_ms, interrupted}, model().tasks);
+        {
+            Guard g;
+            model().session = false;
+        }
+        total = o.total_bytes;
+        if (o.end == PlayEnd::Interrupted) {
+            if (shutting_down()) {
+                if (s_save_resume_on_stop.load(std::memory_order_acquire) && t.url[0]) {
+                    s_resume.offset = o.position;
+                    s_resume.total = o.total_bytes;
+                    std::snprintf(s_resume.url, sizeof(s_resume.url), "%s", t.url);
+                    s_resume.url_at = t.url_at;
+                    s_resume.downgraded = t.downgraded;
+                }
+                return;
+            }
+            if (reminders::sound_pending()) {
+                if (!service_reminder_audio()) return;
+                offset = o.position;
+                continue;
+            }
+            Command c;
+            if (xQueueReceive(s_queue, &c, pdMS_TO_TICKS(500)) != pdTRUE) {
+                s_interrupt.store(false);
+                offset = o.position;
+                continue;
+            }
+            s_interrupt.store(false, std::memory_order_release);
+            if (c.cmd == Cmd::Toggle) {
+                if (!wait_paused(c)) return;
+                if (c.cmd == Cmd::Toggle) { offset = o.position; continue; }
+            }
+            dispatch(c);
+            return;
+        }
+        if (o.end == PlayEnd::Expired && t.downgraded) {
+            restore_https(t);
+            offset = o.position;
+            continue;
+        }
+        if (o.end == PlayEnd::Expired && !refreshed) {
+            refreshed = true;
+            bool trial = false;
+            if (song_url(s_cookie, t.id, t.url, sizeof(t.url), &trial, interrupted) == Result::Ok) {
+                t.url_at = esp_timer_get_time();
+                prefer_plain_http(t);
+                offset = o.position;
+                continue;
+            }
+        }
+        // Finished or unrecoverable error: clear resume snapshot and return to idle loop
+        s_resume.valid = false;
+        return;
+    }
+}
+
 void music_task(void *) {
-    // Boot's TLS handshake is CPU-bound; above the LVGL task it froze the
-    // half-drawn first page for ~0.9 s. Let the page paint first.
-    const UBaseType_t priority = uxTaskPriorityGet(nullptr);
-    vTaskPrioritySet(nullptr, 3);
-    dispatch({Cmd::Boot, 0});
-    vTaskPrioritySet(nullptr, priority);
-    play_requested();
+    if (s_bg_resume_mode.exchange(false, std::memory_order_acq_rel)) {
+        // Headless auto-resume path: skip full Boot TLS handshake & play from saved offset!
+        load_device_id();
+        const std::string saved = store_get_string(kNs, "cookie", "");
+        if (saved.size() < kCookieBytes) std::snprintf(s_cookie, kCookieBytes, "%s", saved.c_str());
+        play_resumed_track();
+    } else {
+        // Boot's TLS handshake is CPU-bound; above the LVGL task it froze the
+        // half-drawn first page for ~0.9 s. Let the page paint first.
+        const UBaseType_t priority = uxTaskPriorityGet(nullptr);
+        vTaskPrioritySet(nullptr, 3);
+        dispatch({Cmd::Boot, 0});
+        vTaskPrioritySet(nullptr, priority);
+        play_requested();
+    }
     while (!shutting_down()) {
         // Here nothing is playing: a stop timer firing now has nothing to stop.
         s_sleep_due.store(false, std::memory_order_release);
@@ -929,19 +1061,11 @@ void release_all() {
     s_owner = false;
 }
 
-void app_init() {}
-
-void app_start() {
+bool start_session(bool headless) {
     s_started_us = esp_timer_get_time();
-    // Taken even if this start fails, so the request cannot fire on a later visit.
-    delete s_intent;
-    s_intent = nullptr;
-    const voice_intent::Request request = voice_intent::take(APP_ID_NETEASE);
-    if (request.source != voice_intent::Source::None) s_intent = new (std::nothrow) voice_intent::Request(request);
     if (s_task_running.load() || s_meta_running.load()) {
-        // A previous session never finished stopping: leave its resources alone.
-        ui_show_unavailable("上次播放仍在退出，请稍后再试");
-        return;
+        if (!headless) ui_show_unavailable("上次播放仍在退出，请稍后再试");
+        return false;
     }
     s_shutdown.store(false);
     s_interrupt.store(false);
@@ -949,8 +1073,8 @@ void app_start() {
     s_owner = audio_workspace::acquire(audio_workspace::Owner::Music);
     if (!s_owner) {
         ESP_LOGE(kTag, "Audio workspace busy");
-        ui_show_unavailable("音频资源被占用，请稍后再试");
-        return;
+        if (!headless) ui_show_unavailable("音频资源被占用，请稍后再试");
+        return false;
     }
     static_assert(sizeof(Model) <= audio_workspace::music::kModelBytes);
     static_assert(alignof(Model) <= 16);
@@ -971,10 +1095,15 @@ void app_start() {
         ESP_LOGE(kTag, "Start failed. free=%u largest=%u", (unsigned)esp_get_free_heap_size(),
                  (unsigned)heap_caps_get_largest_free_block(MALLOC_CAP_8BIT));
         release_all();
-        ui_show_unavailable("内存不足，请稍后再试");
-        return;
+        if (!headless) ui_show_unavailable("内存不足，请稍后再试");
+        return false;
     }
-    ui_create(s_lyrics);
+    if (!headless) {
+        ui_create(s_lyrics);
+        s_ui_attached.store(true);
+    } else {
+        s_ui_attached.store(false);
+    }
     s_active.store(true);
     s_task_running.store(true);
     s_task = xTaskCreateStatic(music_task, "netease", kMusicStackBytes,
@@ -983,11 +1112,79 @@ void app_start() {
     if (!s_task) {
         s_task_running.store(false);
         s_active.store(false);
-        ui_destroy();
+        if (!headless) { ui_destroy(); s_ui_attached.store(false); }
         release_all();
-        ui_show_unavailable("启动失败，请稍后再试");
-        return;
+        if (!headless) ui_show_unavailable("启动失败，请稍后再试");
+        return false;
     }
+    return true;
+}
+
+void app_stop();
+
+bool focus_is_playing() {
+    if (!s_task_running.load() || !s_lock) return false;
+    if (!model_lock(100)) return s_task_running.load();
+    const bool playing = model().session && !model().paused;
+    model_unlock();
+    return playing;
+}
+bool focus_is_running() { return s_task_running.load(); }
+void focus_detach_ui() {
+    if (s_ui_attached.exchange(false)) ui_destroy();
+}
+bool focus_reattach_ui() {
+    if (!s_task_running.load() || !s_lyrics) return false;
+    if (!s_ui_attached.exchange(true)) ui_create(s_lyrics);
+    return true;
+}
+bool focus_has_saved_resume() { return s_resume.valid && s_resume.url[0] != '\0'; }
+void focus_clear_saved_resume() { s_resume = {}; }
+bool focus_suspend(bool save_resume) {
+    s_save_resume_on_stop.store(save_resume, std::memory_order_release);
+    if (!save_resume) s_resume = {};
+    app_stop();
+    s_save_resume_on_stop.store(false, std::memory_order_release);
+    return !s_task_running.load();
+}
+bool focus_resume_background() {
+    if (!focus_has_saved_resume() || !WifiManager::GetInstance().IsConnected()) return false;
+    if (s_task_running.load()) return true;
+    s_bg_resume_mode.store(true, std::memory_order_release);
+    if (!start_session(true)) {
+        s_bg_resume_mode.store(false, std::memory_order_release);
+        return false;
+    }
+    return true;
+}
+void register_audio_focus() {
+    static bool registered = false;
+    if (registered) return;
+    registered = true;
+    audio_focus::register_source(audio_focus::Source::NetEase, {
+        .is_playing = focus_is_playing,
+        .is_running = focus_is_running,
+        .detach_ui = focus_detach_ui,
+        .reattach_ui = focus_reattach_ui,
+        .suspend = focus_suspend,
+        .resume_background = focus_resume_background,
+        .has_saved_resume = focus_has_saved_resume,
+        .clear_saved_resume = focus_clear_saved_resume,
+    });
+}
+
+void app_init() { register_audio_focus(); }
+
+void app_start() {
+    register_audio_focus();
+    s_resume = {};
+    // Taken even if this start fails, so the request cannot fire on a later visit.
+    delete s_intent;
+    s_intent = nullptr;
+    const voice_intent::Request request = voice_intent::take(APP_ID_NETEASE);
+    if (request.source != voice_intent::Source::None) s_intent = new (std::nothrow) voice_intent::Request(request);
+    s_bg_resume_mode.store(false, std::memory_order_release);
+    start_session(false);
 }
 
 bool app_prepare_stop() {
@@ -1001,7 +1198,7 @@ void app_stop() {
     app_prepare_stop();
     for (int waited = 0; (s_task_running.load() || s_meta_running.load()) && waited < 8000; waited += 50)
         vTaskDelay(pdMS_TO_TICKS(50));
-    ui_destroy();
+    if (s_ui_attached.exchange(false)) ui_destroy();
     if (s_task_running.load() || s_meta_running.load()) {
         // Never free a stack or buffer a running task still uses. The next
         // start refuses to run until this session has really ended.

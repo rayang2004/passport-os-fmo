@@ -385,7 +385,7 @@ int main(int argc,char **argv){
  assert(process_controls(nav,catalog,&heard,true)==fmo::UiAction::None);
  assert(nav.menu_index==0&&relay_label->text.find("> 选择服务器")!=std::string::npos);
  const auto menu_text=relay_label->text;show("live RX","relay","BG0RX");assert(relay_label->text==menu_text);
- key(BSP_BTN_UP,BTN_EVT_CLICK,0);process_controls(nav,catalog,&heard,true);assert(nav.menu_index==14);
+ key(BSP_BTN_UP,BTN_EVT_CLICK,0);process_controls(nav,catalog,&heard,true);assert(nav.menu_index==15);
  key(BSP_BTN_DOWN,BTN_EVT_CLICK,0);process_controls(nav,catalog,&heard,true);assert(nav.menu_index==0);
  key(BSP_BTN_DOWN,BTN_EVT_CLICK,0);process_controls(nav,catalog,&heard,true);assert(nav.menu_index==1);
  key(BSP_BTN_OK,BTN_EVT_CLICK,0);process_controls(nav,catalog,&heard,true);
@@ -430,9 +430,10 @@ int main(int argc,char **argv){
  discovery_retry_view(true);assert(state_label->text=="正在重新连接发现服务");
  normal_view();const auto prior_retry_text=state_label->text;discovery_retry_view(true);assert(state_label->text==prior_retry_text);
  normal_view();key(BSP_BTN_DOWN,BTN_EVT_CLICK,0);process_controls(nav,catalog,&heard,true);
- for(int i=0;i<10;++i)key(BSP_BTN_UP,BTN_EVT_CLICK,0);process_controls(nav,catalog,&heard,true);
+ for(int i=0;i<11;++i)key(BSP_BTN_UP,BTN_EVT_CLICK,0);process_controls(nav,catalog,&heard,true);
  key(BSP_BTN_OK,BTN_EVT_CLICK,0);action=process_controls(nav,catalog,&heard,true);assert(action==fmo::UiAction::Exit);navigate(action);assert(navigated==APP_ID_LAUNCHER);
  normal_view();page=fmo::Page::Menu;nav.menu_index=14;switch_requested=true;assert(process_controls(nav,catalog,&heard,true)==fmo::UiAction::ConnectBuiltin);
+ normal_view();page=fmo::Page::Menu;nav.menu_index=15;switch_requested=true;assert(process_controls(nav,catalog,&heard,true)==fmo::UiAction::ToggleSentinel);
  // Stamp page (menu item 11): preview built-in + custom stamp and save action.
  normal_view();page=fmo::Page::Menu;nav.menu_index=11;switch_requested=true;
  fmo::StampConfig sc{};std::strcpy(sc.style_id,"G003");sc.custom_present=true;uint8_t custom_px[fmo::kStampPixelBytes]{};custom_px[0]=0xFF;
@@ -918,7 +919,7 @@ source=source.replace(' sodium_memzero(sk,sizeof(sk));puts(',r'''
  stop_requested=false;running=true;mock_clock_valid=false;identity_loads=0;next_requested=previous_requested=0;menu_requested=back_requested=switch_requested=false;normal_view();step=0;
  wait_step=[&](){switch(++step){
   case 1:key(BSP_BTN_DOWN,BTN_EVT_CLICK,0);break;
-  case 2:for(int i=0;i<10;++i)key(BSP_BTN_UP,BTN_EVT_CLICK,0);key(BSP_BTN_OK,BTN_EVT_CLICK,0);break;
+  case 2:for(int i=0;i<11;++i)key(BSP_BTN_UP,BTN_EVT_CLICK,0);key(BSP_BTN_OK,BTN_EVT_CLICK,0);break;
   default:assert(false);
  }};
  try{run_boot(nullptr);assert(false);}catch(const Parked&){}

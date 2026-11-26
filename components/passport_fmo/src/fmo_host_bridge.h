@@ -119,6 +119,14 @@ inline bool fmo_http_token_ok(httpd_req_t *req) {
     const auto *h = fmo_host();
     return h && h->http_token_ok && h->http_token_ok(req);
 }
+inline bool fmo_audio_focus_begin_breakin(uint32_t timeout_ms) {
+    const auto *h = fmo_host();
+    return h && h->audio_focus_begin_breakin && h->audio_focus_begin_breakin(timeout_ms);
+}
+inline void fmo_audio_focus_end_breakin() {
+    const auto *h = fmo_host();
+    if (h && h->audio_focus_end_breakin) h->audio_focus_end_breakin();
+}
 
 #else
 // Host regression test mode: pure alias macros to test-provided mocks
@@ -150,5 +158,7 @@ void home_storage_release(void);
 #define fmo_font_20() (&ui_font_20)
 #define fmo_pixel_label ui_pixel_label
 #define fmo_pixel_label_set_text ui_pixel_label_set_text
+#define fmo_audio_focus_begin_breakin(ms) ((void)(ms), true)
+#define fmo_audio_focus_end_breakin() ((void)0)
 #endif
 #endif

@@ -66,6 +66,12 @@ typedef struct {
 
     // Phone setup HTTP session token check
     bool (*http_token_ok)(httpd_req_t *req);
+
+    // Audio Focus break-in for background voice plugins (e.g. FMO sentinel).
+    // begin_breakin suspends active background/foreground music or radio and
+    // yields audio_workspace + ES8311; end_breakin restores suspended media.
+    bool (*audio_focus_begin_breakin)(uint32_t timeout_ms);
+    void (*audio_focus_end_breakin)(void);
 } passport_plugin_host_t;
 
 typedef struct {
@@ -97,6 +103,12 @@ typedef struct {
     // Optional HTTP portal extension callbacks
     bool (*register_http)(httpd_handle_t server);
     bool (*http_busy)(void);
+
+    // Optional background sentinel lifecycle notification: called when Wi-Fi
+    // readiness or foreground eligibility changes. When allow_sentinel is false
+    // (e.g., entering the plugin itself, Xiaozhi, Voice, or Wi-Fi setup), the
+    // plugin must stop any background sentinel/break-in synchronously.
+    void (*on_system_state)(bool wifi_connected, bool allow_sentinel);
 } passport_plugin_t;
 
 void passport_plugin_set_host(const passport_plugin_host_t *host);

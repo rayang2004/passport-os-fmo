@@ -5,6 +5,7 @@
 #endif
 #include "fmo_host_bridge.h"
 #include "fmo_http.h"
+#include "fmo_sentinel.h"
 #include "fmo_crypto.h"
 #include "fmo_revocation.h"
 #include "fmo_store.h"
@@ -338,7 +339,7 @@ void normal_view(){
     if(screen){stamp_widget_hide();ui_apply_mode(fmo::Page::Main);lv_obj_set_height(relay_label,40);lv_obj_remove_flag(call_label,LV_OBJ_FLAG_HIDDEN);fmo_pixel_label_set_text(hint_label,"上键选台 · 下键菜单\n长按确定讲话 · 调音量");}
     bsp_lvgl_unlock();
 }
-constexpr const char *kMenuItems[]={"选择服务器","抄收记录","播放音量","手机配置","返回通联","退出FMO","发送APRS CQ","发送友台信标","友台广播","活动公告","收藏服务器","我的印章","短消息","结束信令音","连接内置中继"};
+constexpr const char *kMenuItems[]={"选择服务器","抄收记录","播放音量","手机配置","返回通联","退出FMO","发送APRS CQ","发送友台信标","友台广播","活动公告","收藏服务器","我的印章","短消息","结束信令音","连接内置中继","后台守听插播"};
 constexpr unsigned kMenuSize=sizeof(kMenuItems)/sizeof(*kMenuItems);
 
 void menu_view(unsigned index){
@@ -651,6 +652,7 @@ fmo::UiAction process_controls(fmo::Navigation &nav,fmo::RelayList &servers,cons
             break;
         }
         case 14:return fmo::UiAction::ConnectBuiltin;
+        case 15:return fmo::UiAction::ToggleSentinel;
         }
     }else if(page==fmo::Page::Stamp){return fmo::UiAction::SaveStamp;}
     else if(page==fmo::Page::Beep){return fmo::UiAction::SaveBeep;}
@@ -963,6 +965,13 @@ void run(void *){
                 }else msg="信令音保存失败，请重试";
             }
             beep_view(beep_cfg,nav.beep_index,msg);
+            return fmo::UiAction::None;
+        }
+        if(action==fmo::UiAction::ToggleSentinel){
+            const bool next=!fmo::sentinel_enabled();
+            const bool ok=fmo::set_sentinel_enabled(next);
+            const char *msg=ok?(next?"后台守听插播：已开启\n听歌时自动插播通联":"后台守听插播：已关闭"):"保存失败，请重试";
+            if(bsp_lvgl_lock(100)){if(screen)fmo_pixel_label_set_text(state_label,msg);bsp_lvgl_unlock();}
             return fmo::UiAction::None;
         }
         if(action==fmo::UiAction::Discover&&!broadcast_ready){discovery_retry_view(false,false);return fmo::UiAction::None;}
@@ -1280,6 +1289,7 @@ void run(void *){
 }
 lv_obj_t *label(int y,const lv_font_t *font){auto *l=fmo_pixel_label(screen,"",font,0xdddddd);lv_obj_set_pos(l,12,y);lv_obj_set_width(l,216);lv_obj_set_style_text_align(l,LV_TEXT_ALIGN_CENTER,0);lv_label_set_long_mode(l,LV_LABEL_LONG_DOT);return l;}
 void start(){
+    fmo_sentinel_stop_sync();
     discovery_unknown_issuer=0;
     discovery_rejection=fmo::StationRejection::NotStation;
     observed_fmo_count=0;
@@ -1428,6 +1438,7 @@ const passport_plugin_t kFmoPlugin = {
     .on_back = nullptr,
     .register_http = fmo_http_register,
     .http_busy = fmo_http_busy,
+    .on_system_state = fmo_sentinel_on_system_state,
 };
 } // namespace
 
