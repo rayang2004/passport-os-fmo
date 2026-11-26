@@ -28,7 +28,9 @@ typedef enum {
     APP_ID_LISTS,
     APP_ID_PODCAST,
     APP_ID_AUDIOBOOK,
-    APP_ID_COUNT
+    APP_ID_PLUGIN_BASE,
+    APP_ID_PLUGIN_MAX = APP_ID_PLUGIN_BASE + 4,
+    APP_ID_COUNT = APP_ID_PLUGIN_MAX
 } passport_app_id_t;
 
 typedef enum {

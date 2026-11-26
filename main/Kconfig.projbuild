@@ -1,0 +1,25 @@
+menu "Passport OS Built-in Apps"
+    config PASSPORT_APP_PODCAST
+        bool "Enable Podcast app"
+        default y
+        help
+            Include the Podcast player application in the launcher.
+
+    config PASSPORT_APP_AUDIOBOOK
+        bool "Enable Audiobook app"
+        default y
+        help
+            Include the Audiobook player application in the launcher.
+
+    config PASSPORT_APP_MUSE
+        bool "Enable Muse companion app"
+        default y
+        help
+            Include the Muse BLE companion application.
+
+    config PASSPORT_APP_GAMES
+        bool "Enable built-in mini games (Tetris, Bark, Sound Jump)"
+        default y
+        help
+            Include Tetris, Bark, and Sound Jump mini games.
+endmenu

@@ -87,6 +87,9 @@ public:
     void StopStation();    // Non-blocking
     
     bool IsConnected() const;
+    // Live STA link/IP readiness, including the STA owned by the config AP.
+    // This does not assert that a remote Internet service is reachable.
+    bool HasStationIp() const;
     bool HasInternet() const { return GetInternetStatus() == InternetStatus::Online; }
     InternetStatus GetInternetStatus() const { return IsConnected() ? internet_status_.load() : InternetStatus::Offline; }
     void SetPreferredSsid(std::function<std::string()> provider);

@@ -4,6 +4,34 @@ if(PASSPORT_MUSE_USE_JOLLYBOT)
 else()
     set(PASSPORT_MUSE_AVATAR "apps/muse/muse_avatar_public_frames.c")
 endif()
+set(PASSPORT_OPTIONAL_SRCS "")
+set(PASSPORT_OPTIONAL_REQUIRES "")
+if(CONFIG_PASSPORT_APP_PODCAST)
+    list(APPEND PASSPORT_OPTIONAL_SRCS "apps/podcast/app_podcast.cc" "apps/podcast/podcast_catalog.cc")
+endif()
+if(CONFIG_PASSPORT_APP_AUDIOBOOK)
+    list(APPEND PASSPORT_OPTIONAL_SRCS "apps/audiobook/app_audiobook.cc")
+endif()
+if(CONFIG_PASSPORT_APP_MUSE OR CMAKE_BUILD_EARLY_EXPANSION)
+    list(APPEND PASSPORT_OPTIONAL_REQUIRES passport_muse)
+endif()
+if(CONFIG_PASSPORT_APP_MUSE)
+    list(APPEND PASSPORT_OPTIONAL_SRCS "apps/muse/app_muse.cc" "${PASSPORT_MUSE_AVATAR}")
+endif()
+if(CONFIG_PASSPORT_APP_GAMES)
+    list(APPEND PASSPORT_OPTIONAL_SRCS
+        "apps/game/game_core.c"
+        "apps/game/game_mic.c"
+        "apps/game/game_sfx.c"
+        "apps/game/app_game.cc"
+        "apps/sound_jump/jump_core.c"
+        "apps/sound_jump/jump_voice.c"
+        "apps/sound_jump/jump_mic.c"
+        "apps/sound_jump/app_sound_jump.cc"
+        "apps/game/tetris_core.c"
+        "apps/game/app_tetris.cc"
+    )
+endif()
 idf_component_register(
     EMBED_FILES "apps/home/cities.json.gz"
     SRCS
@@ -27,6 +55,7 @@ idf_component_register(
         "boot_splash.c"
         "launcher/launcher.cc"
         "launcher/app_registry.cc"
+        "launcher/plugin_host.cc"
         "launcher/wifi_setup.cc"
         "launcher/wifi_picker.cc"
         "launcher/network_diagnostics.cc"
@@ -37,9 +66,6 @@ idf_component_register(
         "fonts/buddy_font_16.c"
         "fonts/ui_font_20.c"
         "fonts/ui_digits_32.c"
-        "apps/podcast/app_podcast.cc"
-        "apps/podcast/podcast_catalog.cc"
-        "apps/audiobook/app_audiobook.cc"
         "apps/radio/app_radio.cc"
         "apps/radio/radio_catalog.cc"
         "apps/radio/radio_display_settings.cc"
@@ -83,24 +109,13 @@ idf_component_register(
         "apps/home/band_art.c"
         "apps/home/home_upload.cc"
         "apps/home/app_home.cc"
-        "apps/game/game_core.c"
-        "apps/game/game_mic.c"
-        "apps/game/game_sfx.c"
-        "apps/game/app_game.cc"
-        "apps/sound_jump/jump_core.c"
-        "apps/sound_jump/jump_voice.c"
-        "apps/sound_jump/jump_mic.c"
-        "apps/sound_jump/app_sound_jump.cc"
         "apps/stopwatch/stopwatch_core.c"
         "apps/stopwatch/app_stopwatch.cc"
         "apps/pomodoro/pomodoro_core.c"
         "apps/pomodoro/app_pomodoro.cc"
         "apps/pomodoro/pomodoro_font_20.c"
         "apps/pomodoro/pomodoro_digits_48.c"
-        "apps/muse/app_muse.cc"
-        "${PASSPORT_MUSE_AVATAR}"
-        "apps/game/tetris_core.c"
-        "apps/game/app_tetris.cc"
+        ${PASSPORT_OPTIONAL_SRCS}
     INCLUDE_DIRS
         "."
         "launcher"
@@ -113,7 +128,9 @@ idf_component_register(
         "ui"
         "fonts"
     REQUIRES
-        passport_muse
+        passport_plugin_api
+        passport_fmo
+        ${PASSPORT_OPTIONAL_REQUIRES}
         bsp
         esp-wifi-connect
         esp_wifi

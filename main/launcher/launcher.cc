@@ -1,5 +1,6 @@
 // Application drawer: shared phosphor palette and pixel icons.
 #include "launcher/launcher.h"
+#include "passport_plugin.h"
 #include "apps/voice/time_sync.h"
 #include "launcher/app_registry.h"
 #include "wifi_manager.h"
@@ -417,13 +418,18 @@ constexpr IconGlyph kIconGlyphs[] = {
 
 // The icon is drawn into its existing object; no per-part heap allocations.
 void draw_app_icon_event(lv_event_t *event) {
-    const IconGlyph *glyph = nullptr;
+    const char *const *rows = nullptr;
     for (const IconGlyph &g : kIconGlyphs)
-        if (g.id == s_icon_id) glyph = &g;
-    if (!glyph) return;
+        if (g.id == s_icon_id) { rows = g.rows; break; }
+    if (!rows) {
+        const passport_plugin_t *plugin = passport_plugin_find_by_app_id(s_icon_id);
+        if (plugin) rows = plugin->icon_rows;
+    }
+    if (!rows) return;
     pixel_scene::Ink ink(event);
     for (int y = 0; y < kGlyphCells; ++y) {
-        const char *row = glyph->rows[y];
+        const char *row = rows[y];
+        if (!row) continue;
         for (int x = 0; x < kGlyphCells;) {
             if (row[x] != '#') { ++x; continue; }
             const int start = x;
@@ -467,6 +473,11 @@ void update_card_content() {
             case APP_ID_REMINDERS: case APP_ID_AUDIOBOOK: color = UI_WARNING; break;
             case APP_ID_NETEASE: color = UI_DANGER; break;
             default: break;
+        }
+    }
+    if (const passport_plugin_t *plugin = passport_plugin_find_by_app_id(app->id)) {
+        if ((ui_theme_is_studio() || ui_theme_is_multicolor()) && plugin->theme_color) {
+            color = plugin->theme_color;
         }
     }
     draw_app_icon(app->id, color);

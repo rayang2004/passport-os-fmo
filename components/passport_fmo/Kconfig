@@ -1,0 +1,9 @@
+menu "Passport FMO Plugin"
+    config PASSPORT_PLUGIN_FMO
+        bool "Enable FMO Passport interop plugin"
+        default y
+        help
+            Build and register the FMO Passport 4.0 interop voice/APRS/stamp/beep
+            plugin and its standalone mobile web configuration page (/fmo).
+            Disable to omit FMO, libsodium, and MQTT from the firmware image.
+endmenu

@@ -189,10 +189,22 @@ bool WifiManager::IsConnected() const {
     return station_active_ && station_ && station_->IsConnected();
 }
 
+bool WifiManager::HasStationIp() const {
+    std::lock_guard<std::mutex> lock(mutex_);
+    if (!initialized_ || (!station_active_ && !config_mode_active_)) return false;
+    wifi_ap_record_t ap{};
+    if (esp_wifi_sta_get_ap_info(&ap) != ESP_OK) return false;
+    auto *netif = esp_netif_get_handle_from_ifkey("WIFI_STA_DEF");
+    if (!netif || !esp_netif_is_netif_up(netif)) return false;
+    esp_netif_ip_info_t info{};
+    return esp_netif_get_ip_info(netif, &info) == ESP_OK && info.ip.addr != 0;
+}
+
 std::string WifiManager::GetSsid() const {
     std::lock_guard<std::mutex> lock(mutex_);
-    if (!station_active_ || !station_) return "";
-    return station_->GetSsid();
+    if (station_active_ && station_) return station_->GetSsid();
+    if (config_mode_active_ && config_ap_) return config_ap_->GetStaSsid();
+    return "";
 }
 
 std::string WifiManager::GetIpAddress() const {

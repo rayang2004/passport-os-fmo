@@ -1,4 +1,5 @@
 #include "device_control.h"
+#include "passport_plugin.h"
 #include "apps/audiobook/audiobook_shelf.h"
 #include "apps/home/home_profile.h"
 #include "apps/home/home_weather.h"
@@ -39,6 +40,8 @@ constexpr App apps[] = {
 };
 const char *app_key(passport_app_id_t id) {
     for (const auto &app : apps) if (app.id == id) return app.key;
+    const passport_plugin_t *p = passport_plugin_find_by_app_id(id);
+    if (p && p->mcp_alias) return p->mcp_alias;
     return "unknown";
 }
 using Json = std::unique_ptr<cJSON, decltype(&cJSON_Delete)>;
@@ -258,6 +261,12 @@ std::string call(const char *name,const cJSON *args,uint64_t token) {
         const auto *app=cJSON_GetObjectItemCaseSensitive(args,"app");
         if (!cJSON_IsString(app)) return fail("请明确要打开哪个应用");
         for (const auto &candidate:apps) if (!std::strcmp(app->valuestring,candidate.key)) request.app=candidate.id;
+        if (request.app==APP_ID_COUNT) {
+            int plugin_id = -1;
+            if (passport_plugin_find_by_alias(app->valuestring, &plugin_id) && plugin_id >= 0) {
+                request.app = static_cast<passport_app_id_t>(plugin_id);
+            }
+        }
         if (request.app==APP_ID_COUNT) return fail("设备没有这个应用，请选择内置应用");
     } else if (request.action==Action::Handover) {
         using voice_intent::Source;

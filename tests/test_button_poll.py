@@ -29,6 +29,7 @@ struct Done {};
 static unsigned xTaskGetTickCount() { return now; }
 static int64_t esp_timer_get_time() { return int64_t(now)*1000; }
 static passport_app_id_t app_registry_get_active() { return APP_ID_HOME; }
+static bool app_registry_active_owns_long_ok() { return false; }
 static void vTaskDelay(unsigned delay) { now += delay; if (now >= finish_at) throw Done{}; }
 static int bsp_button_read_mv() { return (now >= tap_start && now < tap_end) ||
     (second_start && now >= second_start && now < second_end) ? voltage : 2900; }

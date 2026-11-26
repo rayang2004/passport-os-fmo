@@ -278,6 +278,23 @@ void home_profile_storage_prepare(void) {
     portEXIT_CRITICAL(&s_mux);
 }
 
+esp_err_t home_profile_storage_acquire(bool initialize_blank) {
+    (void)initialize_blank;
+    SemaphoreHandle_t lock = storage_lock();
+    if (!lock) return ESP_FAIL;
+    xSemaphoreTake(lock, portMAX_DELAY);
+    esp_err_t err = mount_locked();
+    if (err != ESP_OK) {
+        xSemaphoreGive(lock);
+    }
+    return err;
+}
+
+void home_profile_storage_release(void) {
+    SemaphoreHandle_t lock = storage_lock();
+    if (lock) xSemaphoreGive(lock);
+}
+
 static esp_err_t avatar_load(void) {
     esp_err_t err = ensure_spiffs();
     if (err != ESP_OK || s_avatar_loaded) return err;

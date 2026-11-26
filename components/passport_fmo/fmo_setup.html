@@ -1,0 +1,658 @@
+<!doctype html><html lang="zh-CN"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>FMO 互通通联配置 · AI 护照</title>
+<style>
+:root{--bg:#f2f3ee;--card:#fff;--ink:#16241c;--muted:#6b756d;--line:#e3e6de;--field:#f6f7f3;--green:#1f5c3f;--green-dark:#16472f;--tint:#e6efe6;--error:#a12c23;--r:16px;--r-s:12px;color-scheme:light}
+*{box-sizing:border-box}html{-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.55 -apple-system,BlinkMacSystemFont,"PingFang SC","Segoe UI","Microsoft YaHei",sans-serif;accent-color:var(--green);-webkit-font-smoothing:antialiased}
+::selection{background:#c5dec9}:focus-visible{outline:3px solid #4b8a62;outline-offset:2px}[hidden]{display:none!important}
+.vh{position:absolute!important;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+.shell{max-width:480px;margin:auto;padding:max(18px,env(safe-area-inset-top)) 16px max(32px,env(safe-area-inset-bottom))}
+.brand{display:flex;align-items:center;gap:10px;font-weight:650;font-size:15px;letter-spacing:.02em}.brand svg{width:28px;height:28px;flex:none;shape-rendering:crispEdges}
+.steps{display:flex;list-style:none;padding:0;margin:0 0 0 auto;gap:6px}.steps li{width:22px;height:6px;border-radius:3px;background:var(--line);font-size:0;overflow:hidden}.steps li.done{background:#9cb8a2}.steps li[aria-current=step]{width:34px;background:var(--green)}
+h1{font-size:28px;line-height:1.25;letter-spacing:-.02em;font-weight:700;margin:28px 0 6px;text-wrap:balance}h1:focus{outline:none}
+.intro{color:var(--muted);font-size:14px;margin:0 0 20px}
+p{margin:0}
+.card{background:var(--card);border-radius:var(--r);padding:16px;margin:12px 0;box-shadow:0 1px 0 rgba(22,36,28,.04)}
+.field+.field{margin-top:14px}
+label,.field-title{display:block;font-size:13px;font-weight:600;color:var(--muted);margin-bottom:6px}
+.optional{font-weight:400;margin-left:6px}
+input[type=text],input[type=password],input[type=number],input:not([type]),select,textarea{width:100%;min-height:48px;border:1px solid transparent;border-radius:var(--r-s);padding:12px 14px;background:var(--field);color:var(--ink);font:inherit;line-height:1.4;-webkit-appearance:none;appearance:none}
+input:focus,select:focus,textarea:focus{border-color:var(--green);background:#fff;outline:none}
+input::placeholder,textarea::placeholder{color:#9aa39b}textarea{resize:vertical}
+select{padding-right:40px;text-overflow:ellipsis;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8'%3E%3Cpath d='M1 1l5 5 5-5' fill='none' stroke='%236b756d' stroke-width='2'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 16px center}
+.row{display:flex;align-items:center;justify-content:space-between;gap:12px}.row label{margin:0}
+.pair{display:grid;grid-template-columns:2fr 3fr;gap:8px}.pair.even{grid-template-columns:1fr 1fr}.pair.proxy{grid-template-columns:minmax(0,1fr) 88px}.pair.proxy input{min-width:0}.proxy-settings{padding-top:4px}.stack>*+*{margin-top:8px}
+button{font:inherit;cursor:pointer;touch-action:manipulation;-webkit-tap-highlight-color:transparent}button:disabled{cursor:default;opacity:.55}
+.primary,.secondary{display:block;width:100%;min-height:52px;padding:12px 18px;border:0;border-radius:var(--r-s);font-weight:600;font-size:16px}
+.primary{background:var(--green);color:#fff}.primary:active{background:var(--green-dark)}
+.secondary{background:var(--tint);color:var(--green)}.secondary+.secondary,.primary+.secondary{margin-top:10px}
+.text-button{background:none;border:0;color:var(--green);padding:8px 0;min-height:40px;font-size:14px;font-weight:500}
+.center{display:block;margin:6px auto 0}
+.password{position:relative}.password input{padding-right:64px}.password button{position:absolute;right:4px;top:4px;height:40px;min-width:54px;border:0;background:none;color:var(--green);font-size:14px}
+.help{color:var(--muted);font-size:12.5px;margin-top:6px}.help:empty{display:none}
+.status{font-size:13.5px;margin:12px 2px;overflow-wrap:anywhere}.status:empty{display:none}.status[data-error=true]{color:var(--error)}
+.actions{margin-top:20px}
+.note{text-align:center;color:var(--muted);font-size:12px;margin-top:22px}
+.connection{display:inline-flex;align-items:center;gap:6px;background:var(--tint);color:var(--green);font-size:13px;font-weight:500;border-radius:999px;padding:5px 12px 5px 8px;margin:0 0 10px;max-width:100%}.connection svg{width:16px;height:16px;flex:none}.connection span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.group{background:var(--card);border-radius:var(--r);margin:12px 0;overflow:hidden}
+.group>details+details{border-top:1px solid var(--line)}
+details>summary{list-style:none;cursor:pointer}details>summary::-webkit-details-marker{display:none}
+.group>details>summary{display:flex;align-items:center;gap:12px;min-height:60px;padding:10px 16px;font-weight:600;font-size:15.5px}
+.group>details>summary small{margin-left:auto;font-size:12.5px;font-weight:400;color:var(--muted);white-space:nowrap}
+.group>details>summary::after{content:"";width:7px;height:7px;border-right:2px solid #a3aba4;border-bottom:2px solid #a3aba4;transform:rotate(-45deg);margin:0 2px 0 4px;flex:none;transition:transform .15s}
+.group>details[open]>summary::after{transform:rotate(45deg)}
+.ico{width:32px;height:32px;border-radius:9px;background:var(--tint);color:var(--green);display:grid;place-items:center;flex:none}.ico svg{width:19px;height:19px}
+.detail-body{padding:0 16px 18px}.detail-body>*+*{margin-top:12px}
+.sub>summary{font-size:13.5px;color:var(--green);font-weight:500;padding:4px 0}.sub .detail-body{padding:10px 0 0}
+.download-link{display:block;min-height:48px;padding:12px;border-radius:var(--r-s);background:var(--green);color:#fff;text-align:center;text-decoration:none;font-weight:600}.download-link.secondary-link{background:var(--tint);color:var(--green);font-size:14px}
+a{color:var(--green)}
+.saved{font-size:12.5px;color:var(--muted)}
+.stamp-preview-wrap{background:#111518;border-radius:var(--r-s);padding:14px;text-align:center;color:#d6dce2}
+.stamp-preview-wrap canvas{width:96px;height:96px;display:block;margin:0 auto 6px;image-rendering:pixelated}
+.stamp-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+.stamp-opt{display:flex;flex-direction:column;align-items:center;gap:4px;padding:8px 4px;border:1.5px solid var(--line);border-radius:10px;background:var(--field);color:var(--ink);font-size:11px}
+.stamp-opt[aria-pressed=true]{border-color:var(--green);background:var(--tint);font-weight:600}
+.stamp-opt svg{width:38px;height:38px}
+.swatch-row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.swatch{width:32px;height:32px;border-radius:999px;border:2px solid var(--line);padding:0}
+.book-card{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 12px;border:1px solid var(--line);border-radius:12px;background:var(--field);margin-top:8px}
+.book-card svg{width:42px;height:42px;flex:none;color:#ff7a1a}
+.success-mark{width:64px;height:64px;color:var(--green);margin:40px 0 0}
+.recap strong{display:block;font-size:20px;font-weight:650;overflow-wrap:anywhere}.recap span{color:var(--muted);font-size:14px}
+@media(min-width:760px){.shell{padding-top:48px}}
+@media(prefers-reduced-motion:no-preference){.primary,.secondary{transition:background .15s ease-out}}
+</style>
+<style>
+.fmo-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:14px}
+.fmo-back{display:inline-flex;align-items:center;gap:4px;font-size:13.5px;color:var(--green);text-decoration:none;font-weight:600}
+.fmo-badge{font-size:12px;padding:3px 9px;border-radius:999px;background:#fff3e8;color:#c24d00;font-weight:600}
+.fmo-conn{font-size:12.5px;color:var(--muted);margin:0 0 12px}
+</style>
+</head>
+<body><main class="shell">
+<div class="fmo-head">
+<a class="fmo-back" id="backHome" href="/">← 返回 Passport 设置</a>
+<span class="fmo-badge">FMO PASSPORT 插件</span>
+</div>
+<h1 style="margin:0 0 4px">FMO 互通通联</h1>
+<p class="fmo-conn" id="connectionSummary">正在读取设备状态…</p>
+<div class="group">
+<details id="fmoSection" open><summary>FMO 身份与证书<small>v0.6.11 兼容</small></summary><div class="detail-body">
+<p class="help">沿用 FMO Passport 签发服务。本机生成密钥，私钥不会上传。已有原设备身份不会被更改；若设备曾运行原 FMO Passport 固件并已有有效证书，可一键只读导入。</p>
+<p id="fmoWifiNotice" class="help"></p>
+<button id="fmoConnectWifi" class="secondary" type="button" hidden>连接已保存 Wi-Fi（用于联网申请）</button>
+<button id="fmoImportLegacy" class="secondary" type="button" hidden>从原 FMO 固件导入有效证书</button>
+<button id="fmoInit" class="secondary" type="button">创建本机 FMO 身份</button>
+<button id="fmoRefresh" class="secondary" type="button">查询本机与签发状态</button>
+<p id="fmoIdentity" class="help"></p>
+<button id="fmoCheckCrl" class="secondary" type="button">检查证书吊销列表</button>
+<p id="fmoCrlStatus" class="status" role="status" aria-live="polite"></p>
+<label for="fmoCallsign">业余无线电呼号</label><input id="fmoCallsign" type="text" maxlength="12" autocomplete="off" spellcheck="false" placeholder="填写自己的呼号">
+<label for="fmoPhoto">证件合照</label><input id="fmoPhoto" type="file" accept="image/*">
+<p class="help">提交后会将呼号、公钥和压缩后的证件合照发送给 <a href="https://fmo.simy.live/ca" target="_blank" rel="noopener noreferrer">fmo.simy.live</a> 审核。照片不保存在设备；只有你主动提交时才上传。</p>
+<button id="fmoApply" class="secondary" type="button">提交证书申请</button>
+<p id="fmoStatus" class="status" role="status" aria-live="polite"></p>
+<label for="fmoServerList">已发现的服务器</label><select id="fmoServerList"><option value="">尚无有效服务器信息</option></select>
+<button id="fmoRefreshServers" class="secondary" type="button">读取已发现列表</button>
+<button id="fmoSelectServer" class="secondary" type="button">使用所选服务器</button>
+<button id="fmoUseBuiltin" class="secondary" type="button">切换到 PASSPORT 内置中继台（兜底）</button>
+<p id="fmoBuiltinNote" class="help">无同链 PASS 中继广播时，设备将自动使用 PASSPORT 内置中继台（fmo.simy.asia:1883）作为兜底，确保可随时通联。</p>
+<p class="help">取得有效证书后，打开设备上的FMO自动接收并验证台站广播。本页读取其有效缓存；空列表不代表没有远程服务器，广播周期可能约十分钟。在线/峰值及范围来自广播快照，不是实时查询；缺失或过期时显示待更新。</p>
+<details class="sub"><summary>手动配置中继</summary><div class="detail-body">
+<p class="help">优先使用设备发现的中继。手动设置需要中继管理员提供完整身份参数，地址本身不足以完成认证。</p>
+<label for="fmoHost">中继主机</label><input id="fmoHost" type="text" maxlength="127" placeholder="主机名或 IP，不含协议前缀">
+<label for="fmoPort">MQTT 端口</label><input id="fmoPort" type="number" min="1" max="65535" value="1883">
+<label for="fmoRelayCall">中继呼号</label><input id="fmoRelayCall" type="text" maxlength="12">
+<label for="fmoRelayUid">中继 UID</label><input id="fmoRelayUid" type="number" min="1" max="4294967295">
+<label for="fmoFingerprint">中继证书指纹</label><input id="fmoFingerprint" type="text" maxlength="43" autocomplete="off">
+<button id="fmoSaveRelay" class="secondary" type="button">保存中继</button>
+</div></details></div></details>
+<details id="fmoStampSection"><summary>FMO 定制印章<small id="fmoStampSummary">12款内置 + 自定义图案</small></summary><div class="detail-body">
+<p class="help">选择 FMO Passport 12 款几何印章或上传自定义图案（支持透明底、白底、黑底或纯色底自动去底），离线压缩为 96×96 四级抗锯齿点阵保存在设备，可在设备 FMO“我的印章”与通联章册中查看。</p>
+<button id="fmoReadStamp" class="secondary" type="button">读取当前印章</button>
+<div class="stamp-preview-wrap"><canvas id="fmoStampPreview" width="96" height="96" aria-label="印章预览"></canvas><p id="fmoStampPreviewName" class="help">G001 · 双环圆章</p></div>
+<label for="fmoStampStyle">印章样式</label><select id="fmoStampStyle"><option value="G001">G001 · 双环圆章</option><option value="G002">G002 · 邮戳齿圆</option><option value="G003">G003 · 圆角方章</option><option value="G004">G004 · 方中带圆</option><option value="G005">G005 · 粗边圆章</option><option value="G006">G006 · 圆中带方</option><option value="G007">G007 · 八角印章</option><option value="G008">G008 · 徽章盾牌</option><option value="G009">G009 · 六角蜂巢</option><option value="G010">G010 · 爱心印章</option><option value="G011">G011 · 菱形印章</option><option value="G012">G012 · 邮票方章</option><option value="CUSTOM">CUSTOM · 自定义图案</option></select>
+<div id="fmoStampGrid" class="stamp-grid" aria-label="内置印章样式"></div>
+<div class="field"><label for="fmoStampColor">印泥颜色</label><div class="swatch-row" id="fmoStampSwatches"><input id="fmoStampColor" type="color" value="#FF7A1A" style="width:48px;height:36px;border:0;padding:0;background:none"></div></div>
+<div class="field"><label for="fmoStampLabel">印章铭文（最多 16 字节，不含逗号）</label><input id="fmoStampLabel" type="text" maxlength="16" autocomplete="off" value="AI PASSPORT" placeholder="如 AI PASSPORT 或网格"></div>
+<button id="fmoSaveStamp" class="secondary" type="button">保存印章样式与颜色</button>
+<div class="field"><label for="fmoStampFile">选择定制印章图案或点阵备份</label><input id="fmoStampFile" type="file" accept="image/*,.fmostamp"></div>
+<div class="field"><label for="fmoStampThreshold">去底灵敏度</label><input id="fmoStampThreshold" type="range" min="10" max="90" value="45" style="width:100%"></div>
+<label><input id="fmoStampInvert" type="checkbox">反转明暗（浅色背景深色线条可按需勾选）</label>
+<button id="fmoUploadStamp" class="secondary" type="button" disabled>上传定制图案到设备</button>
+<button id="fmoExportStamp" class="secondary" type="button">下载设备印章点阵</button>
+<button id="fmoClearStamp" class="secondary" type="button">清除定制图案，恢复内置章</button>
+<p id="fmoStampStatus" class="status" role="status" aria-live="polite"></p>
+</div></details>
+<details id="fmoBeepSection"><summary>FMO 结束信令音（Roger Beep）<small id="fmoBeepSummary">内置双音</small></summary><div class="detail-body">
+<p class="help">松开讲话键结束发射时，自动发送并本地播放结束信令音（对齐 FMO Passport v0.6.11）。支持内置高-低双音，或下载云端 FBEP 趣味信令音（上限 3 秒）。</p>
+<label><input id="fmoBeepEnabled" type="checkbox" checked>启用发射结束信令音</label>
+<label for="fmoBeepSelect">信令音样式</label><select id="fmoBeepSelect"><option value="0">内置双音（960→640 Hz）</option></select>
+<button id="fmoBeepRefresh" class="secondary" type="button">刷新云端信令音清单</button>
+<button id="fmoBeepPreview" class="secondary" type="button">试听所选信令音</button>
+<button id="fmoBeepApply" class="secondary" type="button">保存 / 下载到设备</button>
+<button id="fmoBeepClear" class="secondary" type="button" hidden>清除自定义音，恢复内置双音</button>
+<p id="fmoBeepStatus" class="status" role="status" aria-live="polite"></p>
+</div></details>
+<details id="fmoAprsSection"><summary>FMO APRS 广播<small>默认关闭</small></summary><div class="detail-body">
+<p class="help">开启后，可在设备快捷菜单主动发送CQ或友台信标，公开本人呼号和所填网格的中心位置；不使用天气/GPS坐标，不自动广播。需要有效证书及APRS服务器验证。</p>
+<label><input id="fmoAprsEnabled" type="checkbox">允许按键发送APRS广播</label>
+<label for="fmoAprsGrid">公开的Maidenhead网格</label><input id="fmoAprsGrid" maxlength="8" placeholder="4/6/8位，例如 PM06 或 PM06eb">
+<label for="fmoAprsSsid">APRS SSID</label><input id="fmoAprsSsid" type="number" min="0" max="15" value="15">
+<label for="fmoAprsFrequency">电台频率 MHz（发信标时必填）</label><input id="fmoAprsFrequency" inputmode="decimal" maxlength="15" placeholder="填写实际使用频率，100至1300">
+<label for="fmoAprsHeight">天线高度 米（0为不公开）</label><input id="fmoAprsHeight" type="number" min="0" max="999" value="0">
+<label for="fmoAprsRig">设备型号（最多24字节）</label><input id="fmoAprsRig" maxlength="24" value="AI Passport">
+<label for="fmoAprsAntenna">天线型号（可留空，最多24字节）</label><input id="fmoAprsAntenna" maxlength="24">
+<label><input id="fmoAprsLegacy" type="checkbox">友台信标使用原版APPASP/PAT-1格式（不带签名）</label>
+<p class="help">默认使用FMO V4签名信标；CQ始终使用V4。设备/天线不含逗号或换行。每类广播间隔至少一分钟；不会操作实体无线电发射机。</p>
+<button id="fmoReadAprs" class="secondary" type="button">读取广播设置</button>
+<button id="fmoSaveAprs" class="secondary" type="button">保存广播设置</button>
+<p id="fmoAprsStatus" class="status" role="status" aria-live="polite"></p>
+</div></details>
+<details id="fmoBookSection"><summary>FMO 护照章册与抄收册<small id="fmoBookCount">本机记录</small></summary><div class="detail-body">
+<p class="help">记录实际成功播放的友台语音与护照印章，含初次相遇、最近抄收和去重次数；不代表双方确认通联。最多保留64位友台，满后保留已有记录，不自动覆盖。没有录音或私钥。</p>
+<button id="fmoReadBook" class="secondary" type="button">读取护照章册</button>
+<button id="fmoExportBook" class="secondary" type="button" hidden>导出章册 JSON 备份</button>
+<label for="fmoRestoreBookFile">选择抄收备份 JSON</label>
+<input id="fmoRestoreBookFile" type="file" accept=".json,application/json">
+<button id="fmoRestoreBook" class="secondary" type="button">导入抄收记录</button>
+<label for="fmoBookSearch">搜索呼号</label><input id="fmoBookSearch" type="search" maxlength="12" autocomplete="off" placeholder="输入呼号筛选">
+<p id="fmoBookStatus" class="status" role="status" aria-live="polite"></p>
+<div id="fmoBookEntries"></div>
+</div></details>
+</div>
+</main>
+<script>
+'use strict';
+const qs=new URLSearchParams(location.search);
+window.__T=qs.get('t')||(document.cookie.match(/(?:^|;\s*)pt=(\d+)/)||[])[1]||'';
+const $=id=>document.getElementById(id);
+const say=(id,text,error=false)=>{const el=$(id);if(!el)return;el.textContent=text;el.dataset.error=String(error)};
+const bytes=s=>new TextEncoder().encode(s).length;
+let saveInProgress=false,hasSaved=false,verified=false,staConnected=false,staSsid='';
+function errMsg(code){const m={unauthorized:'页面已过期，请返回首页重新打开手机设置。',wifi_required:'设备尚未连接可上网的 Wi-Fi。',clock_required:'设备尚未完成校时，请稍后重试。',busy:'设备正忙，请稍后再试。',oom:'设备内存紧张，请关闭其它操作后重试。'};return m[code]||code||'请求失败'}
+async function api(path,body,method){
+ const url=path+(path.includes('?')?'&':'?')+'t='+encodeURIComponent(window.__T||'');
+ const opt={method:method||(body!==undefined?'POST':'GET'),headers:{}};
+ if(body instanceof Blob||body instanceof Uint8Array){opt.body=body;opt.headers['Content-Type']='application/octet-stream'}
+ else if(body!==undefined){opt.body=JSON.stringify(body);opt.headers['Content-Type']='application/json'}
+ const r=await fetch(url,opt);
+ const txt=await r.text();
+ let data={};try{data=txt?JSON.parse(txt):{}}catch(e){}
+ if(!r.ok){const e=new Error(data.message||errMsg(data.error)||('HTTP '+r.status));e.deviceCode=data.code||data.error||'';throw e}
+ return data;
+}
+let fmoBusy=false,fmoPollTimer=null,fmoPollCount=0;
+function stopFmoPoll(){clearTimeout(fmoPollTimer);fmoPollTimer=null;fmoPollCount=0}
+function lockFmo(locked){for(const id of ['fmoConnectWifi','fmoImportLegacy','fmoCheckCrl','fmoReadAprs','fmoSaveAprs','fmoAprsEnabled','fmoAprsLegacy','fmoAprsGrid','fmoAprsSsid','fmoAprsFrequency','fmoAprsHeight','fmoAprsRig','fmoAprsAntenna','fmoReadBook','fmoExportBook','fmoRestoreBookFile','fmoRestoreBook','fmoReadStamp','fmoStampStyle','fmoStampColor','fmoStampLabel','fmoSaveStamp','fmoStampFile','fmoStampThreshold','fmoStampInvert','fmoUploadStamp','fmoExportStamp','fmoClearStamp','fmoBeepEnabled','fmoBeepSelect','fmoBeepRefresh','fmoBeepPreview','fmoBeepApply','fmoBeepClear','fmoInit','fmoRefresh','fmoApply','fmoSaveRelay','fmoRefreshServers','fmoSelectServer','fmoUseBuiltin','fmoServerList','fmoPhoto','fmoCallsign','fmoHost','fmoPort','fmoRelayCall','fmoRelayUid','fmoFingerprint'])$(id).disabled=locked||((id==='fmoUploadStamp')&&!stampCustomPixels)}
+async function fmoOperation(work,target='fmoStatus'){if(fmoBusy||saveInProgress)return;fmoBusy=true;lockFmo(true);try{await work()}catch(e){say(target,e.message,true)}finally{fmoBusy=false;lockFmo(false)}}
+async function syncPhoneTime(){try{await api('/api/time',{epoch:Math.floor(Date.now()/1000),tz_minutes:-new Date().getTimezoneOffset()})}catch(e){}}
+async function ensureFmoWifi(target='fmoStatus'){
+ if(staConnected)return true;
+ if(!hasSaved)throw Error('设备尚未连接可上网的 Wi-Fi。请先点下方“返回网络设置”连接路由器，再申请证书。');
+ say(target,'正在自动连接已保存的 Wi-Fi（请保持连接设备热点）…');
+ await api('/api/connect',{saved:true,ssid:'',epoch:Math.floor(Date.now()/1000),tz_minutes:-new Date().getTimezoneOffset()});
+ for(let i=0;i<24;++i){
+  await new Promise(r=>setTimeout(r,1000));
+  const st=await api('/api/setup');
+  if(st.sta_connected===true||st.state==='connected'){
+   staConnected=true;verified=true;staSsid=st.sta_ssid||st.ssid||'';
+   $('connectionSummary').textContent='已连接 '+(staSsid||'Wi-Fi');updateFmoWifiNotice();
+   return true;
+  }
+  if(st.state==='failed')throw Error('自动连接已保存 Wi-Fi 失败，请返回“网络设置”检查密码或重选 2.4 GHz 网络。');
+ }
+ throw Error('等待 Wi-Fi 连接超时，请返回“网络设置”手动连接后重试。');
+}
+async function fmoOnlineRequest(fn,target='fmoStatus'){
+ try{return await fn();}
+ catch(e){
+  if(e.deviceCode==='wifi_required'){
+   staConnected=false;updateFmoWifiNotice();
+   await ensureFmoWifi(target);
+   return await fn();
+  }
+  throw e;
+ }
+}
+const STAMP_STYLES=[
+ ['G001','双环圆章',"<circle cx='50' cy='50' r='45' fill='none' stroke='currentColor' stroke-width='4.5'/><circle cx='50' cy='50' r='38' fill='none' stroke='currentColor' stroke-width='1.4'/><line x1='29' y1='37' x2='71' y2='37' stroke='currentColor' stroke-width='2'/><line x1='29' y1='78' x2='71' y2='78' stroke='currentColor' stroke-width='2'/>"],
+ ['G002','邮戳齿圆',"<circle cx='50' cy='50' r='43' fill='none' stroke='currentColor' stroke-width='9' stroke-dasharray='2.4 4.3'/><circle cx='50' cy='50' r='36' fill='none' stroke='currentColor' stroke-width='1.4'/><line x1='29' y1='37' x2='71' y2='37' stroke='currentColor' stroke-width='2'/><line x1='29' y1='78' x2='71' y2='78' stroke='currentColor' stroke-width='2'/>"],
+ ['G003','圆角方章',"<rect x='6' y='6' width='88' height='88' rx='5' fill='none' stroke='currentColor' stroke-width='4.5'/><rect x='18' y='18' width='64' height='64' rx='3' fill='none' stroke='currentColor' stroke-width='1.4'/><line x1='27' y1='37' x2='73' y2='37' stroke='currentColor' stroke-width='2'/><line x1='27' y1='78' x2='73' y2='78' stroke='currentColor' stroke-width='2'/>"],
+ ['G004','方中带圆',"<rect x='5' y='5' width='90' height='90' rx='9' fill='none' stroke='currentColor' stroke-width='4.5'/><circle cx='50' cy='50' r='33' fill='none' stroke='currentColor' stroke-width='2'/><line x1='31' y1='37' x2='69' y2='37' stroke='currentColor' stroke-width='2'/><line x1='31' y1='78' x2='69' y2='78' stroke='currentColor' stroke-width='2'/>"],
+ ['G005','粗边圆章',"<circle cx='50' cy='50' r='45' fill='none' stroke='currentColor' stroke-width='8'/><circle cx='50' cy='50' r='34' fill='none' stroke='currentColor' stroke-width='2'/><line x1='29' y1='37' x2='71' y2='37' stroke='currentColor' stroke-width='2'/><line x1='29' y1='78' x2='71' y2='78' stroke='currentColor' stroke-width='2'/>"],
+ ['G006','圆中带方',"<circle cx='50' cy='50' r='45' fill='none' stroke='currentColor' stroke-width='4.5'/><rect x='17' y='17' width='66' height='66' rx='3' fill='none' stroke='currentColor' stroke-width='1.4'/><line x1='29' y1='37' x2='71' y2='37' stroke='currentColor' stroke-width='2'/><line x1='29' y1='78' x2='71' y2='78' stroke='currentColor' stroke-width='2'/>"],
+ ['G007','八角印章',"<polygon points='26,4 74,4 96,26 96,74 74,96 26,96 4,74 4,26' fill='none' stroke='currentColor' stroke-width='4.5'/><polygon points='30,17 70,17 83,30 83,70 70,83 30,83 17,70 17,30' fill='none' stroke='currentColor' stroke-width='1.4'/><line x1='29' y1='37' x2='71' y2='37' stroke='currentColor' stroke-width='2'/><line x1='29' y1='78' x2='71' y2='78' stroke='currentColor' stroke-width='2'/>"],
+ ['G008','徽章盾牌',"<path d='M8 8 H92 V58 C92 82 78 94 50 97 C22 94 8 82 8 58 Z' fill='none' stroke='currentColor' stroke-width='4.5'/><path d='M17 17 H83 V58 C83 76 70 86 50 89 C30 86 17 76 17 58 Z' fill='none' stroke='currentColor' stroke-width='1.4'/><line x1='30' y1='37' x2='70' y2='37' stroke='currentColor' stroke-width='2'/><line x1='30' y1='78' x2='70' y2='78' stroke='currentColor' stroke-width='2'/>"],
+ ['G009','六角蜂巢',"<polygon points='50,2 91.6,26 91.6,74 50,98 8.4,74 8.4,26' fill='none' stroke='currentColor' stroke-width='4.5'/><polygon points='50,10 84.6,30 84.6,70 50,90 15.4,70 15.4,30' fill='none' stroke='currentColor' stroke-width='1.4'/><line x1='27' y1='37' x2='73' y2='37' stroke='currentColor' stroke-width='2'/><line x1='27' y1='78' x2='73' y2='78' stroke='currentColor' stroke-width='2'/>"],
+ ['G010','爱心印章',"<path d='M50,90 C20,62 4,48 4,30 C4,16 15,5 29,5 C37,5 45,9 50,15 C55,9 63,5 71,5 C85,5 96,16 96,30 C96,48 80,62 50,90 Z' fill='none' stroke='currentColor' stroke-width='3.6'/><line x1='38' y1='71' x2='62' y2='71' stroke='currentColor' stroke-width='2'/>"],
+ ['G011','菱形印章',"<polygon points='50,3 97,50 50,97 3,50' fill='none' stroke='currentColor' stroke-width='4.5'/><polygon points='50,14 86,50 50,86 14,50' fill='none' stroke='currentColor' stroke-width='1.4'/><line x1='32' y1='37' x2='68' y2='37' stroke='currentColor' stroke-width='2'/><line x1='32' y1='78' x2='68' y2='78' stroke='currentColor' stroke-width='2'/>"],
+ ['G012','邮票方章',"<rect x='5' y='5' width='90' height='90' fill='none' stroke='currentColor' stroke-width='6' stroke-dasharray='2.4 4.4'/><rect x='16' y='16' width='68' height='68' rx='2' fill='none' stroke='currentColor' stroke-width='1.4'/><line x1='26' y1='37' x2='74' y2='37' stroke='currentColor' stroke-width='2'/><line x1='26' y1='78' x2='74' y2='78' stroke='currentColor' stroke-width='2'/>"],
+];
+const STAMP_SWATCHES=['#FF7A1A','#2E8B57','#E04338','#3B82F6','#EAB308','#A855F7'];
+let stampCustomSource=null,stampCustomPixels=null,stampCustomOnDevice=false,stampGridButtons=[];
+function stampSvgMarkup(styleId){const found=STAMP_STYLES.find(s=>s[0]===styleId)||STAMP_STYLES[0];return `<svg viewBox="0 0 100 100" aria-hidden="true">${found[2]}</svg>`}
+function hexToRgb(hex){const m=/^#([0-9a-fA-F]{6})$/.exec(hex||'');if(!m)return [255,122,26];const v=parseInt(m[1],16);return [(v>>16)&255,(v>>8)&255,v&255]}
+function renderStampPreview(){
+ const canvas=$('fmoStampPreview'),ctx=canvas.getContext('2d');
+ const styleId=$('fmoStampStyle').value||'G001',color=$('fmoStampColor').value||'#FF7A1A';
+ const found=STAMP_STYLES.find(s=>s[0]===styleId);
+ $('fmoStampPreviewName').textContent=styleId==='CUSTOM'?'CUSTOM · 定制图案':`${found?found[0]:styleId} · ${found?found[1]:'印章'}`;
+ for(const b of stampGridButtons)b.setAttribute('aria-pressed',String(b.dataset.style===styleId));
+ ctx.fillStyle='#111518';ctx.fillRect(0,0,96,96);
+ if(styleId==='CUSTOM'&&stampCustomPixels&&ctx.createImageData&&ctx.putImageData){
+  const img=ctx.createImageData(96,96),[r,g,b]=hexToRgb(color);
+  for(let i=0;i<96*96;++i){const byte=stampCustomPixels[i>>1];const lv=(i&1)?(byte&15):(byte>>4);const p=i*4;img.data[p]=Math.round(r*lv/15);img.data[p+1]=Math.round(g*lv/15);img.data[p+2]=Math.round(b*lv/15);img.data[p+3]=255;}
+  ctx.putImageData(img,0,0);return;
+ }
+ if(ctx.strokeStyle!==undefined&&ctx.beginPath){
+  ctx.strokeStyle=color;ctx.lineWidth=3.5;ctx.beginPath();
+  if(['G003','G004','G012'].includes(styleId))ctx.strokeRect(8,8,80,80);
+  else if(styleId==='G011'){ctx.moveTo(48,5);ctx.lineTo(91,48);ctx.lineTo(48,91);ctx.lineTo(5,48);ctx.closePath();ctx.stroke();}
+  else {ctx.arc(48,48,41,0,Math.PI*2);ctx.stroke();}
+  if(ctx.fillText){ctx.fillStyle=color;ctx.font='bold 14px sans-serif';ctx.textAlign='center';ctx.fillText(($('fmoCallsign').value||styleId).toUpperCase().slice(0,8),48,53);}
+ }
+}
+function initStampPalette(){
+ const grid=$('fmoStampGrid');grid.replaceChildren();stampGridButtons=[];
+ for(const [id,name] of STAMP_STYLES){
+  const btn=document.createElement('button');btn.type='button';btn.className='stamp-opt';btn.dataset.style=id;btn.setAttribute('aria-pressed',String(id==='G001'));
+  btn.innerHTML=stampSvgMarkup(id)+'<span>'+id+'</span>';btn.title=name;
+  btn.onclick=()=>{$('fmoStampStyle').value=id;renderStampPreview()};
+  grid.append(btn);stampGridButtons.push(btn);
+ }
+ const sw=$('fmoStampSwatches');
+ for(const hex of STAMP_SWATCHES){
+  const b=document.createElement('button');b.type='button';b.className='swatch';b.style.background=hex;b.setAttribute('aria-label','印泥颜色 '+hex);
+  b.onclick=()=>{$('fmoStampColor').value=hex;renderStampPreview()};
+  sw.append(b);
+ }
+ renderStampPreview();
+}
+function detectStampBg(data){
+ const S=96;let trans=0;
+ for(let i=0;i<S;++i){
+  if(data[i*4+3]<32)trans++;if(data[((S-1)*S+i)*4+3]<32)trans++;
+  if(data[i*S*4+3]<32)trans++;if(data[(i*S+S-1)*4+3]<32)trans++;
+ }
+ if(trans>=16)return {kind:'transparent',r:0,g:0,b:0};
+ const corners=[[0,0],[S-6,0],[0,S-6],[S-6,S-6]],sm=[];
+ for(const [cx,cy] of corners){
+  let r=0,g=0,b=0,k=0;
+  for(let y=cy;y<cy+6;++y)for(let x=cx;x<cx+6;++x){const q=(y*S+x)*4;r+=data[q];g+=data[q+1];b+=data[q+2];k++;}
+  sm.push([r/k,g/k,b/k]);
+ }
+ let sp=0;for(let ch=0;ch<3;++ch){const mn=Math.min(...sm.map(s=>s[ch])),mx=Math.max(...sm.map(s=>s[ch]));sp=Math.max(sp,mx-mn);}
+ const ar=sm.reduce((a,s)=>a+s[0],0)/4,ag=sm.reduce((a,s)=>a+s[1],0)/4,ab=sm.reduce((a,s)=>a+s[2],0)/4;
+ if(sp<=40&&ar>=235&&ag>=235&&ab>=235)return {kind:'white',r:ar,g:ag,b:ab};
+ if(sp<=40&&ar<=25&&ag<=25&&ab<=25)return {kind:'black',r:ar,g:ag,b:ab};
+ if(sp<=40)return {kind:'solid',r:ar,g:ag,b:ab};
+ return {kind:'luma',r:255,g:255,b:255};
+}
+function packCustomStamp(){
+ if(!stampCustomSource)return null;
+ const canvas=document.createElement('canvas');canvas.width=96;canvas.height=96;
+ const ctx=canvas.getContext('2d');
+ if(ctx.clearRect)ctx.clearRect(0,0,96,96);
+ const sw=stampCustomSource.width,sh=stampCustomSource.height,side=Math.min(sw,sh);
+ ctx.drawImage(stampCustomSource,(sw-side)/2,(sh-side)/2,side,side,0,0,96,96);
+ const packed=new Uint8Array(4608);
+ if(!ctx.getImageData){packed.fill(0x88);stampCustomPixels=packed;$('fmoStampStyle').value='CUSTOM';$('fmoUploadStamp').disabled=false;renderStampPreview();return {kind:'transparent',ink:4608};}
+ const data=ctx.getImageData(0,0,96,96).data,bg=detectStampBg(data);
+ const thr=Math.max(10,Math.min(90,Number($('fmoStampThreshold').value)||45))/100;
+ const inv=$('fmoStampInvert').checked;
+ let ink=0;
+ for(let i=0;i<96*96;++i){
+  const q=i*4,r=data[q],g=data[q+1],b=data[q+2],a=data[q+3]/255;
+  let v=0;
+  if(bg.kind==='transparent'){v=a;}
+  else if(bg.kind==='white'){const lum=(0.299*r+0.587*g+0.114*b)/255;v=(1-lum)*a;}
+  else if(bg.kind==='black'){const lum=(0.299*r+0.587*g+0.114*b)/255;v=lum*a;}
+  else if(bg.kind==='solid'){const dist=Math.sqrt((r-bg.r)**2+(g-bg.g)**2+(b-bg.b)**2)/441.67;v=Math.min(1,dist*1.6)*a;}
+  else {const lum=(0.299*r+0.587*g+0.114*b)/255;v=(1-lum)*a;}
+  if(inv)v=1-v;
+  // Soft threshold ramp for crisp anti-aliased stamp lines
+  const cut=thr*0.55;
+  v=v<=cut?0:Math.min(1,(v-cut)/Math.max(0.15,1-cut));
+  const lv=Math.max(0,Math.min(15,Math.round(v*15)));
+  if(lv>=3)ink++;
+  if((i&1)===0)packed[i>>1]|=(lv<<4);else packed[i>>1]|=lv;
+ }
+ stampCustomPixels=packed;$('fmoStampStyle').value='CUSTOM';$('fmoUploadStamp').disabled=false;renderStampPreview();
+ return {kind:bg.kind,ink};
+}
+function applyStampState(st){
+ if(!st)return;
+ stampCustomOnDevice=Boolean(st.custom_present);
+ if(st.style_id)$('fmoStampStyle').value=st.style_id;
+ if(st.color)$('fmoStampColor').value=st.color;
+ if(typeof st.label==='string')$('fmoStampLabel').value=st.label;
+ $('fmoStampSummary').textContent=(st.style_id||'G001')+(stampCustomOnDevice?' · 含定制图':'');
+ renderStampPreview();
+}
+$('fmoStampStyle').onchange=renderStampPreview;
+$('fmoStampColor').oninput=renderStampPreview;
+$('fmoStampThreshold').oninput=()=>{if(stampCustomSource)packCustomStamp()};
+$('fmoStampInvert').onchange=()=>{if(stampCustomSource)packCustomStamp()};
+$('fmoStampFile').onchange=async()=>{
+ const file=$('fmoStampFile').files[0];if(!file||fmoBusy||saveInProgress)return;
+ if(/\.fmostamp$/i.test(file.name||'')){
+  try{
+   if(file.size!==4608)throw Error('印章备份应为 4608 字节。');
+   const pixels=new Uint8Array(await file.arrayBuffer());
+   if($('fmoStampFile').files[0]!==file||fmoBusy||saveInProgress)return;
+   if(pixels.length!==4608||!pixels.some(value=>value!==0))throw Error('印章备份格式无效。');
+   stampCustomSource=null;stampCustomPixels=pixels;
+   $('fmoStampStyle').value='CUSTOM';$('fmoUploadStamp').disabled=false;renderStampPreview();
+   say('fmoStampStatus','已载入点阵备份。确认预览后，点击“上传定制图案到设备”。');
+  }catch(e){say('fmoStampStatus',e.message,true)}
+  return;
+ }
+
+ if(!file.size||file.size>10*1024*1024||!file.type.startsWith('image/')){say('fmoStampStatus','请选择不超过 10 MB 的 PNG/JPG 图案。',true);return}
+ let url,timer;
+ try{
+  say('fmoStampStatus','正在解析并自动去底…');url=URL.createObjectURL(file);const image=new Image();
+  await new Promise((resolve,reject)=>{timer=setTimeout(()=>reject(Error('印章图片读取超时。')),15000);image.onload=resolve;image.onerror=()=>reject(Error('无法读取这张图片。'));image.src=url});clearTimeout(timer);
+  if(!image.naturalWidth||!image.naturalHeight)throw Error('图片尺寸无效。');
+  const src=document.createElement('canvas');src.width=image.naturalWidth;src.height=image.naturalHeight;src.getContext('2d').drawImage(image,0,0);
+  stampCustomSource=src;const info=packCustomStamp();
+  const names={transparent:'透明底',white:'白底自动去底',black:'黑底自动去底',solid:'纯色底自动去底',luma:'按灰度提取'};
+  say('fmoStampStatus',info.ink<16?'提取图案几乎为空白，请调整“去底灵敏度”或勾选“反转明暗”。':`已生成 96×96 定制印章（${names[info.kind]||info.kind}，4.5 KB），点击“上传定制图案到设备”生效。`,info.ink<16);
+ }catch(e){say('fmoStampStatus',e.message,true)}
+ finally{clearTimeout(timer);if(url)URL.revokeObjectURL(url)}
+};
+$('fmoReadStamp').onclick=()=>fmoOperation(async()=>{const st=await api('/api/fmo/stamp');applyStampState(st);say('fmoStampStatus',st.available?`当前印章：${st.style_id}${st.custom_present?'（已存定制图案）':''}。`:'印章配置暂不可读，未覆盖原数据。',!st.available)},'fmoStampStatus');
+$('fmoSaveStamp').onclick=()=>fmoOperation(async()=>{
+ const style_id=$('fmoStampStyle').value,color=$('fmoStampColor').value.toUpperCase(),label=$('fmoStampLabel').value.trim();
+ if(!/^#([0-9A-F]{6})$/.test(color))throw Error('请选择有效的印泥颜色。');
+ if(bytes(label)>16||/[,\x00-\x1f\x7f]/.test(label))throw Error('印章铭文最多 16 字节，且不含逗号或换行。');
+ if(style_id==='CUSTOM'&&!stampCustomOnDevice){
+  if(stampCustomPixels){
+   say('fmoStampStatus','正在上传定制图案并保存印章设置…');
+   await api('/api/fmo/stamp',new Blob([stampCustomPixels],{type:'application/octet-stream'}));
+   stampCustomOnDevice=true;
+  }else throw Error('请先选择并上传定制图案，或选择 G001–G012 内置印章。');
+ }
+ const state=await api('/api/fmo',{action:'stamp',style_id,color,label});applyStampState(state.stamp);
+ say('fmoStampStatus','印章样式与颜色已保存到设备，重新打开 FMO 即可查看。');
+},'fmoStampStatus');
+$('fmoExportStamp').onclick=()=>fmoOperation(async()=>{
+ const data=await api('/api/fmo/stamp?raw=1',undefined,undefined,true);
+ if(data.byteLength!==4608)throw Error('设备返回的印章点阵长度无效。');
+ const url=URL.createObjectURL(new Blob([data],{type:'application/octet-stream'}));
+ const link=document.createElement('a');link.href=url;link.download='passport-custom.fmostamp';link.click();
+ setTimeout(()=>URL.revokeObjectURL(url),1000);
+ say('fmoStampStatus','已下载设备当前保存的印章点阵。');
+},'fmoStampStatus');
+$('fmoUploadStamp').onclick=()=>fmoOperation(async()=>{
+ if(!stampCustomPixels||stampCustomPixels.length!==4608)throw Error('请先选择一张定制印章图案。');
+ say('fmoStampStatus','正在上传 96×96 定制印章点阵到设备…');
+ const state=await api('/api/fmo/stamp',new Blob([stampCustomPixels],{type:'application/octet-stream'}));
+ stampCustomOnDevice=true;applyStampState(state.stamp);
+ say('fmoStampStatus','定制印章已保存到设备，在 FMO 菜单“我的印章”即可查看。');
+},'fmoStampStatus');
+$('fmoClearStamp').onclick=()=>fmoOperation(async()=>{
+ const state=await api('/api/fmo/stamp',undefined,'DELETE');
+ stampCustomSource=null;stampCustomPixels=null;stampCustomOnDevice=false;$('fmoStampFile').value='';$('fmoUploadStamp').disabled=true;
+ applyStampState(state.stamp||{style_id:'G001',color:$('fmoStampColor').value,label:$('fmoStampLabel').value,custom_present:false});
+ say('fmoStampStatus','定制图案已清除，已恢复内置几何印章。');
+},'fmoStampStatus');
+initStampPalette();
+let fmoContacts=[];
+function showAprs(config){
+ if(!config?.available)throw Error('APRS设置暂不可读，未更改原配置。');
+ $('fmoAprsEnabled').checked=config.enabled;$('fmoAprsLegacy').checked=config.legacy_beacon;
+ for(const [id,key] of [['fmoAprsGrid','grid'],['fmoAprsSsid','ssid'],['fmoAprsFrequency','frequency'],['fmoAprsHeight','antenna_height'],['fmoAprsRig','rig'],['fmoAprsAntenna','antenna']])$(id).value=String(config[key]);
+}
+$('fmoReadAprs').onclick=()=>fmoOperation(async()=>{showAprs((await api('/api/fmo')).aprs);say('fmoAprsStatus','已读取广播设置。')},'fmoAprsStatus');
+$('fmoSaveAprs').onclick=()=>fmoOperation(async()=>{
+ const enabled=$('fmoAprsEnabled').checked,legacy_beacon=$('fmoAprsLegacy').checked,grid=$('fmoAprsGrid').value.trim().toUpperCase(),frequency=$('fmoAprsFrequency').value.trim(),ssid=Number($('fmoAprsSsid').value),antenna_height=Number($('fmoAprsHeight').value),rig=$('fmoAprsRig').value.trim(),antenna=$('fmoAprsAntenna').value.trim();
+ if((enabled||grid)&&!/^[A-R]{2}[0-9]{2}(?:[A-X]{2}(?:[0-9]{2})?)?$/.test(grid))throw Error('请填写4/6/8位Maidenhead网格。');
+ if(!Number.isInteger(ssid)||ssid<0||ssid>15||!Number.isInteger(antenna_height)||antenna_height<0||antenna_height>999)throw Error('SSID或天线高度无效。');
+ if(frequency&&(!/^\d+(?:\.\d{1,4})?$/.test(frequency)||Number(frequency)<100||Number(frequency)>1300))throw Error('频率应为100至1300MHz，最多四位小数。');
+ if([rig,antenna].some(s=>new TextEncoder().encode(s).length>24||/[,\x00-\x1f\x7f]/.test(s)))throw Error('设备/天线最多24字节，且不能含逗号或换行。');
+ const state=await api('/api/fmo',{action:'aprs',enabled,legacy_beacon,grid,frequency,ssid,antenna_height,rig,antenna});showAprs(state.aprs);
+ say('fmoAprsStatus',enabled?'已开启按键广播。重新打开设备FMO后生效；本次保存不会发送广播。':'广播已关闭，重新打开设备FMO后生效。');
+},'fmoAprsStatus');
+function renderFmoBook(){
+ const query=$('fmoBookSearch').value.trim().toUpperCase();$('fmoBookEntries').replaceChildren();
+ const matches=fmoContacts.filter(c=>c.callsign.includes(query)).sort((a,b)=>b.last_seen-a.last_seen||a.callsign.localeCompare(b.callsign));
+ $('fmoExportBook').hidden=!fmoContacts.length;
+ for(const c of matches){
+  const entry=document.createElement('div');entry.className='book-card';
+  const title=document.createElement('strong');title.textContent=c.callsign;
+  const detail=document.createElement('p');detail.className='help';
+  const date=seconds=>new Date(seconds*1000).toLocaleString('zh-CN',{hour12:false});
+  detail.textContent=`初次：${date(c.first_seen)} · 最近：${date(c.last_seen)} · ${c.receptions}次 · UID ${c.uid}`;
+  const badge=document.createElement('span');badge.innerHTML=stampSvgMarkup(c.stamp_style||'G001');
+  entry.append(title,detail,badge);$('fmoBookEntries').append(entry);
+ }
+ if(!matches.length){const empty=document.createElement('p');empty.className='help';empty.textContent=fmoContacts.length?'没有匹配的呼号。':'还没有保存的语音抄收记录。';$('fmoBookEntries').append(empty)}
+}
+$('fmoBookSearch').oninput=renderFmoBook;
+$('fmoExportBook').onclick=()=>{
+ if(!fmoContacts.length)return;
+ const blob=new Blob([JSON.stringify({v:1,exported_at:Math.floor(Date.now()/1000),contacts:fmoContacts},null,2)],{type:'application/json'});
+ const a=document.createElement('a');const u=URL.createObjectURL(blob);a.href=u;a.download='passport-qso-book.json';if(a.click)a.click();setTimeout(()=>URL.revokeObjectURL(u),1000);
+ say('fmoBookStatus',`已导出 ${fmoContacts.length} 位友台章册备份。`);
+};
+$('fmoReadBook').onclick=()=>fmoOperation(async()=>{
+ const contacts=[];let total=0,capacity=64;
+ for(let page=0;page<8;++page){
+  const state=await api('/api/fmo?book='+page);
+  if(!state.contacts_available)throw Error('抄收册读取失败，设备没有覆盖原数据。请保留现场后重试。');
+  if(!Number.isInteger(state.total)||state.total<0||state.total>64||!Array.isArray(state.contacts)||state.contacts.length>8)throw Error('抄收册响应无效。');
+  if(page&&state.total!==total)throw Error('抄收册发生变化，请重新读取。');
+  total=state.total;capacity=state.contacts_capacity;
+  for(const c of state.contacts){
+   if(typeof c.callsign!=='string'||!/^[A-Z0-9/\-]{2,12}$/.test(c.callsign)||!Number.isInteger(c.uid)||c.uid<1||c.uid>4294967295||!Number.isInteger(c.first_seen)||c.first_seen<1700000000||!Number.isInteger(c.last_seen)||c.last_seen<c.first_seen||!Number.isInteger(c.receptions)||c.receptions<1)throw Error('抄收记录格式无效。');
+   contacts.push(c);
+  }
+  if(contacts.length>=total)break;
+ }
+ if(contacts.length!==total||new Set(contacts.map(c=>c.uid+':'+c.callsign)).size!==total)throw Error('抄收册数据不完整，请重试。');
+ fmoContacts=contacts;renderFmoBook();$('fmoBookCount').textContent=`${total}/${capacity}位友台`;
+ say('fmoBookStatus',total>=capacity?'容量已满，已有记录继续更新，新友台暂不加入。':'已读取本机保存记录；设备在语音空闲时批量保存，正常退出FMO会保存本轮。');
+},'fmoBookStatus');
+$('fmoRestoreBook').onclick=()=>fmoOperation(async()=>{
+ const file=$('fmoRestoreBookFile').files[0];
+ if(!file||file.size>32768)throw Error('请选择不超过 32 KiB 的 JSON 备份。');
+ const backup=JSON.parse(await file.text());
+ if(backup?.v!==1||!Array.isArray(backup.contacts)||backup.contacts.length>64)throw Error('抄收备份格式无效。');
+ const keys=['callsign','uid','relay_uid','first_seen','last_seen','receptions','stamp_style'];
+ const contacts=backup.contacts.map(record=>Object.fromEntries(keys.map(key=>[key,record?.[key]])));
+ const result=await api('/api/fmo',{action:'restore_contacts',v:1,contacts});
+ if(!Number.isInteger(result.added)||!Number.isInteger(result.skipped)||result.added<0||result.skipped<0||result.added+result.skipped!==contacts.length)throw Error('导入结果无法识别。');
+ fmoContacts=[];$('fmoBookEntries').replaceChildren();$('fmoExportBook').hidden=true;
+ $('fmoBookCount').textContent='请重新读取抄收册';$('fmoRestoreBookFile').value='';
+ if(!Number.isInteger(result.styles_added)||result.styles_added<0||!Number.isInteger(result.styles_skipped)||result.styles_skipped<0||typeof result.styles_saved!=='boolean')throw Error('印章导入结果无法识别。');
+ const styles=result.styles_saved?`已补充 ${result.styles_added} 个印章样式，跳过 ${result.styles_skipped} 个。`:'抄收记录已处理，新增印章样式保存失败。';
+ say('fmoBookStatus',`已添加 ${result.added} 条抄收记录，跳过 ${result.skipped} 条。${styles}请重新读取抄收册。`,!result.styles_saved);
+},'fmoBookStatus');
+async function fmoLocal(){
+ const state=await api('/api/fmo');$('fmoIdentity').textContent=state.pubkey?(state.ready?`证书有效：${state.callsign} · UID ${state.uid}`:'本机身份已创建，等待有效证书'):'尚未创建本机身份';
+ if(typeof state.sta_connected==='boolean'){staConnected=state.sta_connected;updateFmoWifiNotice();}
+ const leg=state.legacy_cred;
+ if(leg&&leg.available&&!state.ready){$('fmoImportLegacy').hidden=false;$('fmoImportLegacy').textContent=`从原 FMO 固件导入证书（${leg.callsign||''}）`;}
+ else $('fmoImportLegacy').hidden=true;
+ if(state.stamp)applyStampState(state.stamp);
+ if(state.beep)applyBeepState(state.beep,state.callsign||'');
+ if(state.callsign&&!$('fmoCallsign').value)$('fmoCallsign').value=state.callsign;
+ const previous=$('fmoServerList').value;
+ $('fmoServerList').replaceChildren(new Option('请选择已发现服务器',''));
+ for(const server of state.servers||[]){
+  const known=server.stats_known===true&&[server.online,server.peak,server.range_km].every(n=>Number.isInteger(n)&&n>=0&&n<=4294967295);
+  const snapshot=known?`广播在线 ${server.online}/${server.peak} · ${server.range_km}km`:'广播在线数待更新';
+  $('fmoServerList').add(new Option(`${server.name||server.host} · ${server.callsign} · ${snapshot}`,String(server.uid)));
+ }
+ const choice=(state.servers||[]).find(s=>String(s.uid)===previous)||(state.servers||[]).find(s=>s.uid===state.relay?.uid);
+ if(choice)$('fmoServerList').value=String(choice.uid);
+ if(state.relay){$('fmoHost').value=state.relay.host;$('fmoPort').value=String(state.relay.port);$('fmoRelayCall').value=state.relay.callsign;$('fmoRelayUid').value=String(state.relay.uid);$('fmoFingerprint').value=state.relay.fingerprint}
+ const bi=state.builtin_relay;
+ if(bi&&$('fmoBuiltinNote'))$('fmoBuiltinNote').textContent=bi.active?`当前已启用内置兜底中继：${bi.name}（${bi.host}:${bi.port}）。`:`当前使用已选/手动中继；无同链 PASS 中继时可随时切换回 ${bi.name}（${bi.host}:${bi.port}）。`;
+ return state;
+}
+let beepCatalog=[],beepState={enabled:true,use_custom:false,custom_present:false,custom_id:0},beepCall='';
+function renderBeepOptions(){
+ const sel=$('fmoBeepSelect');if(!sel)return;
+ const curId=(beepState.use_custom&&beepState.custom_present)?Number(beepState.custom_id||0):0;
+ sel.replaceChildren(new Option('内置双音（960→640 Hz）','0'));
+ let hit=false;
+ for(const item of beepCatalog){
+  if(item.id===curId)hit=true;
+  sel.add(new Option(`${item.name} (#${item.id})`,String(item.id)));
+ }
+ if(curId>0&&!hit)sel.add(new Option(`已下载自定义音 #${curId}`,String(curId)));
+ sel.value=String(curId);
+}
+function applyBeepState(bp,call){
+ beepState=bp||beepState;if(call)beepCall=call.replace(/^P-/i,'').toUpperCase();
+ if($('fmoBeepEnabled'))$('fmoBeepEnabled').checked=beepState.enabled!==false;
+ if($('fmoBeepClear'))$('fmoBeepClear').hidden=!beepState.custom_present;
+ if($('fmoBeepSummary'))$('fmoBeepSummary').textContent=!beepState.enabled?'已关闭':(beepState.use_custom&&beepState.custom_present?`自定义音 #${beepState.custom_id}`:'内置双音');
+ renderBeepOptions();
+}
+function playBuiltinBeepWeb(){
+ const AC=window.AudioContext||window.webkitAudioContext;if(!AC){say('fmoBeepStatus','当前浏览器不支持试听，内置双音为 960→640 Hz 高低双音。');return}
+ const ctx=new AC(),now=ctx.currentTime;
+ const tone=(freq,start,dur)=>{const o=ctx.createOscillator(),g=ctx.createGain();o.type='sine';o.frequency.value=freq;g.gain.setValueAtTime(0.001,now+start);g.gain.linearRampToValueAtTime(0.22,now+start+0.005);g.gain.setValueAtTime(0.22,now+start+dur-0.005);g.gain.linearRampToValueAtTime(0.001,now+start+dur);o.connect(g);g.connect(ctx.destination);o.start(now+start);o.stop(now+start+dur);};
+ tone(960,0,0.12);tone(640,0.15,0.16);
+ say('fmoBeepStatus','正在试听内置双音（960→640 Hz）。');
+}
+async function loadBeepCatalog(){
+ say('fmoBeepStatus','正在从 fmo.simy.live 读取云端信令音清单…');
+ const r=await fetch('https://fmo.simy.live/fw/beep/list.json',{cache:'no-store'});
+ if(!r.ok)throw Error(`清单请求失败 (${r.status})`);
+ const j=await r.json();const arr=[];
+ for(const k of Object.keys(j||{})){
+  const id=Number(k);if(!Number.isInteger(id)||id<=0||id>255||String(id)!==k)continue;
+  const v=j[k];let nm='',sc='all',cs=[];
+  if(typeof v==='string')nm=v;else if(v&&typeof v==='object'){nm=v.n||`信令音 #${id}`;sc=v.s||'all';cs=Array.isArray(v.c)?v.c:[];}else continue;
+  if(sc!=='all'&&(sc!=='call'||!beepCall||!cs.some(c=>typeof c==='string'&&c.toUpperCase()===beepCall)))continue;
+  arr.push({id,name:String(nm)});
+ }
+ arr.sort((a,b)=>a.id-b.id);beepCatalog=arr;renderBeepOptions();
+ say('fmoBeepStatus',arr.length?`已加载 ${arr.length} 款云端信令音。`:'云端暂无可用自定义信令音，可使用内置双音。');
+}
+$('fmoBeepRefresh').onclick=()=>fmoOperation(loadBeepCatalog,'fmoBeepStatus');
+$('fmoBeepPreview').onclick=()=>{
+ const id=Number($('fmoBeepSelect').value||0);
+ if(!id){playBuiltinBeepWeb();return}
+ const a=new Audio(`https://fmo.simy.live/fw/beep/${id}.wav`);
+ a.play().then(()=>say('fmoBeepStatus',`正在试听云端信令音 #${id}。`)).catch(()=>say('fmoBeepStatus','试听失败，请确认手机可访问 fmo.simy.live。',true));
+};
+$('fmoBeepApply').onclick=()=>fmoOperation(async()=>{
+ const enabled=$('fmoBeepEnabled').checked,id=Number($('fmoBeepSelect').value||0);
+ if(!id||!enabled){
+  const state=await api('/api/fmo',{action:'beep',enabled,use_custom:false});
+  if(state.beep)applyBeepState(state.beep,state.callsign||'');
+  say('fmoBeepStatus',enabled?'已保存：使用内置双音结束信令音。':'已保存：关闭发射结束信令音。');
+  return;
+ }
+ if(beepState.custom_present&&Number(beepState.custom_id)===id){
+  const state=await api('/api/fmo',{action:'beep',enabled:true,use_custom:true});
+  if(state.beep)applyBeepState(state.beep,state.callsign||'');
+  say('fmoBeepStatus',`已启用设备中已保存的自定义信令音 #${id}。`);
+  return;
+ }
+ say('fmoBeepStatus',`正在下载信令音 #${id} 到设备…`);
+ let blob;
+ try{
+  const r=await fetch(`https://fmo.simy.live/fw/beep/${id}.bin`,{cache:'no-store'});
+  if(!r.ok)throw Error(`下载失败 (${r.status})`);
+  const file=await r.blob();
+  const header=new Uint8Array(await file.slice(0,6).arrayBuffer());
+  if(file.size<16||file.size>48016||header[0]!==70||header[1]!==66||header[2]!==69
+     ||header[3]!==80||header[4]!==1||header[5]!==id)throw Error('云端信令音编号或格式不匹配');
+  blob=new Blob([file],{type:'application/octet-stream'});
+ }catch(_){}
+ // A failed device write is reported to the user. Only a failed browser
+ // download may fall back to downloading on the device.
+ const state=blob?await api('/api/fmo/beep',blob)
+  :await fmoOnlineRequest(()=>api('/api/fmo/beep',{download_id:id}),'fmoBeepStatus');
+ if(state.beep)applyBeepState(state.beep,state.callsign||'');
+ say('fmoBeepStatus',`自定义信令音 #${id} 已保存，下次松开讲话键时生效。`);
+},'fmoBeepStatus');
+$('fmoBeepClear').onclick=()=>fmoOperation(async()=>{
+ const state=await api('/api/fmo/beep',undefined,'DELETE');
+ if(state.beep)applyBeepState(state.beep,state.callsign||'');
+ say('fmoBeepStatus','已清除自定义信令音，恢复内置双音。');
+},'fmoBeepStatus');
+function scheduleFmoPoll(){if(fmoPollTimer||fmoPollCount>=120)return;fmoPollTimer=setTimeout(async()=>{fmoPollTimer=null;if(fmoBusy||saveInProgress){scheduleFmoPoll();return}++fmoPollCount;await fmoOperation(fmoCheck)},5000)}
+async function fmoCheck(){
+ const local=await fmoLocal();if(!local.pubkey){say('fmoStatus','请先创建本机身份。');return}
+ if(local.clock_valid===false){say('fmoStatus','正在同步手机时间并校准设备时钟，随后查询证书状态…');await syncPhoneTime();}
+ const state=await fmoOnlineRequest(()=>api('/api/fmo/ca'));
+ if(state.revoked||state.expired){stopFmoPoll();say('fmoStatus','服务端提示证书已撤销或过期，请按审核要求重新申请。',true);return}
+ if(state.state==='ready'){
+  if(!state.cert||typeof state.cert!=='string'||state.cert.length>16384)throw Error('签发数据格式不受支持，未更改现有身份。');
+  const result=await api('/api/fmo',{action:'import',certificate:state.cert});if(!result.ready)throw Error(result.message||'证书未能生效。');
+  stopFmoPoll();await fmoLocal();say('fmoStatus','证书已校验并保存，可以返回设备打开 FMO。');
+ }else if(state.state==='rejected'){stopFmoPoll();say('fmoStatus',state.message||'申请未通过，请更正信息后重试。',true)}
+ else if(state.state==='pending'){say('fmoStatus','等待签发服务审核，本页每五秒查询一次。也可稍后重新打开查询。');scheduleFmoPoll()}
+ else if(state.state==='none'){stopFmoPoll();say('fmoStatus','签发服务没有本机申请记录，请填写资料后主动提交。')}
+ else throw Error('签发服务返回未知状态，未导入证书。');
+}
+$('fmoConnectWifi').onclick=()=>fmoOperation(async()=>{await ensureFmoWifi('fmoStatus');say('fmoStatus','路由器已连接，现在可以查询状态、申请证书或检查吊销列表。')});
+$('fmoImportLegacy').onclick=()=>fmoOperation(async()=>{stopFmoPoll();await syncPhoneTime();const state=await api('/api/fmo',{action:'import_legacy'});if(!state.ready)throw Error(state.message||'原 FMO 固件证书未能导入。');await fmoLocal();say('fmoStatus','已只读导入原 FMO 固件有效证书（原固件凭据未修改），可返回设备打开 FMO。')});
+$('fmoInit').onclick=()=>fmoOperation(async()=>{stopFmoPoll();await api('/api/fmo',{action:'init'});await fmoLocal();say('fmoStatus','本机身份已准备；已有密钥会继续使用。')});
+$('fmoCheckCrl').onclick=()=>fmoOperation(async()=>{
+ stopFmoPoll();say('fmoCrlStatus','正在分别查询根与用户吊销列表…');
+ const result=await fmoOnlineRequest(()=>api('/api/fmo',{action:'check_crl'}),'fmoCrlStatus');
+ if(!['unknown','current','revoked'].includes(result.state)||typeof result.root?.updated!=='boolean'||typeof result.user?.updated!=='boolean'||result.persistence!=='signed_banks'||typeof result.root?.saved!=='boolean'||typeof result.user?.saved!=='boolean'||!['restored','missing','unavailable'].includes(result.root?.cache)||!['restored','missing','unavailable'].includes(result.user?.cache)||result.enforced!==true)throw Error('吊销查询结果无法识别，请重试。');
+ const text={unknown:'吊销状态暂无法确认。',current:'缓存中的两级列表均有效，未命中本机证书。',revoked:'已验证列表命中本机身份或签发机构吊销。'}[result.state];
+ const detail=(v)=>`${v.updated?(v.saved?'本次已验证并保存':'本次已验证，保存未确认'):String(v.message||'本次未更新').slice(0,120)}${v.cache==='restored'?'（已恢复签名缓存）':v.cache==='unavailable'?'（旧缓存未能恢复）':''}`;
+ say('fmoCrlStatus',`${text} 根列表：${detail(result.root)}；用户列表：${detail(result.user)}。重启仅恢复可读取且复验通过的缓存；已知吊销将阻止本机FMO通联，未知不等于未吊销。`,result.state!=='current');
+},'fmoCrlStatus');
+$('fmoRefresh').onclick=()=>fmoOperation(async()=>{stopFmoPoll();await fmoCheck()});
+async function fmoPhotoData(file){
+ if(!file||!file.type.startsWith('image/')||!file.size||file.size>20*1024*1024)throw Error('请选择不超过20 MB的证件合照。');
+ let url,timer;
+ try{url=URL.createObjectURL(file);const image=new Image();await new Promise((resolve,reject)=>{timer=setTimeout(()=>reject(Error('证件图片读取超时。')),15000);image.onload=resolve;image.onerror=()=>reject(Error('证件图片无法读取。'));image.src=url});clearTimeout(timer);
+ if(!image.naturalWidth||!image.naturalHeight||image.naturalWidth*image.naturalHeight>64000000)throw Error('证件图片尺寸无效或过大。');
+ const canvas=document.createElement('canvas'),scale=Math.min(1,800/Math.max(image.naturalWidth,image.naturalHeight));canvas.width=Math.max(1,Math.round(image.naturalWidth*scale));canvas.height=Math.max(1,Math.round(image.naturalHeight*scale));canvas.getContext('2d').drawImage(image,0,0,canvas.width,canvas.height);
+ let blob;for(const q of [.78,.6,.45,.3]){blob=await encodeBackground(canvas,q);if(blob.size<=100*1024)break}if(blob.size>100*1024)throw Error('证件图片压缩后过大，请重新选择。');
+ return await new Promise((resolve,reject)=>{const reader=new FileReader();const timer=setTimeout(()=>reject(Error('证件图片处理超时。')),10000);reader.onload=()=>{clearTimeout(timer);resolve(reader.result)};reader.onerror=()=>{clearTimeout(timer);reject(Error('证件图片处理失败。'))};reader.readAsDataURL(blob)});
+ }finally{clearTimeout(timer);if(url)URL.revokeObjectURL(url)}
+}
+$('fmoApply').onclick=()=>fmoOperation(async()=>{
+ const callsign=$('fmoCallsign').value.trim().toUpperCase();if(!/^[A-Z0-9][A-Z0-9/\-]{1,11}$/.test(callsign))throw Error('请填写有效的本人呼号。');
+ const local=await fmoLocal();if(!local.pubkey)throw Error('请先创建本机身份。');
+ if(local.clock_valid===false){say('fmoStatus','正在同步手机时间并校准设备时钟，随后检查已有申请…');await syncPhoneTime();}
+ const existing=await fmoOnlineRequest(()=>api('/api/fmo/ca'));
+ if(existing.state==='pending'){say('fmoStatus','已有申请正在审核，不重复上传资料。');scheduleFmoPoll();return}
+ if(existing.state==='ready'&&!existing.revoked&&!existing.expired){await fmoCheck();return}
+ if(!['none','rejected','ready'].includes(existing.state))throw Error('无法确认现有申请状态，未上传资料。');
+ const photo_b64=await fmoPhotoData($('fmoPhoto').files[0]);say('fmoStatus','正在提交给签发服务…');
+ const result=await fmoOnlineRequest(()=>api('/api/fmo/ca',{callsign,pubkey:local.pubkey,photo_b64}));
+ if(result.error||result.ok===false)throw Error(result.message||result.error||'申请被服务端拒绝。');
+ $('fmoPhoto').value='';stopFmoPoll();say('fmoStatus','已提交，正在查询审核状态…');await fmoCheck();
+});
+$('fmoRefreshServers').onclick=()=>fmoOperation(async()=>{const state=await fmoLocal();say('fmoStatus',(state.servers||[]).length?`已读取 ${state.servers.length} 台有效服务器。`:'尚未缓存有效服务器。请取得证书后打开设备FMO，等待签名广播。')});
+$('fmoSelectServer').onclick=()=>fmoOperation(async()=>{const uid=Number($('fmoServerList').value);if(!Number.isInteger(uid)||uid<1||uid>4294967295)throw Error('请先选择有效服务器。');await api('/api/fmo',{action:'select_relay',uid});await fmoLocal();say('fmoStatus','服务器已选定，返回设备打开FMO即可连接。')});
+$('fmoUseBuiltin').onclick=()=>fmoOperation(async()=>{await api('/api/fmo',{action:'select_builtin_relay'});await fmoLocal();say('fmoStatus','已切换到 PASSPORT 内置中继台（兜底），返回设备打开 FMO 即可连接。')});
+$('fmoSaveRelay').onclick=()=>fmoOperation(async()=>{
+ const host=$('fmoHost').value.trim(),callsign=$('fmoRelayCall').value.trim().toUpperCase(),uid=Number($('fmoRelayUid').value),port=Number($('fmoPort').value),fingerprint=$('fmoFingerprint').value.trim();
+ if(!/^[A-Za-z0-9.:-]{1,127}$/.test(host)||!/^[-A-Z0-9/]{1,12}$/.test(callsign)||!Number.isInteger(uid)||uid<1||uid>4294967295||!Number.isInteger(port)||port<1||port>65535||!/^[-_A-Za-z0-9]{43}$/.test(fingerprint))throw Error('请填写管理员提供的完整中继参数。');
+ await api('/api/fmo',{action:'relay',host,callsign,uid,port,fingerprint});say('fmoStatus','中继已保存，重新打开FMO后使用。');
+});
+async function initFmoPage(){
+ initStampPalette();
+ try{
+  const st=await api('/api/setup');
+  hasSaved=!!st.saved_network;
+  staConnected=!!st.sta_connected||st.state==='connected';
+  verified=staConnected;
+  staSsid=st.sta_ssid||st.ssid||'';
+  $('connectionSummary').textContent=staConnected?('已连接 Wi-Fi：'+(staSsid||'在线')):(hasSaved?'暂未联网（可自动重连已保存 Wi-Fi）':'未连接路由器，请先返回 Passport 设置配网');
+  updateFmoWifiNotice();
+  await syncPhoneTime();
+  await fmoLocal();
+ }catch(e){
+  say('fmoStatus',e.message||'无法连接设备，请确认手机仍连在设备热点上。',true);
+ }
+}
+initFmoPage();
+</script></body></html>

@@ -191,6 +191,7 @@ int main(){
  // All registered pages, including hidden setup and launcher. Double must
  // never forward a click to a confirmation dialog or toggle Xiaozhi twice.
  for(int id=0;id<APP_ID_COUNT;++id){
+  if(id!=APP_ID_LAUNCHER&&!app_registry_get_by_id(static_cast<passport_app_id_t>(id)))continue;
   app_registry_switch_to(static_cast<passport_app_id_t>(id));
   const int a=starts,b=stops,c=keys,requests=conversation_requests;
   app_registry_dispatch_key(BSP_BTN_OK,BTN_EVT_DOUBLE,600);

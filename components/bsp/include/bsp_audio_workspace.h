@@ -6,7 +6,7 @@
 // Foreground audio apps share this storage. Release it only after their worker
 // has stopped using its stack or buffers.
 namespace audio_workspace {
-enum class Owner { None, Radio, Xiaozhi, Muse, MusePairing, Music };
+enum class Owner { None, Radio, Xiaozhi, Muse, MusePairing, Music, Plugin };
 constexpr std::size_t kRealtimeBytes = 22 * 1024;
 // Same exclusive owner as the realtime stack/frame area. Xiaozhi's Opus
 // half-duplex encoder/decoder, Muse reassembly and Radio compressed FIFO never

@@ -1,4 +1,5 @@
 #include "launcher/app_registry.h"
+#include "passport_plugin.h"
 #include "launcher/timer_resume.h"
 #include "bsp_memory.h"
 #include "bsp_memory.h"
@@ -58,21 +59,75 @@ const passport_app_t *s_apps[] = {
     &g_xiaozhi_app,
     &g_radio_app,
     &g_netease_app,
+#if !defined(CONFIG_PASSPORT_APP_PODCAST) || CONFIG_PASSPORT_APP_PODCAST
     &g_podcast_app,
+#endif
+#if !defined(CONFIG_PASSPORT_APP_AUDIOBOOK) || CONFIG_PASSPORT_APP_AUDIOBOOK
     &g_audiobook_app,
+#endif
     &g_voice_app,
+#if !defined(CONFIG_PASSPORT_APP_MUSE) || CONFIG_PASSPORT_APP_MUSE
     &g_muse_app,
+#endif
     &g_pomodoro_app,
     &g_stopwatch_app,
     &g_reminders_app,
     &g_lists_app,
+#if !defined(CONFIG_PASSPORT_APP_GAMES) || CONFIG_PASSPORT_APP_GAMES
     &g_tetris_app,
     &g_game_app,
     &g_sound_jump_app,
+#endif
     &g_settings_app,   // 设置放最后(应用惯用收尾位置)
 };
 
-constexpr size_t kAppCount = sizeof(s_apps) / sizeof(s_apps[0]);
+constexpr size_t kBuiltinAppCount = sizeof(s_apps) / sizeof(s_apps[0]);
+passport_app_t s_plugin_wrappers[PASSPORT_MAX_PLUGINS]{};
+const passport_app_t *s_active_apps[kBuiltinAppCount + PASSPORT_MAX_PLUGINS]{};
+size_t s_app_count = 0;
+
+void plugin_on_key_dispatch(passport_app_id_t id, uint8_t btn, app_btn_event_t event, uint16_t mv) {
+    const passport_plugin_t *p = passport_plugin_find_by_app_id(id);
+    if (p && p->on_key) p->on_key(btn, static_cast<uint8_t>(event), mv);
+}
+template <int Slot>
+void plugin_on_key_slot(uint8_t btn, app_btn_event_t event, uint16_t mv) {
+    plugin_on_key_dispatch(static_cast<passport_app_id_t>(APP_ID_PLUGIN_BASE + Slot), btn, event, mv);
+}
+using OnKeyFn = void (*)(uint8_t, app_btn_event_t, uint16_t);
+constexpr OnKeyFn kPluginKeyTrampolines[PASSPORT_MAX_PLUGINS] = {
+    plugin_on_key_slot<0>, plugin_on_key_slot<1>, plugin_on_key_slot<2>, plugin_on_key_slot<3>
+};
+
+void build_app_list() {
+    s_app_count = 0;
+    // Place built-in apps except Settings first, then registered plugins, then Settings last.
+    for (size_t i = 0; i + 1 < kBuiltinAppCount; ++i) {
+        s_active_apps[s_app_count++] = s_apps[i];
+    }
+    const size_t pcount = passport_plugin_count();
+    for (size_t i = 0; i < pcount && i < PASSPORT_MAX_PLUGINS; ++i) {
+        int app_id = -1;
+        const passport_plugin_t *p = passport_plugin_at(i, &app_id);
+        if (!p || app_id < APP_ID_PLUGIN_BASE || app_id >= APP_ID_PLUGIN_MAX) continue;
+        const int slot = app_id - APP_ID_PLUGIN_BASE;
+        passport_app_t &w = s_plugin_wrappers[slot];
+        w.id = static_cast<passport_app_id_t>(app_id);
+        w.name = p->name;
+        w.en_name = p->en_name;
+        w.desc = p->desc;
+        w.tag = p->tag;
+        w.theme_color = p->theme_color;
+        w.init = p->init;
+        w.start = p->start;
+        w.stop = p->stop;
+        w.on_key = kPluginKeyTrampolines[slot];
+        w.prepare_stop = p->prepare_stop;
+        w.on_back = p->on_back;
+        s_active_apps[s_app_count++] = &w;
+    }
+    s_active_apps[s_app_count++] = s_apps[kBuiltinAppCount - 1]; // Settings last
+}
 bool feedback_allowed(passport_app_id_t id) {
     return id == APP_ID_HOME || id == APP_ID_LAUNCHER || id == APP_ID_SETTINGS ||
            id == APP_ID_WIFI || id == APP_ID_STOPWATCH || id == APP_ID_POMODORO || id == APP_ID_TETRIS || id == APP_ID_REMINDERS || id == APP_ID_LISTS;
@@ -105,6 +160,10 @@ struct SwitchGuard {
 // 桌面/首页/设置等待机前台放宽到 MAX modem sleep(下行延迟可到 ~1s,对
 // 天气/SNTP/上传服务无感),是待机电流的最大单项优化。
 WifiPowerSaveLevel power_save_level_for(passport_app_id_t id) {
+    if (const passport_plugin_t *p = passport_plugin_find_by_app_id(id)) {
+        return (p->caps & PASSPORT_PLUGIN_CAP_BALANCED_WIFI)
+            ? WifiPowerSaveLevel::BALANCED : WifiPowerSaveLevel::LOW_POWER;
+    }
     switch (id) {
         case APP_ID_RADIO:
         case APP_ID_PODCAST:
@@ -137,6 +196,10 @@ struct HeapNeed {
 // 小智最大单块 12 KiB(任务栈);2026-11-07 实测(设备工具、提醒、清单后)会话峰值约 58 KiB,
 // 会话内音乐搜索另有自身预检(24 KiB);Muse 工作任务栈 12 KiB 加 TLS 8 KiB。
 HeapNeed heap_need(passport_app_id_t id) {
+    if (const passport_plugin_t *p = passport_plugin_find_by_app_id(id)) {
+        if (p->caps & PASSPORT_PLUGIN_CAP_HEAVY_HEAP) return {p->heap_largest, p->heap_free};
+        return {0, 0};
+    }
     switch (id) {
         case APP_ID_PODCAST:
         case APP_ID_AUDIOBOOK:
@@ -157,6 +220,9 @@ bool s_heap_strained = false;
 bool s_fresh_heap = false;
 
 bool heavy_app(passport_app_id_t id) {
+    if (const passport_plugin_t *p = passport_plugin_find_by_app_id(id)) {
+        return (p->caps & PASSPORT_PLUGIN_CAP_HEAVY_HEAP) != 0;
+    }
     return id == APP_ID_RADIO || id == APP_ID_PODCAST || id == APP_ID_AUDIOBOOK ||
            id == APP_ID_NETEASE || id == APP_ID_XIAOZHI || id == APP_ID_MUSE;
 }
@@ -315,7 +381,9 @@ void show_clean_launch_notice(passport_app_id_t id) {
 } // namespace
 
 void app_registry_init(void) {
-    ESP_LOGI(TAG, "Initializing app registry with %u apps...", (unsigned)kAppCount);
+    build_app_list();
+    ESP_LOGI(TAG, "Initializing app registry with %u apps (%u plugins)...",
+             (unsigned)s_app_count, (unsigned)passport_plugin_count());
     if (!s_switch_mutex) s_switch_mutex = xSemaphoreCreateRecursiveMutex();
     if (esp_pm_lock_create(ESP_PM_NO_LIGHT_SLEEP, 0, "display_on", &s_display_awake_lock) == ESP_OK)
         esp_pm_lock_acquire(s_display_awake_lock);
@@ -332,22 +400,25 @@ void app_registry_init(void) {
 }
 
 size_t app_registry_get_count(void) {
-    return kAppCount;
+    if (!s_app_count) build_app_list();
+    return s_app_count;
 }
 
 const passport_app_t *app_registry_get_by_index(size_t index) {
-    if (index >= kAppCount) return nullptr;
-    return s_apps[index];
+    if (!s_app_count) build_app_list();
+    if (index >= s_app_count) return nullptr;
+    return s_active_apps[index];
 }
 
 const passport_app_t *app_registry_get_by_id(passport_app_id_t id) {
+    if (!s_app_count) build_app_list();
     // 首页不在 s_apps 轮播列表里,但仍必须能被 switch_to() 直接寻址。
     // 少了这个特判,切回首页会因为找不到 app 实例而停在过渡屏(黑屏)。
     if (id == APP_ID_HOME) return &g_home_app;
     if (id == APP_ID_WIFI) return &g_wifi_app; // hidden system setup, never a launcher card
-    for (size_t i = 0; i < kAppCount; ++i) {
-        if (s_apps[i] && s_apps[i]->id == id) {
-            return s_apps[i];
+    for (size_t i = 0; i < s_app_count; ++i) {
+        if (s_active_apps[i] && s_active_apps[i]->id == id) {
+            return s_active_apps[i];
         }
     }
     return nullptr;
@@ -368,6 +439,11 @@ passport_app_id_t app_registry_take_clean_launch(void) {
 
 passport_app_id_t app_registry_get_active(void) {
     return s_active_id;
+}
+
+bool app_registry_active_owns_long_ok(void) {
+    const passport_plugin_t *p = passport_plugin_find_by_app_id(s_active_id.load());
+    return p && (p->caps & PASSPORT_PLUGIN_CAP_OWNS_LONG_OK) != 0;
 }
 
 bool app_registry_switch_pending(void) {
@@ -559,8 +635,11 @@ void app_registry_dispatch_key(uint8_t btn, app_btn_event_t event, uint16_t mv) 
 
     // 2. 全局拦截:长按 OK = 整机统一的"返回",沿层级上移:
     //    子应用 → 应用板块 → 首页。首页已是顶层,长按无动作。
-    //    Apps with internal pages may consume Back before the app-level exit.
-    if (btn == BSP_BTN_OK && event == BTN_EVT_LONG) {
+    //    Plugins with PASSPORT_PLUGIN_CAP_OWNS_LONG_OK (e.g., PTT) receive
+    //    BTN_EVT_LONG / BTN_EVT_LONG_UP / BTN_EVT_RELEASE directly.
+    const passport_plugin_t *active_plugin = passport_plugin_find_by_app_id(source);
+    const bool owns_long_ok = active_plugin && (active_plugin->caps & PASSPORT_PLUGIN_CAP_OWNS_LONG_OK);
+    if (btn == BSP_BTN_OK && event == BTN_EVT_LONG && !owns_long_ok) {
         const passport_app_t *app = app_registry_get_by_id(source);
         if (app && app->on_back) {
             s_ok_long_triggered = true;

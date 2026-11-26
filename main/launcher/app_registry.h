@@ -20,6 +20,9 @@ const passport_app_t *app_registry_get_by_id(passport_app_id_t id);
 
 // 获取当前处于前台激活的应用 ID
 passport_app_id_t app_registry_get_active(void);
+// True when the active foreground app owns long OK (e.g., PTT) and must not
+// trigger global Back or long-OK power-off.
+bool app_registry_active_owns_long_ok(void);
 // True while another navigation is already retiring or starting an app.
 bool app_registry_switch_pending(void);
 

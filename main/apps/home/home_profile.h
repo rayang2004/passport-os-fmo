@@ -47,6 +47,9 @@ void home_profile_init(void);
 // 挂载 storage 分区;分区不可用(空白或残留其他固件)时重新格式化,可能耗时
 // 十余秒。开机在后台任务里调用一次,让格式化不落在手机上传请求中。
 void home_profile_storage_prepare(void);
+// Shared SPIFFS (/storage) mutex lock for plugins (e.g. FMO stamps/beeps/CRL).
+esp_err_t home_profile_storage_acquire(bool initialize_blank);
+void home_profile_storage_release(void);
 
 // 线程安全拷贝当前资料(httpd 任务与首页任务都会调用)。
 void home_profile_get(home_profile_t *out);

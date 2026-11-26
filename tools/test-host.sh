@@ -14,7 +14,8 @@ trap 'rm -rf -- "$test_dir"' EXIT
 "$test_dir/xiaozhi-level"
 "${CXX:-c++}" -std=c++20 -Wall -Wextra -Werror -Wno-unused-variable \
     -fsanitize=address,undefined -g -Itests/registry_mocks -Imain \
-    tests/test_app_registry.cc -o "$test_dir/registry"
+    -Icomponents/passport_plugin_api/include \
+    tests/test_app_registry.cc components/passport_plugin_api/passport_plugin.c -o "$test_dir/registry"
 "$test_dir/registry"
 python3 tools/generate_ui_sfx.py --check
 "${CC:-cc}" -std=c11 -Wall -Wextra -Werror -fsanitize=address,undefined \
@@ -163,4 +164,9 @@ python3 tests/test_media_startup.py
 "${CXX:-c++}" -std=c++17 -Wall -Wextra -Werror -fsanitize=address,undefined -Imain \
     -Itests/registry_mocks tests/test_netease_performance.cc main/apps/netease/netease_json.cc -o "$test_dir/netease-performance"
 "$test_dir/netease-performance"
+if [ -d components/passport_fmo/tests ]; then
+    for plugin_test in components/passport_fmo/tests/test_fmo*.py; do
+        python3 "$plugin_test"
+    done
+fi
 echo "Host regression tests: PASS"

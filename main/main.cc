@@ -1,6 +1,7 @@
 #include "launcher/launcher.h"
 #include "launcher/timer_resume.h"
 #include "launcher/app_registry.h"
+#include "launcher/plugin_host.h"
 #include "launcher/ok_gesture.h"
 #include "boot_chime.h"
 #include "ui_sfx.h"
@@ -185,9 +186,9 @@ static void button_task(void *arg) {
             power_stage = 0;
         }
 
-        // Hold OK: 2 s shows "keep holding", 5 s powers off. The 0.8 s long
-        // press has already gone back one level by then, which is harmless.
-        if (stable == BSP_BTN_OK && power_stage < 2) {
+        // Hold OK: 2 s shows "keep holding", 5 s powers off. Skip while an
+        // active plugin owns long OK (e.g., PTT).
+        if (stable == BSP_BTN_OK && power_stage < 2 && !app_registry_active_owns_long_ok()) {
             const TickType_t held = xTaskGetTickCount() - pressed_at;
             const uint8_t stage = held >= pdMS_TO_TICKS(5000) ? 2 : held >= pdMS_TO_TICKS(2000) ? 1 : 0;
             if (stage > power_stage) {
@@ -434,7 +435,8 @@ extern "C" void app_main(void) {
     // 仅初始化 ADC 采样硬件，不启动有死锁风险的 timer 回调
     ESP_ERROR_CHECK(bsp_button_init(nullptr, nullptr));
 
-    // 3. 初始化 Launcher 与应用注册表 (仅载入启动器，不预加载子 App)
+    // 3. 初始化插件宿主、Launcher 与应用注册表 (仅载入启动器，不预加载子 App)
+    passport_plugin_host_init();
     app_registry_init();
     // 磷光开机动画(~0.9s,与开机音同步);不再提前初始化/加载 Launcher ——
     // 旧路径会先闪一两帧应用页再跳首页。抽屉首次进入时才会自建界面。

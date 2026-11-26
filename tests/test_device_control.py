@@ -70,6 +70,8 @@ with tempfile.TemporaryDirectory(prefix='passport-control-') as temporary:
                     '-Imain','-c','main/apps/pomodoro/pomodoro_core.c','-o',str(timer_object)],cwd=root,check=True)
     subprocess.run(['c++','-std=c++20','-Wall','-Wextra','-Werror','-Wno-misleading-indentation',
                     '-g','-fsanitize=address,undefined','-Itests/reminder_mocks','-Itests/vendor/cjson',
-                    '-Imain','-Icomponents/bsp/include',str(source),'tests/vendor/cjson/cJSON.c',
+                    '-Imain','-Icomponents/bsp/include','-Icomponents/passport_plugin_api/include',
+                    str(source),'tests/vendor/cjson/cJSON.c',
+                    'components/passport_plugin_api/passport_plugin.c',
                     str(timer_object),'-o',str(target)],cwd=root,check=True)
     subprocess.run([str(target)],cwd=root,check=True)

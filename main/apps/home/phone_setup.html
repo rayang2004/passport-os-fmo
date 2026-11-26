@@ -168,6 +168,7 @@ input::file-selector-button{min-height:34px;border:0;background:var(--green);col
 <div class="proxy-settings"><p class="field-title">电脑代理（可选）</p><div class="pair proxy"><div><label for="museProxyHost">电脑 IP</label><input id="museProxyHost" inputmode="decimal" autocomplete="off" maxlength="15" placeholder="192.168.1.20" aria-label="电脑代理 IP"></div><div><label for="museProxyPort">端口</label><input id="museProxyPort" type="number" min="1" max="65535" inputmode="numeric" placeholder="7897" aria-label="代理端口"></div></div><p class="help">清空 IP 后保存即切回直连</p></div>
 <button id="useSavedMuse" type="button" class="secondary" hidden>使用已保存配置</button><button id="retryMuse" type="button" class="text-button" hidden>重新读取配置</button>
 <button id="saveMuse" type="button" class="secondary" disabled>保存 Muse 配置</button><p id="museStatus" class="status" role="status" aria-live="polite"></p></div></details>
+<div id="pluginList" hidden></div>
 </div>
 
 <div id="saveStatus" class="status" role="status" aria-live="polite"></div>
@@ -589,5 +590,24 @@ $('copyVoiceTutorial').onclick=async()=>{
  say('voiceCopyStatus',copied?'教程链接已复制，请在电脑打开。':'请长按链接复制，再在电脑打开。');
  if(!copied){link.focus();link.select();link.setSelectionRange(0,url.length)}
 };
-load().finally(()=>loadMuse());
+async function loadPlugins(){
+ try{
+  const list=await api('/api/plugins');
+  const box=$('pluginList');
+  if(!box||!Array.isArray(list)||!list.length)return;
+  box.replaceChildren();
+  for(const p of list){
+   if(!p||typeof p.path!=='string'||!p.path.startsWith('/'))continue;
+   const a=document.createElement('a');
+   a.href=p.path+'?t='+encodeURIComponent(window.__T||'');
+   a.className='secondary';
+   a.style.cssText='display:flex;justify-content:space-between;align-items:center;text-decoration:none;margin-top:10px;padding:12px 14px;border-radius:12px';
+   const left=document.createElement('span');left.style.fontWeight='600';left.textContent=p.title||p.id;
+   const right=document.createElement('small');right.style.color='var(--muted)';right.textContent=(p.subtitle?p.subtitle+' →':'配置 →');
+   a.append(left,right);box.appendChild(a);
+  }
+  box.hidden=!box.children.length;
+ }catch(e){}
+}
+load().finally(()=>{loadMuse();loadPlugins()});
 </script></body></html>

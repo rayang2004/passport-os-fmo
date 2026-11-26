@@ -14,7 +14,7 @@ dependencies:
       type: service
     version: 4.2.1
   espressif/cmake_utilities:
-    component_hash: 05165f30922b422b4b90c08845e6d449329b97370fbd06309803d8cb539d79e3
+    component_hash: afc935d5a93cda71ce3223b817de128d07484439d585e6fe613bde820e17f36a
     dependencies:
     - name: idf
       require: private
@@ -22,7 +22,7 @@ dependencies:
     source:
       registry_url: https://components.espressif.com
       type: service
-    version: 1.1.1
+    version: 1.4.1
   espressif/esp_audio_codec:
     component_hash: 16e2880dbdd5a72264051f750f33a6e5a38fd25621c83e3a32a85a152d2d2643
     dependencies:
@@ -67,6 +67,16 @@ dependencies:
       registry_url: https://components.espressif.com/
       type: service
     version: 1.8.0
+  espressif/libsodium:
+    component_hash: d4066b373fc6d4c5196db42aeea7faef4ac7f3080af96c2b74e2476c08b78dc1
+    dependencies:
+    - name: idf
+      require: private
+      version: '>=4.2'
+    source:
+      registry_url: https://components.espressif.com/
+      type: service
+    version: 1.0.22~1
   idf:
     source:
       type: idf
@@ -84,8 +94,9 @@ direct_dependencies:
 - espressif/esp_codec_dev
 - espressif/esp_lvgl_port
 - espressif/esp_websocket_client
+- espressif/libsodium
 - idf
 - lvgl/lvgl
-manifest_hash: 47d76842a1bfb6957cddef8498c41cef5679cc2b7c065f84fdbb2de15531e63d
+manifest_hash: dea38cea63584a79dfa1c67a0ab5622ba60facd87869c4b328edeee23afea412
 target: esp32c3
 version: 2.0.0

@@ -1,6 +1,7 @@
 #include "apps/home/home_upload.h"
 
 #include "apps/home/home_profile.h"
+#include "passport_plugin.h"
 #include "esp_http_server.h"
 #include "esp_log.h"
 #include <esp_random.h>      // esp_fill_random():每次开启上传窗口换一个一次性 token
@@ -49,6 +50,10 @@ static bool token_ok(httpd_req_t *req) {
     const unsigned long value = std::strtoul(token, &end, 10);
     return token[0] && end && !*end && errno != ERANGE && value <= UINT32_MAX &&
            static_cast<uint32_t>(value) == s_token;
+}
+
+bool home_upload_token_ok(httpd_req_t *req) {
+    return token_ok(req);
 }
 
 // ---------------------------------------------------------------------------
@@ -478,6 +483,43 @@ static esp_err_t handler_setup(httpd_req_t *req) {
         cJSON_AddStringToObject(root, "ssid", s_target_ssid.c_str());
     }
     cJSON_AddStringToObject(root, "hotspot", WifiManager::GetInstance().GetApSsid().c_str());
+    cJSON_AddBoolToObject(root, "sta_connected", WifiManager::GetInstance().HasStationIp());
+    cJSON_AddStringToObject(root, "sta_ssid", WifiManager::GetInstance().GetSsid().c_str());
+    return reply_object(req, root);
+}
+
+static esp_err_t handler_time_post(httpd_req_t *req) {
+    if (!token_ok(req)) return send_json(req, 401, "{\"error\":\"unauthorized\"}");
+    char body[192];
+    if (req->content_len <= 0 || req->content_len >= (int)sizeof(body)) return send_json(req, 400, "{\"error\":\"size\"}");
+    int received = 0;
+    while (received < req->content_len) {
+        int n = httpd_req_recv(req, body + received, req->content_len - received);
+        if (n <= 0) return send_json(req, 400, "{\"error\":\"recv\"}");
+        received += n;
+    }
+    body[received] = 0;
+    auto *root = cJSON_Parse(body);
+    if (!root) return send_json(req, 400, "{\"error\":\"json\"}");
+    wifi_phone_time_apply(root);
+    cJSON_Delete(root);
+    return send_json(req, 200, "{\"ok\":true}");
+}
+
+static esp_err_t handler_plugins(httpd_req_t *req) {
+    if (!token_ok(req)) return send_json(req, 401, "{\"error\":\"unauthorized\"}");
+    auto *root = cJSON_CreateArray();
+    const size_t n = passport_plugin_count();
+    for (size_t i = 0; i < n; ++i) {
+        const passport_plugin_t *p = passport_plugin_at(i, nullptr);
+        if (!p || !p->web_path || !p->web_path[0]) continue;
+        auto *item = cJSON_CreateObject();
+        cJSON_AddStringToObject(item, "id", p->id);
+        cJSON_AddStringToObject(item, "path", p->web_path);
+        cJSON_AddStringToObject(item, "title", p->web_title ? p->web_title : p->name);
+        cJSON_AddStringToObject(item, "subtitle", p->web_subtitle ? p->web_subtitle : "");
+        cJSON_AddItemToArray(root, item);
+    }
     return reply_object(req, root);
 }
 
@@ -573,8 +615,8 @@ esp_err_t home_upload_start(void) {
     if (s_token == 0) s_token = 1;   /* 0 被 token_ok 当作"未启用" */
 
     httpd_config_t config = HTTPD_DEFAULT_CONFIG();
-    config.stack_size = 6144;
-    config.max_uri_handlers = 17;
+    config.stack_size = 12288;
+    config.max_uri_handlers = 36;
     // 10 lwIP sockets total: leave room for DNS, SNTP, control/listen sockets,
     // and a new accept before LRU eviction. Phone OS probes also use HTTP.
     config.max_open_sockets = 3;
@@ -606,6 +648,8 @@ esp_err_t home_upload_start(void) {
     const httpd_uri_t finish_uri = {"/api/finish", HTTP_POST, handler_finish, NULL};
     const httpd_uri_t muse_get = {"/api/muse", HTTP_GET, handler_muse_get, NULL};
     const httpd_uri_t muse_post = {"/api/muse", HTTP_POST, handler_muse_post, NULL};
+    const httpd_uri_t time_post = {"/api/time", HTTP_POST, handler_time_post, NULL};
+    const httpd_uri_t plugins_get = {"/api/plugins", HTTP_GET, handler_plugins, NULL};
     const httpd_uri_t captive_uri = {"/*", HTTP_GET, handler_captive, NULL};
     // 2026-09-13 修复(B8):注册返回值必须检查。原来四个 handler 全丢返回值,
     // 注册失败时页面直接 404 且日志里一行痕迹都没有。
@@ -617,7 +661,7 @@ esp_err_t home_upload_start(void) {
         {&setup_uri, "GET /api/setup"}, {&networks_uri, "GET /api/networks"},
         {&connect_uri, "POST /api/connect"}, {&finish_uri, "POST /api/finish"},
         {&muse_get, "GET /api/muse"}, {&muse_post, "POST /api/muse"},
-        {&captive_uri, "captive portal"},
+        {&time_post, "POST /api/time"}, {&plugins_get, "GET /api/plugins"},
     };
     for (const auto &r : routes) {
         esp_err_t e = httpd_register_uri_handler(s_server, r.uri);
@@ -628,6 +672,23 @@ esp_err_t home_upload_start(void) {
             s_token = 0;
             return e;
         }
+    }
+    for (size_t i = 0; i < passport_plugin_count(); ++i) {
+        const passport_plugin_t *p = passport_plugin_at(i, nullptr);
+        if (p && p->register_http && !p->register_http(s_server)) {
+            ESP_LOGE(TAG, "plugin %s HTTP register failed", p->id ? p->id : "?");
+            httpd_stop(s_server);
+            s_server = nullptr;
+            s_token = 0;
+            return ESP_FAIL;
+        }
+    }
+    if (esp_err_t e = httpd_register_uri_handler(s_server, &captive_uri); e != ESP_OK) {
+        ESP_LOGE(TAG, "register captive portal failed: %s", esp_err_to_name(e));
+        httpd_stop(s_server);
+        s_server = nullptr;
+        s_token = 0;
+        return e;
     }
 
     snprintf(s_url, sizeof(s_url), "http://%s",
@@ -654,9 +715,17 @@ bool home_upload_active(void) { return s_server != NULL; }
 
 const char *home_upload_url(void) { return s_server ? s_url : ""; }
 
-bool home_upload_busy(void) { return s_network_state.load() == 1; }
+static bool plugins_http_busy(void) {
+    for (size_t i = 0; i < passport_plugin_count(); ++i) {
+        const passport_plugin_t *p = passport_plugin_at(i, nullptr);
+        if (p && p->http_busy && p->http_busy()) return true;
+    }
+    return false;
+}
+
+bool home_upload_busy(void) { return s_network_state.load() == 1 || plugins_http_busy(); }
 bool home_upload_network_verified(void) { return s_network_state.load() == 2; }
 bool home_upload_finished(void) {
     const auto deadline = s_finish_at.load();
-    return deadline != 0 && esp_timer_get_time() >= deadline;
+    return deadline != 0 && esp_timer_get_time() >= deadline && !plugins_http_busy();
 }

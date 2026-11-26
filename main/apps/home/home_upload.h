@@ -6,6 +6,7 @@
 #include <stdbool.h>
 
 #include "esp_err.h"
+#include "esp_http_server.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -21,6 +22,7 @@ bool home_upload_active(void);
 bool home_upload_busy(void);
 bool home_upload_network_verified(void);
 bool home_upload_finished(void);
+bool home_upload_token_ok(httpd_req_t *req);
 
 // "http://192.168.x.x"(仅服务运行期间有效)
 const char *home_upload_url(void);
