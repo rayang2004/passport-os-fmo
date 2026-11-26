@@ -67,7 +67,7 @@ constexpr const fmo::DiscoveryChain *discovery_chain=nullptr;
 // audio workspace and place the small RX queue/assembly storage on the heap.
 constexpr size_t kStackBytes=audio_workspace::kRealtimeBytes;
 struct Raw {uint16_t size;uint8_t data[fmo::kPacketMax];};
-constexpr unsigned kQueueCount=2;
+constexpr unsigned kQueueCount=6;
 static_assert(kStackBytes<=audio_workspace::kRealtimeBytes);
 StaticTask_t task_buffer;
 StaticQueue_t queue_buffer;
@@ -1144,7 +1144,7 @@ void run(void *){
         if(!WifiManager::GetInstance().IsConnected()){talk_requested=false;close_mqtt();if(aprs>=0){close(aprs);aprs=-1;}if(audio)bsp_audio_deinit();audio=capturing=encoding=decoder_ready=false;last_uid=last_stream=0;current_speaker[0]=0;show("网络未连接");ulTaskNotifyTake(pdTRUE,pdMS_TO_TICKS(1000));continue;}
         if(aprs>=0&&((!aprs_ack&&now-aprs_opened>15000000)||now-aprs_last_data>90000000)){ESP_LOGW("fmo","APRS socket timeout (ack=%d), reconnecting",aprs_ack?1:0);close(aprs);aprs=-1;aprs_verified=false;}
         if(aprs_capable&&now>=next_aprs&&aprs<0&&!talk_requested&&now-last_rx>=1500000){const char *aprs_host=(aprs_server++%2)?"rotate.aprs2.net":"china.aprs2.net";aprs=open_aprs(aprs_host);ESP_LOGI("fmo","APRS connect %s -> fd=%d",aprs_host,aprs);next_aprs=now+30000000;aprs_opened=aprs_last_data=esp_timer_get_time();aprs_login_sent=aprs_ack=aprs_verified=false;line_bytes=0;oversized_line=false;}
-        if(aprs>=0&&!talk_requested){auto *chunk=scratch->chunk;const int n=socket_read(aprs,chunk,sizeof(scratch->chunk));
+        if(aprs>=0&&!talk_requested&&now-last_rx>=500000){auto *chunk=scratch->chunk;const int n=socket_read(aprs,chunk,sizeof(scratch->chunk));
             if(n==0||n==-1){ESP_LOGW("fmo","APRS closed (n=%d)",n);close(aprs);aprs=-1;}
             else if(n>0){aprs_last_data=now;for(int k=0;k<n;++k){char ch=chunk[k];if(ch=='\n'){
                 if(line_bytes&&!oversized_line){if(line[line_bytes-1]=='\r')--line_bytes;line[line_bytes]=0;
@@ -1254,23 +1254,34 @@ void run(void *){
         }else{
             if(encoding){encoding=false;decoder_ready=false;xQueueReset(queue);}
             if(capturing){bsp_audio_deinit();audio=bsp_audio_init_playback()==ESP_OK;capturing=false;if(audio)audio=bsp_audio_set_format(8000,16,1)==ESP_OK;if(!audio)bsp_audio_deinit();else bsp_audio_set_volume(100);}
-            if(audio&&connected&&xQueueReceive(queue,&raw,pdMS_TO_TICKS(10))==pdTRUE){packet={};
-                if(fmo::parse_packet(raw.data,raw.size,&packet)&&(fmo::is_builtin_relay(selected)||packet.server_uid==selected.uid)&&packet.uid!=identity.uid){
-                    // Half duplex and deterministic route arbitration; stale later streams do not preempt.
-                    if(last_uid&&packet.uid!=last_uid&&now-last_rx<1500000&&!fmo::route_priority_preempts(packet.stream_begin,packet.uid,last_stream,last_uid))continue;
-                    if(last_uid!=packet.uid||last_stream!=packet.stream_begin)decoder_ready=false;
-                    last_uid=packet.uid;last_stream=packet.stream_begin;last_rx=now;std::strcpy(current_speaker,packet.callsign);show("正在收听",nullptr,current_speaker);
-                    {char vol_buf[24]{};std::snprintf(vol_buf,sizeof(vol_buf),"音量 %u%%",volume_percent.load());ui_apply_hero_meta(nullptr,vol_buf,nullptr);}
-                    bool played=false;
-                    for(size_t i=0;i<packet.count&&!stop_requested&&!talk_requested;++i){const auto &f=packet.frames[i];int samples=-1;
-                        if(f.codec==1){if(!decoder_ready){decoder_ready=opus_decoder_init(decoder,8000,1)==0;}if(decoder_ready)samples=opus_decode(decoder,f.data,f.size,pcm,640,0);}
-                        else {samples=decode_radpcm(f,pcm);decoder_ready=false;}
-                        if(samples>0&&samples<=640&&bsp_audio_write(pcm,samples*sizeof(int16_t))==ESP_OK)played=true;
+            if(audio&&connected&&xQueueReceive(queue,&raw,pdMS_TO_TICKS(10))==pdTRUE){
+                for(unsigned burst=0;burst<4&&!stop_requested&&!talk_requested;++burst){
+                    if(burst>0&&xQueueReceive(queue,&raw,0)!=pdTRUE)break;
+                    const int64_t rx_now=esp_timer_get_time();
+                    packet={};
+                    if(fmo::parse_packet(raw.data,raw.size,&packet)&&(fmo::is_builtin_relay(selected)||packet.server_uid==selected.uid)&&packet.uid!=identity.uid){
+                        // Half duplex and deterministic route arbitration; stale later streams do not preempt.
+                        if(last_uid&&packet.uid!=last_uid&&rx_now-last_rx<1500000&&!fmo::route_priority_preempts(packet.stream_begin,packet.uid,last_stream,last_uid))continue;
+                        const bool stream_changed=(last_uid!=packet.uid||last_stream!=packet.stream_begin||rx_now-last_rx>=1000000||std::strcmp(current_speaker,packet.callsign)!=0);
+                        if(last_uid!=packet.uid||last_stream!=packet.stream_begin)decoder_ready=false;
+                        last_uid=packet.uid;last_stream=packet.stream_begin;last_rx=rx_now;
+                        if(stream_changed){
+                            std::strcpy(current_speaker,packet.callsign);
+                            show("正在收听",nullptr,current_speaker);
+                            char vol_buf[24]{};std::snprintf(vol_buf,sizeof(vol_buf),"音量 %u%%",volume_percent.load());
+                            ui_apply_hero_meta(nullptr,vol_buf,nullptr);
+                        }
+                        bool played=false;
+                        for(size_t i=0;i<packet.count&&!stop_requested&&!talk_requested;++i){const auto &f=packet.frames[i];int samples=-1;
+                            if(f.codec==1){if(!decoder_ready){decoder_ready=opus_decoder_init(decoder,8000,1)==0;}if(decoder_ready)samples=opus_decode(decoder,f.data,f.size,pcm,640,0);}
+                            else {samples=decode_radpcm(f,pcm);decoder_ready=false;}
+                            if(samples>0&&samples<=640&&bsp_audio_write(pcm,samples*sizeof(int16_t))==ESP_OK)played=true;
+                        }
+                        const uint32_t book_relay_uid=fmo::is_builtin_relay(selected)?fmo::kBuiltinRelayBookUid:selected.uid;
+                        if(played&&book_writable&&book->heard(packet.uid,packet.callsign,book_relay_uid,packet.stream_begin,time(nullptr)))book_dirty=true;
                     }
-                    const uint32_t book_relay_uid=fmo::is_builtin_relay(selected)?fmo::kBuiltinRelayBookUid:selected.uid;
-                    if(played&&book_writable&&book->heard(packet.uid,packet.callsign,book_relay_uid,packet.stream_begin,time(nullptr)))book_dirty=true;
                 }
-            }else vTaskDelay(pdMS_TO_TICKS(10));
+            }else vTaskDelay(pdMS_TO_TICKS(5));
             if(now-last_ui>=1000000&&now-last_rx>=1000000){
                 show(has_selected?mqtt_connection_message(mqtt_connection.load()):aprs>=0?"等待服务器签名广播":"服务器发现服务连接中",nullptr,current_speaker[0]?current_speaker:identity.callsign);
                 if(has_selected)show_relay(selected,servers,time(nullptr));
@@ -1342,7 +1353,7 @@ void start(){
     if(!rx_storage){audio_workspace::release(audio_workspace::Owner::Plugin);show("FMO音频内存不足");return;}
     queue=xQueueCreateStatic(kQueueCount,sizeof(Raw),rx_storage,&queue_buffer);assembly=rx_storage+kQueueCount*sizeof(Raw);
     if(!queue){assembly=nullptr;delete[] rx_storage;rx_storage=nullptr;audio_workspace::release(audio_workspace::Owner::Plugin);show("FMO音频队列启动失败");return;}
-    running=true;worker=xTaskCreateStatic(run,"fmo",kStackBytes,nullptr,4,reinterpret_cast<StackType_t *>(audio_workspace::storage),&task_buffer);
+    running=true;worker=xTaskCreateStatic(run,"fmo",kStackBytes,nullptr,5,reinterpret_cast<StackType_t *>(audio_workspace::storage),&task_buffer);
     if(!worker){running=false;vQueueDelete(queue);queue=nullptr;assembly=nullptr;delete[] rx_storage;rx_storage=nullptr;audio_workspace::release(audio_workspace::Owner::Plugin);show("FMO任务启动失败");}
 }
 bool prepare_stop(){stop_requested=true;talk_requested=false;if(worker)xTaskNotifyGive(worker);return !running.load();}

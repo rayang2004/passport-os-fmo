@@ -33,12 +33,23 @@ extern const char fmo_root_start[] asm("_binary_passport_root_json_start");
 namespace {
 
 constexpr char kTag[] = "fmo_sentinel";
-constexpr size_t kRingSlots = 12;
+// Compact variable-length byte ring: holds ~55-75 Opus frames (~2.2-3.0s) in
+// only 5.1 KiB, absorbing initial Wi-Fi MAX_MODEM wakeup bursts and Radio/NetEase
+// audio yield latency without dropping opening syllables.
+constexpr size_t kRingCapacityBytes = 5120;
 constexpr size_t kMaxFrameBytes = 336;  // covers both Opus (~80 B) and RADPCM (328 B)
 constexpr int64_t kBreakinSilenceUs = 3500000;  // 3.5 seconds silence before auto-resume
 constexpr uint32_t kBreakinTaskStack = 6144;
 constexpr size_t kMinFreeHeapToStart = 22 * 1024;
 constexpr size_t kMinLargestBlockToStart = 10 * 1024;
+
+struct FrameHeader {
+    uint32_t uid;
+    uint32_t stream_begin;
+    uint16_t size;
+    uint8_t codec;
+    char callsign[13];
+};
 
 struct QueuedFrame {
     uint32_t uid = 0;
@@ -50,33 +61,68 @@ struct QueuedFrame {
 };
 
 struct FrameRing {
-    QueuedFrame slots[kRingSlots]{};
+    uint8_t buf[kRingCapacityBytes]{};
     size_t head = 0;
     size_t tail = 0;
-    size_t count = 0;
-    void clear() { head = tail = count = 0; }
+    size_t used = 0;
+    uint32_t dropped = 0;
+
+    void write_bytes(const void *src, size_t n) {
+        const auto *p = static_cast<const uint8_t *>(src);
+        const size_t first = std::min(n, kRingCapacityBytes - tail);
+        std::memcpy(buf + tail, p, first);
+        if (n > first) std::memcpy(buf, p + first, n - first);
+        tail = (tail + n) % kRingCapacityBytes;
+        used += n;
+    }
+    void read_bytes(void *dst, size_t n) {
+        auto *p = static_cast<uint8_t *>(dst);
+        const size_t first = std::min(n, kRingCapacityBytes - head);
+        std::memcpy(p, buf + head, first);
+        if (n > first) std::memcpy(p + first, buf, n - first);
+        head = (head + n) % kRingCapacityBytes;
+        used -= n;
+    }
+    void skip_bytes(size_t n) {
+        head = (head + n) % kRingCapacityBytes;
+        used -= n;
+    }
+    void drop_oldest() {
+        if (used < sizeof(FrameHeader)) { head = tail = used = 0; return; }
+        FrameHeader h{};
+        read_bytes(&h, sizeof(h));
+        if (h.size <= used) skip_bytes(h.size);
+        else { head = tail = used = 0; }
+        ++dropped;
+    }
     void push_frame(uint32_t uid, uint32_t stream_begin, uint8_t codec,
                     const char *callsign, const uint8_t *data, uint16_t size) {
-        if (count == kRingSlots) {
-            // Drop oldest frame so opening syllables stay fresh if overloaded
-            head = (head + 1) % kRingSlots;
-            --count;
-        }
-        QueuedFrame &dst = slots[tail];
-        dst.uid = uid;
-        dst.stream_begin = stream_begin;
-        dst.size = size;
-        dst.codec = codec;
-        std::snprintf(dst.callsign, sizeof(dst.callsign), "%.12s", callsign ? callsign : "");
-        std::memcpy(dst.data, data, size);
-        tail = (tail + 1) % kRingSlots;
-        ++count;
+        const size_t need = sizeof(FrameHeader) + size;
+        if (need > kRingCapacityBytes) return;
+        while (kRingCapacityBytes - used < need) drop_oldest();
+        FrameHeader h{};
+        h.uid = uid;
+        h.stream_begin = stream_begin;
+        h.size = size;
+        h.codec = codec;
+        std::snprintf(h.callsign, sizeof(h.callsign), "%.12s", callsign ? callsign : "");
+        write_bytes(&h, sizeof(h));
+        write_bytes(data, size);
     }
     bool pop(QueuedFrame *out) {
-        if (!count || !out) return false;
-        *out = slots[head];
-        head = (head + 1) % kRingSlots;
-        --count;
+        if (!out || used < sizeof(FrameHeader)) return false;
+        FrameHeader h{};
+        read_bytes(&h, sizeof(h));
+        if (h.size > kMaxFrameBytes || h.size > used) {
+            head = tail = used = 0;
+            return false;
+        }
+        out->uid = h.uid;
+        out->stream_begin = h.stream_begin;
+        out->size = h.size;
+        out->codec = h.codec;
+        std::memcpy(out->callsign, h.callsign, sizeof(out->callsign));
+        read_bytes(out->data, h.size);
         return true;
     }
 };
@@ -218,7 +264,7 @@ void breakin_task(void *) {
             if (!pop_frame(&f)) {
                 const int64_t now = esp_timer_get_time();
                 if (now - last_rx_us >= kBreakinSilenceUs) break;
-                vTaskDelay(pdMS_TO_TICKS(15));
+                vTaskDelay(pdMS_TO_TICKS(5));
                 continue;
             }
             const int64_t now = esp_timer_get_time();
@@ -257,11 +303,18 @@ void breakin_task(void *) {
 
     sodium_memzero(audio_workspace::storage, audio_workspace::kBytes);
     audio_workspace::release(audio_workspace::Owner::Plugin);
-    free_ring();
+    uint32_t dropped = 0;
+    if (s_ring_mutex && xSemaphoreTake(s_ring_mutex, pdMS_TO_TICKS(50)) == pdTRUE) {
+        if (s_ring) dropped = s_ring->dropped;
+        delete s_ring;
+        s_ring = nullptr;
+        xSemaphoreGive(s_ring_mutex);
+    }
 
-    ESP_LOGI(kTag, "Voice break-in ended: speaker=%s frames=%lu stack_hwm=%u free=%u",
+    ESP_LOGI(kTag, "Voice break-in ended: speaker=%s frames=%lu dropped=%lu stack_hwm=%u free=%u",
              speaker[0] ? speaker : "-",
              (unsigned long)frames_played,
+             (unsigned long)dropped,
              (unsigned)uxTaskGetStackHighWaterMark(nullptr),
              (unsigned)esp_get_free_heap_size());
 
@@ -320,7 +373,7 @@ void on_mqtt_event(void *, esp_event_base_t, int32_t id, void *data) {
         }
 
         if (pushed && !s_breakin_running.exchange(true, std::memory_order_acq_rel)) {
-            if (xTaskCreate(breakin_task, "fmo_breakin", kBreakinTaskStack, nullptr, 4, nullptr) != pdPASS) {
+            if (xTaskCreate(breakin_task, "fmo_breakin", kBreakinTaskStack, nullptr, 5, nullptr) != pdPASS) {
                 ESP_LOGE(kTag, "Failed to spawn break-in task (free=%u)", (unsigned)esp_get_free_heap_size());
                 s_breakin_running.store(false, std::memory_order_release);
             }
@@ -457,7 +510,7 @@ void start_locked() {
     config.network.disable_auto_reconnect = true;
     config.network.timeout_ms = 2000;
     config.task.stack_size = 4096;
-    config.buffer.size = 1536;
+    config.buffer.size = 2048;
     // FMO 4.0 SAS4 CONNECT carries full user+intermediate cert JSON (~2-3 KB).
     config.buffer.out_size = 3584;
 

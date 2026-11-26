@@ -64,7 +64,7 @@ static inline BaseType_t xTaskCreate(TaskFunction_t fn, const char *, uint32_t, 
 """,
     "wifi_manager.h": r"""
 #pragma once
-enum class WifiPowerSaveLevel { BALANCED, MAX_MODEM };
+enum class WifiPowerSaveLevel { PERFORMANCE, BALANCED, LOW_POWER, MAX_MODEM };
 class WifiManager {
 public:
     bool connected = true;

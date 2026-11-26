@@ -338,6 +338,10 @@ bool begin_breakin(uint32_t timeout_ms) {
     if (!allows_sentinel(fg)) return false;
     if (s_breakin.exchange(true)) return true;
 
+    // Wake Wi-Fi out of MAX_MODEM (1s beacon sleep) immediately so incoming
+    // 40 ms FMO/RAW Opus frames arrive with zero modem-sleep burst loss.
+    WifiManager::GetInstance().SetPowerSaveLevel(WifiPowerSaveLevel::PERFORMANCE);
+
     s_resume_pending.store(false);
     // Check whether Radio or NetEase is currently playing (either foreground or background)
     Source active_media = s_source;
@@ -373,7 +377,13 @@ void end_breakin() {
     if (!s_breakin.exchange(false)) return;
     ESP_LOGI(kTag, "Break-in ended (state=%d source=%d)", (int)s_state, (int)s_source);
     if (s_state == State::SuspendedBreak && s_source != Source::None) {
+        WifiManager::GetInstance().SetPowerSaveLevel(WifiPowerSaveLevel::BALANCED);
         schedule_resume();
+    } else {
+        const passport_app_id_t fg = app_registry_get_active();
+        const bool streaming = (fg == APP_ID_RADIO || fg == APP_ID_NETEASE || background_active());
+        WifiManager::GetInstance().SetPowerSaveLevel(
+            streaming ? WifiPowerSaveLevel::BALANCED : WifiPowerSaveLevel::LOW_POWER);
     }
 }
 
