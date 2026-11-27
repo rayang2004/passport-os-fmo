@@ -100,7 +100,12 @@ esp_err_t refresh_crls(httpd_req_t *r){
     const int64_t now_us=esp_timer_get_time();
     if(now_us<next_request)return fail(r,"吊销查询请间隔15秒");
     next_request=now_us+15000000;
-    if(heap_caps_get_free_size(MALLOC_CAP_8BIT)<98304||heap_caps_get_largest_free_block(MALLOC_CAP_8BIT)<32769)return fail(r,"空闲内存不足，请退出音频应用后重试");
+    const size_t min_free=
+#ifdef ESP_PLATFORM
+        fmo_http_lan_active()?65536u:
+#endif
+        98304u;
+    if(heap_caps_get_free_size(MALLOC_CAP_8BIT)<min_free||heap_caps_get_largest_free_block(MALLOC_CAP_8BIT)<32769)return fail(r,"空闲内存不足，请退出音频应用后重试");
     const auto restored=fmo::revocation_restore(identity,fmo_root_start,time(nullptr));
     Json root(cJSON_Parse(fmo_root_start),cJSON_Delete),inter(cJSON_Parse(identity.intermediate_json.c_str()),cJSON_Delete);
     Json report(cJSON_CreateObject(),cJSON_Delete);

@@ -1008,6 +1008,45 @@ void run(void *){
             if(audio){bsp_audio_deinit();audio=capturing=false;}
             if(cache_dirty&&scratch){fmo::save_relay_cache(scratch->servers,time(nullptr));cache_dirty=false;}
             if(book_dirty&&book){fmo::save_contact_book(*book);book_dirty=false;}
+            if(peer_stamps_dirty&&peer_stamps){fmo::save_peer_stamps(*peer_stamps);peer_stamps_dirty=false;}
+            // Temporarily release reloadable FMO buffers (~36 KB) so HTTPS CRL checks & uploads have ample SRAM.
+            book.reset();peers.reset();announcements.reset();inbox.reset();favorites.reset();peer_stamps.reset();custom_stamp.reset();
+            if(queue){vQueueDelete(queue);queue=nullptr;}
+            assembly=nullptr;
+            if(rx_storage){sodium_memzero(rx_storage,kQueueCount*sizeof(Raw)+fmo::kPacketMax);delete[] rx_storage;rx_storage=nullptr;}
+            if(stamp_image_buf){
+                if(bsp_lvgl_lock(150)){stamp_widget_hide();lv_image_cache_drop(&stamp_dsc);bsp_lvgl_unlock();}
+                delete[] stamp_image_buf;stamp_image_buf=nullptr;stamp_dsc={};
+            }
+            auto restore_fmo_buffers=[&](){
+                constexpr size_t kRxBytes=kQueueCount*sizeof(Raw)+fmo::kPacketMax;
+                if(!rx_storage){
+                    rx_storage=new(std::nothrow) uint8_t[kRxBytes]();
+                    if(rx_storage){
+                        queue=xQueueCreateStatic(kQueueCount,sizeof(Raw),rx_storage,&queue_buffer);
+                        assembly=queue?(rx_storage+kQueueCount*sizeof(Raw)):nullptr;
+                    }
+                }
+                if(!stamp_image_buf){
+                    stamp_image_buf=new(std::nothrow) uint8_t[fmo::kStampImageBytes]();
+                    stamp_dsc={};
+                    if(stamp_image_buf){
+                        stamp_dsc.header.magic=LV_IMAGE_HEADER_MAGIC;
+                        stamp_dsc.header.cf=LV_COLOR_FORMAT_I4;
+                        stamp_dsc.header.w=fmo::kStampWidth;
+                        stamp_dsc.header.h=fmo::kStampHeight;
+                        stamp_dsc.header.stride=fmo::kStampWidth/2;
+                        stamp_dsc.data_size=fmo::kStampImageBytes;
+                        stamp_dsc.data=stamp_image_buf;
+                    }
+                }
+                if(!book){book.reset(new(std::nothrow) fmo::ContactBook);if(book)fmo::load_contact_book(book.get());}
+                if(!peers)peers.reset(new(std::nothrow) fmo::PeerEvents);
+                if(!inbox)inbox.reset(new(std::nothrow) fmo::AprsInbox);
+                if(!announcements)announcements.reset(new(std::nothrow) fmo::Announcements);
+                if(!favorites){favorites.reset(new(std::nothrow) fmo::Favorites);if(favorites)fmo::load_favorites(favorites.get());}
+                if(!peer_stamps){peer_stamps.reset(new(std::nothrow) fmo::PeerStamps);if(peer_stamps)fmo::load_peer_stamps(peer_stamps.get());}
+            };
             char lan_url[96]{};
             if(WifiManager::GetInstance().IsConnected()&&fmo_http_start_lan(lan_url,sizeof(lan_url))){
                 const std::string ip=WifiManager::GetInstance().GetIpAddress();
@@ -1031,6 +1070,10 @@ void run(void *){
                     fmo_switch_to_wifi_setup();
                     return fmo::UiAction::None;
                 }
+                if(stop_requested)return fmo::UiAction::None;
+                // Hide QR before re-allocating FMO buffers so heap stays unfragmented.
+                if(bsp_lvgl_lock(150)){qr_widget_hide();bsp_lvgl_unlock();}
+                restore_fmo_buffers();
                 // Hot-reload settings modified from the phone browser without rebooting or dropping Wi-Fi.
                 fmo::load_beep_config(&beep_cfg);
                 if(fmo::load_stamp_config(&stamp_cfg)!=fmo::StampLoad::Unavailable&&stamp_cfg.custom_present){
@@ -1040,7 +1083,6 @@ void run(void *){
                     custom_stamp.reset();
                 }
                 fmo::load_broadcast_config(&broadcast);
-                if(favorites)fmo::load_favorites(favorites.get());
                 const uint32_t reload_now=static_cast<uint32_t>(time(nullptr));
                 fmo::load_relay_cache(&servers,reload_now);
                 normal_view();
