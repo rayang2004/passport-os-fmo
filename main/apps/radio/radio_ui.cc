@@ -1156,9 +1156,12 @@ void build_wifi_connecting(const char *ssid, const char *detail, bool success = 
 
 void timer_callback(lv_timer_t *timer) {
     // Audio and the sleep timer run independently of this visual timer.
-    const bool visible = app_registry_screen_is_on();
-    lv_timer_set_period(timer, visible ? 50 : 1000);
-    if (!visible) return;
+    // Pause completely while blanked; screen-wake invalidation resumes it on draw.
+    if (!app_registry_screen_is_on()) {
+        lv_timer_pause(timer);
+        return;
+    }
+    lv_timer_set_period(timer, 50);
     s_animation += 17;
     if (s_page == Page::Config || s_page == Page::WifiConnecting) {
         if (s_pair_dot) {
@@ -1215,6 +1218,12 @@ bool radio_ui_init() {
     lv_obj_remove_style_all(s_screen);
     lv_obj_set_style_bg_color(s_screen, lv_color_hex(kBackground), 0);
     lv_obj_set_style_bg_opa(s_screen, LV_OPA_COVER, 0);
+    lv_obj_add_event_cb(s_screen, [](lv_event_t *) {
+        if (s_ui_timer && app_registry_screen_is_on()) {
+            lv_timer_set_period(s_ui_timer, 50);
+            lv_timer_resume(s_ui_timer);
+        }
+    }, LV_EVENT_DRAW_MAIN_BEGIN, nullptr);
     // start() 紧接着会建立目标页面。这里不预建再清空，避免首次进入 Radio
     // 重复分配整套 LVGL 对象并把启动时间翻倍。
     s_ui_timer = lv_timer_create(timer_callback, 50, nullptr);

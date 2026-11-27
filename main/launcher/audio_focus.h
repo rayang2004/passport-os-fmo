@@ -81,6 +81,8 @@ bool breakin_active();
 
 // True when background Radio/NetEase or a plugin break-in is currently active.
 bool background_active();
+// True when the registered media source for id (Radio/NetEase) is actively playing.
+bool is_app_playing(passport_app_id_t id);
 Source active_source();
 State current_state();
 

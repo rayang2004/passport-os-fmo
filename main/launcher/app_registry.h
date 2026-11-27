@@ -55,6 +55,10 @@ void app_registry_log_display_state(void);
 void app_registry_keep_awake(void);
 // Caller holds LVGL lock. Wake without switching apps; false during handoff.
 bool app_registry_wake_for_notice(void);
+// Plugin voice break-in lifecycle hooks: hold display awake during break-in and
+// blank 5 s after break-in ends without resetting the global screen timeout.
+void app_registry_on_breakin_begin(void);
+void app_registry_on_breakin_end(void);
 // Caller holds LVGL lock. Never wait for the lifecycle lock or seize audio.
 bool app_registry_sound_notice(void);
 

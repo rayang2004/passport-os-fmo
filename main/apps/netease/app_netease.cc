@@ -521,7 +521,7 @@ uint16_t step_index(uint16_t index, int delta) {
 // Only called outside a playback session, after its HTTP worker/decoder join.
 bool service_reminder_audio() {
     if (!reminders::sound_pending() || shutting_down()) return !shutting_down();
-    player_deinit(); s_player_ready = false;
+    if (s_player_ready) { player_deinit(); s_player_ready = false; }
     reminders::play_music_notice(shutting_down);
     if (shutting_down()) return false;
     s_player_ready = player_init();
@@ -533,16 +533,32 @@ bool service_reminder_audio() {
     return s_player_ready;
 }
 
+bool ensure_player_audio() {
+    if (s_player_ready) return true;
+    WifiManager::GetInstance().SetPowerSaveLevel(WifiPowerSaveLevel::BALANCED);
+    s_player_ready = player_init();
+    if (!s_player_ready) {
+        ESP_LOGE(kTag, "Failed to re-open playback codec after idle");
+    }
+    return s_player_ready;
+}
+
 // Waits while paused. Returns the command that ends the pause.
 bool wait_paused(Command &c) {
     {
         Guard g;
         model().paused = true;
     }
+    const int64_t paused_at_us = esp_timer_get_time();
     for (;;) {
         if (shutting_down()) return false;
         if (!service_reminder_audio()) return false;
-        if (xQueueReceive(s_queue, &c, pdMS_TO_TICKS(200)) != pdTRUE) continue;
+        if (s_player_ready && esp_timer_get_time() - paused_at_us >= 3000000LL) {
+            ESP_LOGI(kTag, "Music paused 3s; powering down codec/PA");
+            player_deinit();
+            s_player_ready = false;
+        }
+        if (xQueueReceive(s_queue, &c, pdMS_TO_TICKS(s_player_ready ? 200 : 400)) != pdTRUE) continue;
         if (c.cmd == Cmd::LoadPage) { fetch_page(c.arg); continue; }
         s_interrupt.store(false, std::memory_order_release);
         s_sleep_due.store(false, std::memory_order_release);  // a timer that fired while paused is moot
@@ -624,6 +640,15 @@ void play_from(uint16_t index) {
         unsigned network_retries = 0;
         bool refreshed = false;
         for (;;) {
+            if (!ensure_player_audio()) {
+                set_note("内存暂时不足 · 确定重试");
+                Command c;
+                if (!wait_paused(c)) return;
+                set_note(nullptr);
+                if (c.cmd == Cmd::Toggle) continue;
+                if (retarget(c)) break;
+                return;
+            }
             {
                 Guard g;
                 model().session = true;
@@ -944,6 +969,7 @@ void play_resumed_track() {
                 prefer_plain_http(t);
             }
         }
+        if (!ensure_player_audio()) return;
         {
             Guard g;
             model().session = true;
@@ -1021,14 +1047,21 @@ void music_task(void *) {
         vTaskPrioritySet(nullptr, priority);
         play_requested();
     }
+    int64_t idle_at_us = esp_timer_get_time();
     while (!shutting_down()) {
         // Here nothing is playing: a stop timer firing now has nothing to stop.
         s_sleep_due.store(false, std::memory_order_release);
         if (!service_reminder_audio()) break;
+        if (s_player_ready && esp_timer_get_time() - idle_at_us >= 3000000LL) {
+            ESP_LOGI(kTag, "Music menu idle 3s; powering down codec/PA");
+            player_deinit();
+            s_player_ready = false;
+        }
         Command c;
-        if (xQueueReceive(s_queue, &c, pdMS_TO_TICKS(200)) != pdTRUE) continue;
+        if (xQueueReceive(s_queue, &c, pdMS_TO_TICKS(s_player_ready ? 200 : 400)) != pdTRUE) continue;
         s_interrupt.store(false, std::memory_order_release);
         dispatch(c);
+        idle_at_us = esp_timer_get_time();
     }
     s_task_running.store(false, std::memory_order_release);
     xSemaphoreGive(s_stopped);

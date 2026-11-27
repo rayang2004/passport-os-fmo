@@ -38,7 +38,7 @@ static std::vector<int> handled;
 static std::string input;
 static size_t at;
 static unsigned dropped;
-static bool idle, eof_mode;
+static bool screen_on=true, eof_mode;
 static int last_delay;
 struct Done {};
 #define pdTRUE 1
@@ -49,7 +49,7 @@ static int xQueueSend(void *,const KeyMessage *m,int){
 }
 static int fake_getc(FILE *){if(at==input.size()){if(eof_mode)return EOF;throw Done{};}return input[at++];}
 static void vTaskDelay(int delay){last_delay=delay;throw Done{};}
-static bool app_registry_background_idle(){return idle;}
+static bool app_registry_screen_is_on(){return screen_on;}
 static void handle_serial_command(int c){handled.push_back(c);}
 static void app_registry_dispatch_key(uint8_t b,app_btn_event_t e,uint16_t mv){
     assert(b==0 && mv==15);handled.push_back(e==BTN_EVT_PRESS?-1:-2);
@@ -76,7 +76,7 @@ int main(){
     // normal polling, and a burst is drained before entering the idle delay.
     eof_mode=true;
     for(bool asleep : {false,true,false}) {
-        idle=asleep;queue.clear();input="v?";at=0;last_delay=0;
+        screen_on=!asleep;queue.clear();input="v?";at=0;last_delay=0;
         try{serial_cmd_task(nullptr);}catch(Done&){}
         assert(queue.size()==2 && queue[0].mv=='v' && queue[1].mv=='?');
         assert(last_delay==(asleep?250:50));

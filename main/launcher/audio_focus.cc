@@ -257,7 +257,9 @@ void prepare_entering(passport_app_id_t next_id) {
     // exclusive app, clear the break-in flag and promote SuspendedBreak to
     // SuspendedApp so background media still auto-resumes when the app exits.
     if (!allows_sentinel(next_id)) {
-        s_breakin.store(false, std::memory_order_release);
+        if (s_breakin.exchange(false, std::memory_order_acq_rel)) {
+            app_registry_on_breakin_end();
+        }
         if (s_state == State::SuspendedBreak) {
             s_state = State::SuspendedApp;
         }
@@ -348,6 +350,7 @@ bool begin_breakin(uint32_t timeout_ms) {
     const passport_app_id_t fg = app_registry_get_active();
     if (!allows_sentinel(fg)) return false;
     if (s_breakin.exchange(true)) return true;
+    app_registry_on_breakin_begin();
 
     // Wake Wi-Fi out of MAX_MODEM (1s beacon sleep) immediately so incoming
     // 40 ms FMO/RAW Opus frames arrive with zero modem-sleep burst loss.
@@ -382,10 +385,11 @@ bool begin_breakin(uint32_t timeout_ms) {
 void end_breakin() {
     Lock lock(pdMS_TO_TICKS(2000));
     if (!lock.ok) {
-        s_breakin.store(false);
+        if (s_breakin.exchange(false)) app_registry_on_breakin_end();
         return;
     }
     if (!s_breakin.exchange(false)) return;
+    app_registry_on_breakin_end();
     ESP_LOGI(kTag, "Break-in ended (state=%d source=%d)", (int)s_state, (int)s_source);
     if (s_state == State::SuspendedBreak && s_source != Source::None) {
         WifiManager::GetInstance().SetPowerSaveLevel(WifiPowerSaveLevel::BALANCED);
@@ -404,6 +408,14 @@ bool breakin_active() {
 
 bool background_active() {
     return s_bg_running.load(std::memory_order_acquire) || s_breakin.load(std::memory_order_acquire);
+}
+
+bool is_app_playing(passport_app_id_t id) {
+    Lock lock(pdMS_TO_TICKS(100));
+    if (!lock.ok) return true;
+    const Source src = source_for_app(id);
+    const auto *ops = ops_for(src);
+    return ops && ops->is_running && ops->is_running() && ops->is_playing && ops->is_playing();
 }
 
 Source active_source() {

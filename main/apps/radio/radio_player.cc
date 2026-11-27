@@ -17,6 +17,7 @@
 #include "freertos/task.h"
 #include "nvs.h"
 #include "radio_ui.h"
+#include "wifi_manager.h"
 
 #include "decoder/esp_audio_dec_default.h"
 #include "simple_dec/esp_audio_simple_dec.h"
@@ -525,6 +526,19 @@ void player_task(void *) {
     std::size_t auto_skip_target = SIZE_MAX;
     bool reported_no_network = false;
     bool reported_paused = false;
+    bool audio_closed_for_idle = false;
+    int64_t idle_since_us = 0;
+    auto maybe_sleep_audio = [&]() {
+        if (audio_closed_for_idle) return;
+        const int64_t now = esp_timer_get_time();
+        if (!idle_since_us) {
+            idle_since_us = now;
+        } else if (now - idle_since_us >= 3000000LL) {
+            ESP_LOGI(kTag, "Player idle 3s; powering down codec/PA");
+            bsp_audio_deinit();
+            audio_closed_for_idle = true;
+        }
+    };
 
     while (!s_shutdown_requested.load(std::memory_order_acquire)) {
         if (!s_network_connected.load(std::memory_order_acquire)) {
@@ -532,7 +546,8 @@ void player_task(void *) {
                 report_playback(RadioPlaybackState::Stopped, "等待网络");
                 reported_no_network = true;
             }
-            vTaskDelay(pdMS_TO_TICKS(100));
+            maybe_sleep_audio();
+            vTaskDelay(pdMS_TO_TICKS(audio_closed_for_idle ? 200 : 100));
             continue;
         }
         reported_no_network = false;
@@ -542,10 +557,21 @@ void player_task(void *) {
                 report_playback(RadioPlaybackState::Stopped, "已暂停");
                 reported_paused = true;
             }
-            vTaskDelay(pdMS_TO_TICKS(100));
+            maybe_sleep_audio();
+            vTaskDelay(pdMS_TO_TICKS(audio_closed_for_idle ? 200 : 100));
             continue;
         }
         reported_paused = false;
+        idle_since_us = 0;
+        if (audio_closed_for_idle) {
+            WifiManager::GetInstance().SetPowerSaveLevel(WifiPowerSaveLevel::BALANCED);
+            if (bsp_audio_init_playback() != ESP_OK) {
+                vTaskDelay(pdMS_TO_TICKS(200));
+                continue;
+            }
+            bsp_audio_set_volume(100);
+            audio_closed_for_idle = false;
+        }
 
         const std::size_t station = s_station_index.load(std::memory_order_acquire);
         const uint32_t generation = s_generation.load(std::memory_order_acquire);

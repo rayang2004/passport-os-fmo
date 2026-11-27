@@ -2,6 +2,7 @@
 #include "passport_plugin.h"
 #ifdef ESP_PLATFORM
 #include "launcher/audio_focus.h"
+#include "apps/radio/radio_player.h"
 #endif
 #include "launcher/timer_resume.h"
 #include "bsp_memory.h"
@@ -264,6 +265,14 @@ std::atomic<passport_app_id_t> s_pending_target{APP_ID_COUNT};
 esp_pm_lock_handle_t s_display_awake_lock = nullptr;
 std::atomic<int64_t> s_last_activity_us{0};
 std::atomic<uint16_t> s_screen_timeout_seconds{60};
+std::atomic<bool> s_breakin_holding{false};
+std::atomic<bool> s_breakin_woke_screen{false};
+std::atomic<int64_t> s_breakin_blank_at_us{0};
+constexpr int64_t kBreakinPostHoldUs = 5000000LL;
+#ifdef ESP_PLATFORM
+uint8_t s_paused_media_ticks = 0;
+bool s_media_wifi_lowered = false;
+#endif
 
 // 长按 OK 强制返回标志
 bool s_ok_long_triggered = false;
@@ -563,6 +572,10 @@ void app_registry_switch_to(passport_app_id_t id) {
 
     bsp_memory_phase(next ? next->name : "launcher");
     s_active_id = id;
+#ifdef ESP_PLATFORM
+    s_paused_media_ticks = 0;
+    s_media_wifi_lowered = false;
+#endif
     // manager 未初始化时只记忆档位,StartStation 后自动生效(见 wifi_manager)
     WifiManager::GetInstance().SetPowerSaveLevel(power_save_level_for(id));
 
@@ -636,7 +649,16 @@ void app_registry_dispatch_key(uint8_t btn, app_btn_event_t event, uint16_t mv) 
             bsp_display_power(true);
             bsp_display_backlight(100);
             s_screen_on.store(true, std::memory_order_release);
+            s_breakin_woke_screen.store(false, std::memory_order_release);
+            s_breakin_blank_at_us.store(0, std::memory_order_release);
             s_last_activity_us.store(now, std::memory_order_release);
+#ifdef ESP_PLATFORM
+            s_paused_media_ticks = 0;
+            if (s_media_wifi_lowered) {
+                s_media_wifi_lowered = false;
+                WifiManager::GetInstance().SetPowerSaveLevel(power_save_level_for(s_active_id.load()));
+            }
+#endif
             {
                 resume_target_refresh(lv_display_get_default());
                 lv_obj_t *scr = lv_screen_active();
@@ -649,6 +671,8 @@ void app_registry_dispatch_key(uint8_t btn, app_btn_event_t event, uint16_t mv) 
         }
     }
 
+    s_breakin_woke_screen.store(false, std::memory_order_release);
+    s_breakin_blank_at_us.store(0, std::memory_order_release);
     s_last_activity_us.store(now, std::memory_order_release);
 
     if (xiaozhi_shortcut) {
@@ -760,20 +784,54 @@ void app_registry_tick(void) {
     }
 
     const uint16_t timeout = s_screen_timeout_seconds.load(std::memory_order_acquire);
-    if (!timeout || !s_screen_on.load(std::memory_order_acquire)) return;
+    if (!s_screen_on.load(std::memory_order_acquire)) {
+#ifdef ESP_PLATFORM
+        const passport_app_id_t fg = s_active_id.load(std::memory_order_acquire);
+        const bool media_fg = (fg == APP_ID_RADIO || fg == APP_ID_PODCAST ||
+                               fg == APP_ID_AUDIOBOOK || fg == APP_ID_NETEASE);
+        if (media_fg && !audio_focus::background_active() && !audio_focus::breakin_active()) {
+            const bool playing = (fg == APP_ID_NETEASE)
+                ? audio_focus::is_app_playing(APP_ID_NETEASE)
+                : radio_player_is_playing();
+            if (!playing) {
+                if (!s_media_wifi_lowered && ++s_paused_media_ticks >= 3) {
+                    s_media_wifi_lowered = true;
+                    ESP_LOGI(TAG, "Screen-off media app=%d paused; lowering Wi-Fi to LOW_POWER", (int)fg);
+                    WifiManager::GetInstance().SetPowerSaveLevel(WifiPowerSaveLevel::LOW_POWER);
+                }
+            } else {
+                s_paused_media_ticks = 0;
+                if (s_media_wifi_lowered) {
+                    s_media_wifi_lowered = false;
+                    WifiManager::GetInstance().SetPowerSaveLevel(WifiPowerSaveLevel::BALANCED);
+                }
+            }
+        }
+#endif
+        return;
+    }
+    if (!timeout || s_breakin_holding.load(std::memory_order_acquire)) return;
 
-    const int64_t now = esp_timer_get_time();
-    const int64_t last = s_last_activity_us.load(std::memory_order_acquire);
     const int64_t timeout_us = static_cast<int64_t>(timeout) * 1000000LL;
-    if (now - last >= timeout_us) {
+    const auto is_blank_due = [&](int64_t ts) -> bool {
+        const int64_t blank_at = s_breakin_blank_at_us.load(std::memory_order_acquire);
+        if (s_breakin_woke_screen.load(std::memory_order_acquire)) {
+            return blank_at > 0 && ts >= blank_at;
+        }
+        const int64_t last = s_last_activity_us.load(std::memory_order_acquire);
+        return (ts - last >= timeout_us) && (blank_at <= 0 || ts >= blank_at);
+    };
+
+    if (is_blank_due(esp_timer_get_time())) {
         // 持 LVGL 锁做息屏:与刷屏事务串行,避免 DISPOFF/SLPIN 插进 DMA 传输中间;
         // 睡眠期间顺手暂停 LVGL 刷新(往睡着的面板刷数据既费电又无意义)。
         if (bsp_lvgl_lock(200)) {
-            const int64_t latest = s_last_activity_us.load(std::memory_order_acquire);
-            if (esp_timer_get_time() - latest < timeout_us) {
+            if (s_breakin_holding.load(std::memory_order_acquire) || !is_blank_due(esp_timer_get_time())) {
                 bsp_lvgl_unlock();
                 return;
             }
+            const bool quick_blank = s_breakin_woke_screen.exchange(false, std::memory_order_acq_rel);
+            s_breakin_blank_at_us.store(0, std::memory_order_release);
             bsp_display_backlight(0);
             bsp_display_power(false); // DISPOFF+SLPIN 面板真睡眠,只关背光会有内容残影
             lv_timer_t *refr = lv_display_get_refr_timer(lv_display_get_default());
@@ -781,7 +839,8 @@ void app_registry_tick(void) {
             s_screen_on.store(false, std::memory_order_release);
             if (s_display_awake_lock) esp_pm_lock_release(s_display_awake_lock);
             bsp_lvgl_unlock();
-            ESP_LOGI(TAG, "Screen blanked after %u seconds", (unsigned)timeout);
+            ESP_LOGI(TAG, quick_blank ? "Screen blanked 5s after voice break-in"
+                                      : "Screen blanked after %u seconds", (unsigned)timeout);
         }
     }
 }
@@ -789,6 +848,8 @@ void app_registry_tick(void) {
 void app_registry_keep_awake(void) {
     // 只续期不唤醒:屏幕已熄灭时刷新计时也无副作用(仍是熄灭态),
     // 下一次真正的按键依旧走"第一按仅唤醒"护栏。
+    s_breakin_woke_screen.store(false, std::memory_order_release);
+    s_breakin_blank_at_us.store(0, std::memory_order_release);
     s_last_activity_us.store(esp_timer_get_time(), std::memory_order_release);
 }
 
@@ -809,21 +870,48 @@ bool app_registry_wake_for_notice(void) {
     // app from the system monitor's small stack just to display a reminder.
     if (s_building_target.load() || s_pending_target.load() != APP_ID_COUNT ||
         s_handoff_screen || !lv_screen_active()) return false;
+    const bool breakin_notice = s_breakin_holding.load(std::memory_order_acquire);
     if (!s_screen_on.load(std::memory_order_acquire)) {
         if (s_display_awake_lock) esp_pm_lock_acquire(s_display_awake_lock);
         bsp_display_power(true);
         bsp_display_backlight(100);
         s_screen_on.store(true, std::memory_order_release);
+        if (breakin_notice) {
+            s_breakin_woke_screen.store(true, std::memory_order_release);
+        }
+#ifdef ESP_PLATFORM
+        s_paused_media_ticks = 0;
+        if (s_media_wifi_lowered) {
+            s_media_wifi_lowered = false;
+            WifiManager::GetInstance().SetPowerSaveLevel(power_save_level_for(s_active_id.load()));
+        }
+#endif
         resume_target_refresh(lv_display_get_default());
         lv_obj_invalidate(lv_screen_active());
         ESP_LOGI(TAG, "Screen woken for visual notice; foreground unchanged");
     }
-    s_last_activity_us.store(esp_timer_get_time(), std::memory_order_release);
+    if (!breakin_notice) {
+        s_breakin_woke_screen.store(false, std::memory_order_release);
+        s_breakin_blank_at_us.store(0, std::memory_order_release);
+        s_last_activity_us.store(esp_timer_get_time(), std::memory_order_release);
+    }
     return true;
+}
+
+void app_registry_on_breakin_begin(void) {
+    s_breakin_holding.store(true, std::memory_order_release);
+    s_breakin_blank_at_us.store(0, std::memory_order_release);
+}
+
+void app_registry_on_breakin_end(void) {
+    s_breakin_blank_at_us.store(esp_timer_get_time() + kBreakinPostHoldUs, std::memory_order_release);
+    s_breakin_holding.store(false, std::memory_order_release);
 }
 
 void app_registry_set_screen_timeout(uint16_t seconds) {
     s_screen_timeout_seconds.store(seconds, std::memory_order_release);
+    s_breakin_woke_screen.store(false, std::memory_order_release);
+    s_breakin_blank_at_us.store(0, std::memory_order_release);
     s_last_activity_us.store(esp_timer_get_time(), std::memory_order_release);
 }
 

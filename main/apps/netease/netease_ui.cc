@@ -339,7 +339,11 @@ void render() {
 }
 
 void tick(lv_timer_t *timer) {
-    lv_timer_set_period(timer, app_registry_screen_is_on() ? 50 : 1000);
+    if (!app_registry_screen_is_on()) {
+        lv_timer_pause(timer);
+        return;
+    }
+    lv_timer_set_period(timer, 50);
     render();
 }
 
@@ -347,6 +351,12 @@ void build_common(const char *title) {
     s_screen = lv_obj_create(nullptr);
     ui_pixel_background(s_screen);
     lv_obj_remove_flag(s_screen, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_add_event_cb(s_screen, [](lv_event_t *) {
+        if (s_timer && app_registry_screen_is_on()) {
+            lv_timer_set_period(s_timer, 50);
+            lv_timer_resume(s_timer);
+        }
+    }, LV_EVENT_DRAW_MAIN_BEGIN, nullptr);
     lv_obj_t *top = ui_pixel_top_bar(s_screen);
     ui_pixel_wifi_bars_create(top, UI_STATUS_WIFI_X, 18, s_wifi_bars);
     lv_obj_t *name = ui_pixel_label(top, title, &buddy_font_16, UI_TEXT);

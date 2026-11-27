@@ -327,11 +327,9 @@ void breakin_task(void *) {
         bsp_audio_deinit();
     } else {
         bsp_audio_set_volume(100);
-        fmo_keep_awake();
         uint32_t last_uid = 0;
         uint32_t last_stream = 0;
         int64_t last_rx_us = esp_timer_get_time();
-        int64_t last_awake_us = last_rx_us;
         QueuedFrame f{};
 
         while (!s_stop_requested.load(std::memory_order_acquire)) {
@@ -355,10 +353,6 @@ void breakin_task(void *) {
                 breakin_banner_show(speaker, s_relay.callsign);
             }
             last_rx_us = now;
-            if (now - last_awake_us >= 2000000) {
-                fmo_keep_awake();
-                last_awake_us = now;
-            }
             int samples = -1;
             if (f.codec == 1) {
                 if (!decoder_ready) decoder_ready = (opus_decoder_init(decoder, 8000, 1) == 0);

@@ -78,7 +78,11 @@ public:
 #pragma once
 #include "apps/app_base.h"
 extern passport_app_id_t g_mock_active_app;
+extern int g_mock_breakin_begins;
+extern int g_mock_breakin_ends;
 static inline passport_app_id_t app_registry_get_active(void) { return g_mock_active_app; }
+static inline void app_registry_on_breakin_begin(void) { ++g_mock_breakin_begins; }
+static inline void app_registry_on_breakin_end(void) { ++g_mock_breakin_ends; }
 """,
     "passport_plugin.h": r"""
 #pragma once
@@ -104,6 +108,8 @@ HARNESS = r"""
 #include <cstdio>
 
 passport_app_id_t g_mock_active_app = APP_ID_HOME;
+int g_mock_breakin_begins = 0;
+int g_mock_breakin_ends = 0;
 
 static bool s_sentinel_wifi = false;
 static bool s_sentinel_allowed = false;
@@ -256,6 +262,9 @@ int main() {
     assert(g_netease.suspend_calls == 1 && g_netease.has_saved);
     audio_focus::end_breakin();
     assert(g_netease.resume_calls == 1 && g_netease.playing);
+    assert(audio_focus::is_app_playing(APP_ID_NETEASE));
+    assert(!audio_focus::is_app_playing(APP_ID_RADIO));
+    assert(g_mock_breakin_begins == 3 && g_mock_breakin_ends == 3);
 
     std::puts("Audio Focus state machine (background, reattach, Xiaozhi suspend/resume, FMO break-in): PASS");
     return 0;

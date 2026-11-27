@@ -10,6 +10,8 @@ public:
     // window retains exclusive double-clicks while shortening single clicks.
     static constexpr int64_t kDoubleUs = 180000;
 
+    bool pending() const { return pending_; }
+
     template<class Emit>
     void poll(int64_t now, passport_app_id_t app, Emit emit) {
         if (pending_ && app != owner_) {

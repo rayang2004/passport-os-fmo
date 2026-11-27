@@ -31,11 +31,12 @@ enum {MQTT_EVENT_CONNECTED=1,MQTT_EVENT_DISCONNECTED,MQTT_EVENT_ERROR,MQTT_EVENT
 std::atomic<bool> connected{false},stop_requested{false},talk_requested{false};
 std::atomic<fmo::MqttConnection> mqtt_connection{fmo::MqttConnection::Connecting};
 fmo::MqttInbox mqtt_inbox;fmo::NodeConnections mqtt_connections;
-uint8_t storage[fmo::kPacketMax];uint8_t *assembly=storage;int queue=1,mqtt=1;
-std::vector<Raw> received;std::vector<std::string> subscriptions;unsigned stopped=0,destroyed=0;
+uint8_t storage[fmo::kPacketMax];uint8_t *assembly=storage;int queue=1,mqtt=1,worker=1;
+std::vector<Raw> received;std::vector<std::string> subscriptions;unsigned stopped=0,destroyed=0,worker_wakes=0;
 int esp_mqtt_client_subscribe(int,const char *topic,int){subscriptions.emplace_back(topic);return 0;}
 void esp_mqtt_client_stop(int){++stopped;}void esp_mqtt_client_destroy(int){++destroyed;}
 void xQueueSend(int,const Raw *raw,int){received.push_back(*raw);}void xQueueReset(int){received.clear();}
+void xTaskNotifyGive(int){++worker_wakes;}
 int64_t mono=100000000;int64_t esp_timer_get_time(){return mono;}
 
 struct esp_mqtt_client_config_t {
@@ -77,7 +78,8 @@ int main(){
  event(nullptr,nullptr,MQTT_EVENT_CONNECTED,&e);assert(mqtt_connection==State::Online);assert(connected&&subscriptions.size()==2&&subscriptions[0]=="FMO/RAW"&&subscriptions[1]=="$SYS/brokers/+/stats/connections/count");
  auto feed=[&](const char *topic,const char *data,int n,int offset,int total){e.topic=topic;e.topic_len=topic?strlen(topic):0;e.data=data;e.data_len=n;e.current_data_offset=offset;e.total_data_len=total;event(nullptr,nullptr,MQTT_EVENT_DATA,&e);};
  uint32_t count=777;assert(!mqtt_connections.read(mono,&count));
- feed("FMO/RAW","ab",2,0,4);assert(received.empty());feed(nullptr,"cd",2,2,4);assert(received.size()==1&&received[0].size==4&&!memcmp(received[0].data,"abcd",4));
+ const unsigned wakes_before=worker_wakes;
+ feed("FMO/RAW","ab",2,0,4);assert(received.empty()&&worker_wakes==wakes_before);feed(nullptr,"cd",2,2,4);assert(received.size()==1&&worker_wakes==wakes_before+1&&received[0].size==4&&!memcmp(received[0].data,"abcd",4));
  const char *topic="$SYS/brokers/emqx@127.0.0.1/stats/connections/count";
  feed(topic,"1",1,0,3);assert(!mqtt_connections.read(mono,&count));feed(nullptr,"23",2,1,3);assert(mqtt_connections.read(mono,&count)&&count==123&&received.size()==1);
  for(const char *bad:{"-1","+1","1.0"," 1","1 ","{}","4294967296","12345678901"}){feed(topic,bad,strlen(bad),0,strlen(bad));assert(mqtt_connections.read(mono,&count)&&count==123&&received.size()==1);}

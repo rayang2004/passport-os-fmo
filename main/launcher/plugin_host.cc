@@ -41,6 +41,7 @@ const passport_plugin_host_t s_host = {
     .switch_to_wifi_setup = host_switch_to_wifi_setup,
     .keep_awake = app_registry_keep_awake,
     .wake_for_notice = app_registry_wake_for_notice,
+    .screen_is_on = app_registry_screen_is_on,
     .get_volume = settings_get_volume,
     .save_volume = settings_save_volume,
     .tz_offset_sec = host_tz_offset_sec,

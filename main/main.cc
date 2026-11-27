@@ -211,9 +211,15 @@ static void button_task(void *arg) {
 
         ok_gesture.poll(esp_timer_get_time(), app_registry_get_active(), emit);
 
-        // Keep short taps detectable while the panel is off: three 50 ms
-        // samples would otherwise miss a normal 80-100 ms waking press.
-        vTaskDelay(pdMS_TO_TICKS(20));
+        // Two-stage screen-off ADC sampling: poll at 20 Hz (50 ms) while the panel
+        // is off and no button/gesture is active; switch immediately to 12 ms on
+        // the first voltage drop so an 80 ms waking tap still collects 3 debounce
+        // samples without missed presses, and keep 20 ms while held or resolving OK.
+        const uint32_t poll_ms =
+            (app_registry_screen_is_on() || stable >= 0 || ok_gesture.pending())
+                ? 20
+                : (candidate >= 0 ? 12 : 50);
+        vTaskDelay(pdMS_TO_TICKS(poll_ms));
     }
 }
 
@@ -224,10 +230,11 @@ static void input_task(void *arg) {
         // Keys and serial commands arrive through the queue and wake this task at
         // once. The timeout only paces the polls below: use 20 ms while Xiaozhi or
         // a voice/cooperative switch is active so MCP handovers do not wait on a
-        // 100 ms tick, 100 ms for normal foreground, and 500 ms while asleep/idle.
+        // 100 ms tick, 100 ms while the screen is lit or an alarm rings, and 500 ms
+        // whenever the screen is off (including during background media playback).
         const bool fast = app_registry_switch_pending() || device_control::pending() ||
                           (app_registry_get_active() == APP_ID_XIAOZHI && !app_registry_background_idle());
-        const bool prompt = fast || !app_registry_background_idle() || reminders::alarm_active();
+        const bool prompt = fast || app_registry_screen_is_on() || reminders::alarm_active();
         if (xQueueReceive(s_key_queue, &msg, pdMS_TO_TICKS(fast ? 20 : prompt ? 100 : 500)) == pdTRUE) {
             dispatch_input_message(msg);
         }
@@ -370,8 +377,9 @@ static void serial_cmd_task(void *arg) {
             key_post_wait(msg);
         }
         // The console is non-blocking: every poll is a wake-up. Drain the buffer
-        // above, then poll at 4 Hz while the screen is off and nothing streams.
-        vTaskDelay(pdMS_TO_TICKS(app_registry_background_idle() ? 250 : 50));
+        // above, then poll at 4 Hz whenever the screen is off (including during
+        // background audio playback) instead of waking CPU 20 times/second.
+        vTaskDelay(pdMS_TO_TICKS(!app_registry_screen_is_on() ? 250 : 50));
     }
 }
 

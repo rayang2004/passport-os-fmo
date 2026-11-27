@@ -123,6 +123,37 @@ int main(){
  assert(app_registry_wake_for_notice());assert(app_registry_screen_is_on());
  assert(starts==notice_starts&&stops==notice_stops&&app_registry_get_active()==APP_ID_GAME);
  assert(*s_display_awake_lock==1);assert(app_registry_wake_for_notice());assert(*s_display_awake_lock==1);
+ // Voice break-in wakes a sleeping screen while speaking, never resets the 60 s
+ // global timeout, and blanks 5 s after break-in ends unless the user presses a key.
+ app_registry_set_screen_timeout(60);mock_now+=61000000;app_registry_tick();
+ assert(!app_registry_screen_is_on()&&*s_display_awake_lock==0);
+ app_registry_on_breakin_begin();
+ assert(app_registry_wake_for_notice()&&app_registry_screen_is_on()&&*s_display_awake_lock==1);
+ mock_now+=70000000;app_registry_tick();
+ assert(app_registry_screen_is_on()&&*s_display_awake_lock==1);
+ app_registry_on_breakin_end();
+ mock_now+=4000000;app_registry_tick();
+ assert(app_registry_screen_is_on()&&*s_display_awake_lock==1);
+ mock_now+=1500000;app_registry_tick();
+ assert(!app_registry_screen_is_on()&&*s_display_awake_lock==0);
+ // Break-in arriving while screen is already lit does NOT reset the 60 s timeout.
+ app_registry_dispatch_key(BSP_BTN_UP,BTN_EVT_PRESS,0);
+ app_registry_dispatch_key(BSP_BTN_UP,BTN_EVT_RELEASE,0);
+ app_registry_set_screen_timeout(60);
+ assert(app_registry_screen_is_on());
+ mock_now+=40000000;app_registry_tick();assert(app_registry_screen_is_on());
+ app_registry_on_breakin_begin();assert(app_registry_wake_for_notice());
+ mock_now+=5000000;app_registry_on_breakin_end();
+ mock_now+=6000000;app_registry_tick();assert(app_registry_screen_is_on()); // 51 s < 60 s
+ mock_now+=10000000;app_registry_tick();assert(!app_registry_screen_is_on()); // 61 s >= 60 s (not reset!)
+ // Pressing a key during the 5 s post-break-in grace upgrades to normal timeout.
+ app_registry_on_breakin_begin();assert(app_registry_wake_for_notice());app_registry_on_breakin_end();
+ mock_now+=2000000;
+ app_registry_dispatch_key(BSP_BTN_UP,BTN_EVT_PRESS,0);
+ app_registry_dispatch_key(BSP_BTN_UP,BTN_EVT_CLICK,0);
+ app_registry_dispatch_key(BSP_BTN_UP,BTN_EVT_RELEASE,0);
+ mock_now+=6000000;app_registry_tick();assert(app_registry_screen_is_on());
+ app_registry_set_screen_timeout(1);
  app_registry_switch_to(APP_ID_HOME);
  app_registry_dispatch_key(BSP_BTN_UP,BTN_EVT_PRESS,0);
  app_registry_dispatch_key(BSP_BTN_UP,BTN_EVT_CLICK,0);

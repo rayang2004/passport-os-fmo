@@ -30,7 +30,13 @@ static unsigned xTaskGetTickCount() { return now; }
 static int64_t esp_timer_get_time() { return int64_t(now)*1000; }
 static passport_app_id_t app_registry_get_active() { return APP_ID_HOME; }
 static bool app_registry_active_owns_long_ok() { return false; }
-static void vTaskDelay(unsigned delay) { now += delay; if (now >= finish_at) throw Done{}; }
+static unsigned last_delay, idle_delays;
+static void vTaskDelay(unsigned delay) {
+    last_delay = delay;
+    if (delay == 50) ++idle_delays;
+    now += delay;
+    if (now >= finish_at) throw Done{};
+}
 static int bsp_button_read_mv() { return (now >= tap_start && now < tap_end) ||
     (second_start && now >= second_start && now < second_end) ? voltage : 2900; }
 [[maybe_unused]] static bool app_registry_screen_is_on() { return screen_on; }
@@ -43,16 +49,18 @@ int main() {
     for (int mv : {450, 580, 603, 630, 999}) assert(button_from_mv(mv) == BSP_BTN_OK);
     for (int mv : {1000, 2500, 2900, 3300}) assert(button_from_mv(mv) == -1);
     for (bool lit : {false, true}) for (int button = 0; button < 3; ++button) {
-        for (unsigned phase = 0; phase < 50; ++phase) {
+        for (unsigned phase = 0; phase < 100; ++phase) {
             now = 0; tap_start = 1 + phase; tap_end = tap_start + 80;second_start=second_end=0;
             voltage = button == BSP_BTN_UP ? 5 : button == BSP_BTN_DOWN ? 302 : 603;
-            screen_on = lit; messages.clear();emitted_at.clear();
+            screen_on = lit; messages.clear();emitted_at.clear();idle_delays=0;
             try { button_task(nullptr); } catch (Done &) {}
             assert(messages.size() == 3);
             assert(messages[0].event == BTN_EVT_PRESS);
             assert(messages[1].event == BTN_EVT_CLICK);
             assert(messages[2].event == BTN_EVT_RELEASE);
             for (const auto &message : messages) assert(message.button == button);
+            if (!lit) assert(idle_delays > 0);
+            else assert(idle_delays == 0);
             // Measure from the physical release, including the real 3-sample
             // ADC debounce, rather than timing only the gesture class.
             const unsigned latency=emitted_at[1]-tap_end;

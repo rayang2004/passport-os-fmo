@@ -691,6 +691,7 @@ void event(void *,esp_event_base_t,int32_t id,void *data){
         mqtt_inbox.reset();mqtt_connections.reset();mqtt_connection=fmo::MqttConnection::Online;connected=true;
         esp_mqtt_client_subscribe(e->client,"FMO/RAW",0);
         esp_mqtt_client_subscribe(e->client,"$SYS/brokers/+/stats/connections/count",0);
+        if(worker)xTaskNotifyGive(worker);
     }else if(id==MQTT_EVENT_DISCONNECTED||id==MQTT_EVENT_ERROR){
         using State=fmo::MqttConnection;
         if(id==MQTT_EVENT_ERROR){
@@ -707,10 +708,11 @@ void event(void *,esp_event_base_t,int32_t id,void *data){
             if(state==State::Online||state==State::Connecting)mqtt_connection=State::Disconnected;
         }
         connected=false;talk_requested=false;mqtt_inbox.reset();mqtt_connections.reset();
+        if(worker)xTaskNotifyGive(worker);
     }else if(id==MQTT_EVENT_DATA){
         if(stop_requested||!queue||!assembly)return;
         const auto kind=mqtt_inbox.feed(e->topic,e->topic_len,e->data,e->data_len,e->current_data_offset,e->total_data_len,assembly,fmo::kPacketMax);
-        if(kind==fmo::MqttKind::Voice){Raw raw{};raw.size=e->total_data_len;std::memcpy(raw.data,assembly,raw.size);xQueueSend(queue,&raw,0);}
+        if(kind==fmo::MqttKind::Voice){Raw raw{};raw.size=e->total_data_len;std::memcpy(raw.data,assembly,raw.size);xQueueSend(queue,&raw,0);if(worker)xTaskNotifyGive(worker);}
         else if(kind==fmo::MqttKind::NodeConnections){uint32_t count;if(fmo::node_connection_count(assembly,e->total_data_len,&count))mqtt_connections.update(count,esp_timer_get_time());}
     }
 }
@@ -1021,7 +1023,7 @@ void run(void *){
     const int decoder_bytes=opus_decoder_get_size(1),encoder_bytes=opus_encoder_get_size(1);
     if(decoder_bytes<=0||encoder_bytes<=0||static_cast<size_t>(std::max(decoder_bytes,encoder_bytes))>audio_workspace::kAuxBytes){wait_for_exit("语音编解码内存不足","可使用菜单查看记录或配网");cleanup();running=false;vTaskSuspend(nullptr);return;}
     auto *decoder=reinterpret_cast<OpusDecoder *>(audio_workspace::aux());auto *encoder=reinterpret_cast<OpusEncoder *>(audio_workspace::aux());
-    bool encoding=false,decoder_ready=false,ptt_preempted=false;uint32_t stream_begin=0,last_uid=0,last_stream=0;int64_t last_rx=0,tx_start=0,next_connect=0,next_aprs=0,last_ui=0;unsigned aprs_server=0;int64_t next_manual_discovery=0;
+    bool encoding=false,decoder_ready=false,ptt_preempted=false,rx_ui_active=false;uint32_t stream_begin=0,last_uid=0,last_stream=0;int64_t last_rx=0,tx_start=0,next_connect=0,next_aprs=0,last_ui=0,audio_active_us=0;unsigned aprs_server=0;int64_t next_manual_discovery=0;
     bool aprs_login_sent=false,aprs_ack=false,aprs_verified=false;int64_t aprs_opened=0,aprs_last_data=0,last_broadcast[2]={-60000000,-60000000};
     uint32_t favorite_on_connect_until=0;
     auto last_logged_mqtt=fmo::MqttConnection::Connecting;
@@ -1030,6 +1032,15 @@ void run(void *){
     auto *encoded=scratch->encoded;auto *outgoing=scratch->outgoing;auto &packet=scratch->packet;
     auto &raw=*reinterpret_cast<Raw *>(scratch->raw_storage);
     static_assert(sizeof(scratch->raw_storage)>=sizeof(Raw));
+    auto ensure_playback_audio=[&]()->bool{
+        if(audio&&!capturing)return true;
+        if(audio){bsp_audio_deinit();audio=capturing=false;}
+        audio=bsp_audio_init_playback()==ESP_OK&&bsp_audio_set_format(8000,16,1)==ESP_OK;
+        if(!audio){bsp_audio_deinit();return false;}
+        bsp_audio_set_volume(100);
+        audio_active_us=esp_timer_get_time();
+        return true;
+    };
     auto has_peer_pass=[&](const char *cs)->bool{
         for(unsigned i=0;i<scratch->peer_pass_count;++i)if(fmo::is_own_relay(cs,scratch->peer_pass_calls[i]))return true;
         return false;
@@ -1099,6 +1110,7 @@ void run(void *){
             if(released&&encoding&&tx_index!=1&&!ptt_preempted&&page==fmo::Page::Main&&
                connected&&WifiManager::GetInstance().IsConnected()&&beep_cfg.enabled&&now-tx_start<60000000){
                 finish_ptt_with_beep(beep_cfg,identity,selected,encoder,stream_begin,tx_start,tx_index,audio,capturing,encoding,decoder_ready,pcm,encoded,outgoing,packet);
+                if(audio)audio_active_us=esp_timer_get_time();
             }else{
                 stop_capture(audio,capturing,encoding,decoder_ready);
             }
@@ -1224,16 +1236,16 @@ void run(void *){
             if(!started)ESP_LOGW("fmo","MQTT start failed");
             next_connect=now+30000000;decoder_ready=false;
         }
-        if(connected&&!audio){audio=bsp_audio_init_playback()==ESP_OK;capturing=false;if(audio)audio=bsp_audio_set_format(8000,16,1)==ESP_OK;if(!audio){bsp_audio_deinit();talk_requested=false;show("音频设备不可用");vTaskDelay(pdMS_TO_TICKS(500));continue;}bsp_audio_set_volume(100);}
-        if(talk_requested&&connected&&audio){
+        if(talk_requested&&connected){
             if(!encoding){if(last_uid&&now-last_rx<1000000){talk_requested=false;show("频道忙，请松开确定键");continue;}
                 if(opus_encoder_init(encoder,8000,1,2048)!=0){talk_requested=false;show("语音编码初始化失败");continue;}
-                // Play v0.6.11 PTT start chirp (1200 Hz, 45 ms) while speaker is still open.
-                if(beep_cfg.enabled&&audio&&!capturing){fmo::beep_render_ptt_start(pcm,fmo::kBeepPttStartSamples);bsp_audio_write(pcm,fmo::kBeepPttStartSamples*sizeof(int16_t));}
+                // Play v0.6.11 PTT start chirp (1200 Hz, 45 ms) on demand before switching to capture.
+                if(beep_cfg.enabled&&!capturing&&ensure_playback_audio()){fmo::beep_render_ptt_start(pcm,fmo::kBeepPttStartSamples);bsp_audio_write(pcm,fmo::kBeepPttStartSamples*sizeof(int16_t));}
                 // Start capture only after PTT: no pre-press microphone samples are retained.
-                bsp_audio_deinit();audio=bsp_audio_init_capture()==ESP_OK;capturing=true;
+                if(audio)bsp_audio_deinit();
+                audio=bsp_audio_init_capture()==ESP_OK;capturing=true;
                 if(audio)audio=bsp_audio_set_format(8000,16,1)==ESP_OK;
-                if(!audio){bsp_audio_deinit();talk_requested=false;show("麦克风初始化失败");continue;}
+                if(!audio){bsp_audio_deinit();capturing=false;talk_requested=false;show("麦克风初始化失败");continue;}
                 opus_encoder_ctl(encoder,4010,4);opus_encoder_ctl(encoder,4024,3001);opus_encoder_ctl(encoder,4002,-1000);opus_encoder_ctl(encoder,4006,1);opus_encoder_ctl(encoder,4020,1);
                 timeval utc{};gettimeofday(&utc,nullptr);
                 encoding=true;ptt_preempted=false;decoder_ready=false;tx_start=now;stream_begin=static_cast<uint32_t>(uint64_t(utc.tv_sec)*1000+utc.tv_usec/1000);tx_index=1;show("正在发送 · 松开停止",nullptr,identity.callsign);
@@ -1257,8 +1269,8 @@ void run(void *){
             const auto n=fmo::write_packet(outgoing,sizeof(scratch->outgoing),packet);if(!n||esp_mqtt_client_publish(mqtt,"FMO/RAW",reinterpret_cast<const char *>(outgoing),n,0,0)<0){talk_requested=false;ptt_preempted=true;show("发送失败，等待重连");}
         }else{
             if(encoding){encoding=false;decoder_ready=false;xQueueReset(queue);}
-            if(capturing){bsp_audio_deinit();audio=bsp_audio_init_playback()==ESP_OK;capturing=false;if(audio)audio=bsp_audio_set_format(8000,16,1)==ESP_OK;if(!audio)bsp_audio_deinit();else bsp_audio_set_volume(100);}
-            if(audio&&connected&&xQueueReceive(queue,&raw,pdMS_TO_TICKS(10))==pdTRUE){
+            if(capturing){bsp_audio_deinit();audio=capturing=false;}
+            if(connected&&xQueueReceive(queue,&raw,0)==pdTRUE){
                 for(unsigned burst=0;burst<4&&!stop_requested&&!talk_requested;++burst){
                     if(burst>0&&xQueueReceive(queue,&raw,0)!=pdTRUE)break;
                     const int64_t rx_now=esp_timer_get_time();
@@ -1266,14 +1278,16 @@ void run(void *){
                     if(fmo::parse_packet(raw.data,raw.size,&packet)&&(fmo::is_builtin_relay(selected)||packet.server_uid==selected.uid)&&packet.uid!=identity.uid){
                         // Half duplex and deterministic route arbitration; stale later streams do not preempt.
                         if(last_uid&&packet.uid!=last_uid&&rx_now-last_rx<1500000&&!fmo::route_priority_preempts(packet.stream_begin,packet.uid,last_stream,last_uid))continue;
+                        if(!ensure_playback_audio()){show("音频设备不可用");break;}
                         const bool stream_changed=(last_uid!=packet.uid||last_stream!=packet.stream_begin||rx_now-last_rx>=1000000||std::strcmp(current_speaker,packet.callsign)!=0);
                         if(last_uid!=packet.uid||last_stream!=packet.stream_begin)decoder_ready=false;
-                        last_uid=packet.uid;last_stream=packet.stream_begin;last_rx=rx_now;
+                        last_uid=packet.uid;last_stream=packet.stream_begin;last_rx=rx_now;audio_active_us=rx_now;
                         if(stream_changed){
                             std::strcpy(current_speaker,packet.callsign);
                             show("正在收听",nullptr,current_speaker);
                             char vol_buf[24]{};std::snprintf(vol_buf,sizeof(vol_buf),"音量 %u%%",volume_percent.load());
                             ui_apply_hero_meta(nullptr,vol_buf,nullptr);
+                            rx_ui_active=true;
                         }
                         bool played=false;
                         for(size_t i=0;i<packet.count&&!stop_requested&&!talk_requested;++i){const auto &f=packet.frames[i];int samples=-1;
@@ -1285,8 +1299,15 @@ void run(void *){
                         if(played&&book_writable&&book->heard(packet.uid,packet.callsign,book_relay_uid,packet.stream_begin,time(nullptr)))book_dirty=true;
                     }
                 }
-            }else vTaskDelay(pdMS_TO_TICKS(5));
-            if(now-last_ui>=1000000&&now-last_rx>=1000000){
+            }else{
+                if(audio&&!capturing&&now-audio_active_us>=3500000){
+                    ESP_LOGI("fmo","Channel idle 3.5s; powering down codec/PA");
+                    bsp_audio_deinit();audio=false;decoder_ready=false;
+                }
+                ulTaskNotifyTake(pdTRUE,pdMS_TO_TICKS(fmo_screen_is_on()?100:(aprs>=0?250:500)));
+            }
+            if((fmo_screen_is_on()||rx_ui_active)&&now-last_ui>=1000000&&now-last_rx>=1000000){
+                rx_ui_active=false;
                 show(has_selected?mqtt_connection_message(mqtt_connection.load()):aprs>=0?"等待服务器签名广播":"服务器发现服务连接中",nullptr,current_speaker[0]?current_speaker:identity.callsign);
                 if(has_selected)show_relay(selected,servers,time(nullptr));
                 const char *foot_l=!has_selected?"等待选台":(fmo::is_builtin_relay(selected)?"内置兜底":(fmo::is_official_interop_relay(selected.callsign)?"官方互通":(fmo::is_own_relay(selected.callsign,identity.callsign)?"我的中继":"PASS中继")));

@@ -890,7 +890,8 @@ void tick(lv_timer_t *t) {
     if (!session || exiting.load()) return;
     auto &v = *session;
     const bool screen_on = app_registry_screen_is_on();
-    lv_timer_set_period(t, !screen_on ? 1000 : v.view == View::Player ? 50 : 250);
+    const bool bg_busy = (v.player_ready && radio_player_is_playing()) || request != nullptr || v.returning || v.pending_next;
+    lv_timer_set_period(t, !screen_on ? (bg_busy ? 1000 : 3000) : v.view == View::Player ? 50 : 250);
     if (v.shutting_down) return;
 
     bool dirty = finish_fetch(v);
@@ -963,6 +964,12 @@ void build_ui() {
     screen = lv_obj_create(nullptr);
     ui_pixel_background(screen);
     lv_obj_remove_flag(screen, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_add_event_cb(screen, [](lv_event_t *) {
+        if (timer && session && app_registry_screen_is_on()) {
+            lv_timer_set_period(timer, session->view == View::Player ? 50 : 250);
+            lv_timer_ready(timer);
+        }
+    }, LV_EVENT_DRAW_MAIN_BEGIN, nullptr);
 
     lv_obj_t *top = ui_pixel_top_bar(screen);
     ui_pixel_wifi_bars_create(top, UI_STATUS_WIFI_X, 18, wifi_bars);
