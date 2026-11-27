@@ -839,8 +839,11 @@ void app_registry_tick(void) {
             s_screen_on.store(false, std::memory_order_release);
             if (s_display_awake_lock) esp_pm_lock_release(s_display_awake_lock);
             bsp_lvgl_unlock();
-            ESP_LOGI(TAG, quick_blank ? "Screen blanked 5s after voice break-in"
-                                      : "Screen blanked after %u seconds", (unsigned)timeout);
+            if (quick_blank) {
+                ESP_LOGI(TAG, "Screen blanked 5s after voice break-in");
+            } else {
+                ESP_LOGI(TAG, "Screen blanked after %u seconds", (unsigned)timeout);
+            }
         }
     }
 }
