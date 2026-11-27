@@ -785,10 +785,11 @@ int open_aprs(const char *host){
 int decode_radpcm(const fmo::Frame &frame,int16_t *pcm){
     static constexpr int steps[]={7,8,9,10,11,12,13,14,16,17,19,21,23,25,28,31,34,37,41,45,50,55,60,66,73,80,88,97,107,118,130,143,157,173,190,209,230,253,279,307,337,371,408,449,494,544,598,658,724,796,876,963,1060,1166,1282,1411,1552,1707,1878,2066,2272,2499,2749,3024,3327,3660,4026,4428,4871,5358,5894,6484,7132,7845,8630,9493,10442,11487,12635,13899,15289,16818,18500,20350,22385,24623,27086,29794,32767};
     static constexpr int indices[]={-1,-1,-1,-1,2,4,6,8};
-    if(frame.size!=328||frame.data[4]>88)return -1;
+    if(!frame.data||frame.size<16||frame.size>328||frame.data[4]>88)return -1;
+    const unsigned sample_count=static_cast<unsigned>(frame.size-8)*2u;
     int predictor=static_cast<int16_t>(frame.data[2]|uint16_t(frame.data[3])<<8),index=frame.data[4];
-    for(unsigned i=0;i<640;++i){const unsigned nibble=(frame.data[8+i/2]>>(i%2?0:4))&15;int step=steps[index],diff=step>>3;if(nibble&1)diff+=step>>2;if(nibble&2)diff+=step>>1;if(nibble&4)diff+=step;predictor=std::clamp(predictor+((nibble&8)?-diff:diff),-32768,32767);index=std::clamp(index+indices[nibble&7],0,88);pcm[i]=predictor;}
-    return 640;
+    for(unsigned i=0;i<sample_count;++i){const unsigned nibble=(frame.data[8+i/2]>>(i%2?0:4))&15;int step=steps[index],diff=step>>3;if(nibble&1)diff+=step>>2;if(nibble&2)diff+=step>>1;if(nibble&4)diff+=step;predictor=std::clamp(predictor+((nibble&8)?-diff:diff),-32768,32767);index=std::clamp(index+indices[nibble&7],0,88);pcm[i]=predictor;}
+    return static_cast<int>(sample_count);
 }
 void stop_capture(bool &audio,bool &capturing,bool &encoding,bool &decoder_ready){
     if(!capturing)return;
@@ -1254,7 +1255,7 @@ void run(void *){
             // interrupt our transmission. Never mix its PCM with capture.
             for(unsigned drained=0;drained<kQueueCount&&xQueueReceive(queue,&raw,0)==pdTRUE;++drained){
                 auto &other=packet;other={};
-                if(fmo::parse_packet(raw.data,raw.size,&other)&&(fmo::is_builtin_relay(selected)||other.server_uid==selected.uid)&&other.uid!=identity.uid&&fmo::route_priority_preempts(other.stream_begin,other.uid,stream_begin,identity.uid)){
+                if(fmo::parse_packet(raw.data,raw.size,&other)&&other.uid!=identity.uid&&fmo::route_priority_preempts(other.stream_begin,other.uid,stream_begin,identity.uid)){
                     talk_requested=false;ptt_preempted=true;last_uid=other.uid;last_stream=other.stream_begin;last_rx=now;std::strcpy(current_speaker,other.callsign);show("频道忙，发送已停止",nullptr,current_speaker);break;
                 }
             }
@@ -1271,19 +1272,36 @@ void run(void *){
             if(encoding){encoding=false;decoder_ready=false;xQueueReset(queue);}
             if(capturing){bsp_audio_deinit();audio=capturing=false;}
             if(connected&&xQueueReceive(queue,&raw,0)==pdTRUE){
+                static int64_t last_parse_warn_us=0;
                 for(unsigned burst=0;burst<4&&!stop_requested&&!talk_requested;++burst){
                     if(burst>0&&xQueueReceive(queue,&raw,0)!=pdTRUE)break;
                     const int64_t rx_now=esp_timer_get_time();
                     packet={};
-                    if(fmo::parse_packet(raw.data,raw.size,&packet)&&(fmo::is_builtin_relay(selected)||packet.server_uid==selected.uid)&&packet.uid!=identity.uid){
-                        // Half duplex and deterministic route arbitration; stale later streams do not preempt.
-                        if(last_uid&&packet.uid!=last_uid&&rx_now-last_rx<1500000&&!fmo::route_priority_preempts(packet.stream_begin,packet.uid,last_stream,last_uid))continue;
+                    if(!fmo::parse_packet(raw.data,raw.size,&packet)){
+                        if(rx_now-last_parse_warn_us>=2000000){
+                            last_parse_warn_us=rx_now;
+                            const uint16_t ver=raw.size>=2?(raw.data[0]|uint16_t(raw.data[1])<<8):0;
+                            const uint16_t fn=raw.size>=36?(raw.data[34]|uint16_t(raw.data[35])<<8):0;
+                            const uint8_t codec=raw.size>=73?raw.data[72]:0;
+                            const uint32_t srv=raw.size>=45?(raw.data[41]|(uint32_t(raw.data[42])<<8)|(uint32_t(raw.data[43])<<16)|(uint32_t(raw.data[44])<<24)):0;
+                            ESP_LOGW("fmo","RX parse drop: len=%u ver=%u fn=%u codec=%u srv=%lu",
+                                     static_cast<unsigned>(raw.size),(unsigned)ver,(unsigned)fn,(unsigned)codec,static_cast<unsigned long>(srv));
+                        }
+                        continue;
+                    }
+                    if(packet.uid!=identity.uid){
+                        // Half duplex and deterministic route arbitration; stale later streams do not preempt during active speech.
+                        if(last_uid&&packet.uid!=last_uid&&rx_now-last_rx<450000&&!fmo::route_priority_preempts(packet.stream_begin,packet.uid,last_stream,last_uid))continue;
                         if(!ensure_playback_audio()){show("音频设备不可用");break;}
                         const bool stream_changed=(last_uid!=packet.uid||last_stream!=packet.stream_begin||rx_now-last_rx>=1000000||std::strcmp(current_speaker,packet.callsign)!=0);
                         if(last_uid!=packet.uid||last_stream!=packet.stream_begin)decoder_ready=false;
                         last_uid=packet.uid;last_stream=packet.stream_begin;last_rx=rx_now;audio_active_us=rx_now;
                         if(stream_changed){
                             std::strcpy(current_speaker,packet.callsign);
+                            ESP_LOGI("fmo","RX start: uid=%lu srv=%lu(sel=%lu) codec=%u fn=%u",
+                                     static_cast<unsigned long>(packet.uid),static_cast<unsigned long>(packet.server_uid),
+                                     static_cast<unsigned long>(selected.uid),
+                                     packet.count?(unsigned)packet.frames[0].codec:0u,static_cast<unsigned>(packet.count));
                             show("正在收听",nullptr,current_speaker);
                             char vol_buf[24]{};std::snprintf(vol_buf,sizeof(vol_buf),"音量 %u%%",volume_percent.load());
                             ui_apply_hero_meta(nullptr,vol_buf,nullptr);

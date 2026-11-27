@@ -289,6 +289,18 @@ int main(int argc,char **argv){
  uint8_t voice[]={0x4b,0x10,0x01},buffer[1400];Packet packet{};packet.vendor=0x1001;packet.uid=123;strcpy(packet.callsign,"BG0TEST");packet.stream_begin=123400;packet.timestamp=123440;packet.server_uid=456;packet.count=1;packet.frames[0]={1,voice,sizeof(voice),1};
  size_t n=write_packet(buffer,sizeof(buffer),packet);assert(n==83);auto golden=read(argv[5]);assert(golden.size()==n&&!memcmp(buffer,golden.data(),n));
  Packet parsed{};assert(parse_packet(buffer,n,&parsed)&&parsed.uid==123&&parsed.frames[0].size==3&&parsed.frames[0].data==buffer+80);
+ // RX compatibility: cross-relay/zero server_uid, 0-based frame index, lowercase/padded/dirty-tail callsign, shorter RADPCM.
+ {
+  uint8_t compat[1400];memcpy(compat,buffer,n);
+  // Zero server_uid and dirty bytes after NUL in callsign, plus lowercase and trailing space.
+  memset(compat+41,0,4);
+  memcpy(compat+10,"bg0ab \0XYZ99",12);
+  // 0-based frame index (recompute CRC32 over frame region).
+  compat[64]=0;compat[65]=0;
+  const uint32_t crc=crc32(compat+64,n-64);
+  compat[36]=crc&0xff;compat[37]=(crc>>8)&0xff;compat[38]=(crc>>16)&0xff;compat[39]=(crc>>24)&0xff;
+  Packet cp{};assert(parse_packet(compat,n,&cp)&&cp.server_uid==0&&!strcmp(cp.callsign,"BG0AB")&&cp.frames[0].index==0);
+ }
  assert(!write_packet(buffer,n-1,packet));
  for(size_t len=0;len<n;++len)assert(!parse_packet(buffer,len,&parsed)&&parsed.count==0);
  for(size_t at:{0u,30u,34u,36u,70u,75u,80u}){buffer[at]^=1;assert(!parse_packet(buffer,n,&parsed)&&parsed.count==0);buffer[at]^=1;}

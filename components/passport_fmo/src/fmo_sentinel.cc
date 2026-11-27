@@ -237,10 +237,11 @@ int decode_radpcm(const uint8_t *data, size_t size, int16_t *pcm) {
         18500,20350,22385,24623,27086,29794,32767
     };
     static constexpr int indices[] = {-1, -1, -1, -1, 2, 4, 6, 8};
-    if (!data || size != 328 || data[4] > 88) return -1;
+    if (!data || size < 16 || size > 328 || data[4] > 88) return -1;
+    const unsigned sample_count = static_cast<unsigned>(size - 8) * 2u;
     int predictor = static_cast<int16_t>(data[2] | (uint16_t(data[3]) << 8));
     int index = data[4];
-    for (unsigned i = 0; i < 640; ++i) {
+    for (unsigned i = 0; i < sample_count; ++i) {
         const unsigned nibble = (data[8 + i / 2] >> (i % 2 ? 0 : 4)) & 15;
         int step = steps[index];
         int diff = step >> 3;
@@ -251,7 +252,7 @@ int decode_radpcm(const uint8_t *data, size_t size, int16_t *pcm) {
         index = std::clamp(index + indices[nibble & 7], 0, 88);
         pcm[i] = static_cast<int16_t>(predictor);
     }
-    return 640;
+    return static_cast<int>(sample_count);
 }
 
 bool pop_frame(QueuedFrame *out) {
@@ -340,7 +341,7 @@ void breakin_task(void *) {
                 continue;
             }
             const int64_t now = esp_timer_get_time();
-            if (last_uid && f.uid != last_uid && now - last_rx_us < 1500000 &&
+            if (last_uid && f.uid != last_uid && now - last_rx_us < 450000 &&
                 !fmo::route_priority_preempts(f.stream_begin, f.uid, last_stream, last_uid)) {
                 continue;
             }
@@ -423,9 +424,23 @@ void on_mqtt_event(void *, esp_event_base_t, int32_t id, void *data) {
         if (kind != fmo::MqttKind::Voice) return;
 
         fmo::Packet pkt{};
-        if (!fmo::parse_packet(s_assembly, static_cast<size_t>(e->total_data_len), &pkt)) return;
+        const size_t total = static_cast<size_t>(e->total_data_len);
+        if (!fmo::parse_packet(s_assembly, total, &pkt)) {
+            static int64_t last_parse_warn_us = 0;
+            const int64_t now_us = esp_timer_get_time();
+            if (now_us - last_parse_warn_us >= 2000000) {
+                last_parse_warn_us = now_us;
+                const uint16_t ver = total >= 2 ? (s_assembly[0] | uint16_t(s_assembly[1]) << 8) : 0;
+                const uint16_t fn = total >= 36 ? (s_assembly[34] | uint16_t(s_assembly[35]) << 8) : 0;
+                const uint8_t codec = total >= 73 ? s_assembly[72] : 0;
+                const uint32_t srv = total >= 45 ? (s_assembly[41] | (uint32_t(s_assembly[42]) << 8) | (uint32_t(s_assembly[43]) << 16) | (uint32_t(s_assembly[44]) << 24)) : 0;
+                ESP_LOGW(kTag, "RX parse drop: len=%u ver=%u fn=%u codec=%u srv=%lu",
+                         static_cast<unsigned>(total), (unsigned)ver, (unsigned)fn, (unsigned)codec,
+                         static_cast<unsigned long>(srv));
+            }
+            return;
+        }
         if (!pkt.count || pkt.uid == s_self_uid) return;
-        if (!s_relay_builtin && pkt.server_uid != s_relay.uid) return;
 
         bool pushed = false;
         if (s_ring_mutex && xSemaphoreTake(s_ring_mutex, pdMS_TO_TICKS(5)) == pdTRUE) {

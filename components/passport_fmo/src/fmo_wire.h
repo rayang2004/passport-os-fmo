@@ -2,7 +2,7 @@
 #include <cstddef>
 #include <cstdint>
 namespace fmo {
-constexpr size_t kPacketMax = 1400, kFrameMax = 6;
+constexpr size_t kPacketMax = 1400, kFrameMax = 12;
 struct Frame { uint8_t codec; const uint8_t *data; size_t size; uint16_t index; };
 struct Packet {
     uint32_t vendor{}, uid{}, stream_begin{}, timestamp{}, server_uid{};
