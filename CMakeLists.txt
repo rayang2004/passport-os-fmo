@@ -31,7 +31,12 @@ if(CONFIG_BT_ENABLED AND NOT CONFIG_BT_CTRL_RUN_IN_FLASH_ONLY)
     message(FATAL_ERROR
         "CONFIG_BT_CTRL_RUN_IN_FLASH_ONLY must be enabled when Bluetooth is enabled.")
 endif()
-if(NOT CONFIG_MBEDTLS_SSL_IN_CONTENT_LEN EQUAL 8192)
+if(CONFIG_PASSPORT_PLUGIN_FMO)
+    if(NOT CONFIG_MBEDTLS_SSL_IN_CONTENT_LEN EQUAL 16384)
+        message(FATAL_ERROR
+            "CONFIG_MBEDTLS_SSL_IN_CONTENT_LEN must be 16384 when FMO plugin is enabled (FMO CA CRL endpoints send 16 KiB TLS records; dynamic buffers keep smaller records sized to in_msglen).")
+    endif()
+elseif(NOT CONFIG_MBEDTLS_SSL_IN_CONTENT_LEN EQUAL 8192)
     message(FATAL_ERROR
         "CONFIG_MBEDTLS_SSL_IN_CONTENT_LEN must be 8192 for the ESP32-C3 audio/TLS budget.")
 endif()

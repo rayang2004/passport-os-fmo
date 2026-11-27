@@ -52,9 +52,10 @@ CONFIG_MBEDTLS_CERTIFICATE_BUNDLE_DEFAULT_FULL=y
 CONFIG_MBEDTLS_DYNAMIC_BUFFER=y
 CONFIG_MBEDTLS_SSL_KEEP_PEER_CERTIFICATE=n
 CONFIG_MBEDTLS_ASYMMETRIC_CONTENT_LEN=y
-# Xiaozhi WebSocket control/audio frames and the observed Muse TLS records fit
-# within 8 KiB. Dynamic buffers keep TLS memory scoped to active connections.
-CONFIG_MBEDTLS_SSL_IN_CONTENT_LEN=8192
+# Dynamic buffers size each TLS record allocation to the actual incoming
+# in_msglen, so small Xiaozhi/Muse frames keep minimal RAM while standard
+# 16 KiB TLS records (e.g. FMO CA CRL endpoints) are not rejected.
+CONFIG_MBEDTLS_SSL_IN_CONTENT_LEN=16384
 CONFIG_MBEDTLS_SSL_OUT_CONTENT_LEN=2048
 CONFIG_ESP_WIFI_DYNAMIC_RX_MGMT_BUFFER=y
 

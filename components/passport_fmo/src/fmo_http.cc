@@ -11,7 +11,12 @@
 #include <string>
 #include <vector>
 #include <cstring>
+#include <cstdio>
+#include <cstdlib>
 #include <ctime>
+#ifdef ESP_PLATFORM
+#include <unistd.h>
+#endif
 #include "fmo_book.h"
 #include "fmo_stamp.h"
 #include "fmo_beep.h"
@@ -56,6 +61,7 @@ const char *ensure_ca_clock(){
         vTaskDelay(pdMS_TO_TICKS(100));
     }
 }
+[[maybe_unused]]
 const char *download_crl(const char *url,uint8_t *data,size_t capacity,size_t *used){
     *used=0;
     const int64_t deadline=esp_timer_get_time()+20000000;
@@ -80,6 +86,113 @@ const char *download_crl(const char *url,uint8_t *data,size_t capacity,size_t *u
     }
     return "吊销列表超过32KB上限";
 }
+#ifdef ESP_PLATFORM
+using MallocBuf=std::unique_ptr<uint8_t,decltype(&std::free)>;
+const char *download_crl_alloc(const char *url,MallocBuf *out,size_t *used){
+    *used=0;out->reset();
+    const int64_t deadline=esp_timer_get_time()+20000000;
+    esp_http_client_config_t config{};config.url=url;config.method=HTTP_METHOD_GET;
+    config.crt_bundle_attach=esp_crt_bundle_attach;config.disable_auto_redirect=true;
+    config.timeout_ms=8000;config.buffer_size=512;config.buffer_size_tx=512;
+    auto client=esp_http_client_init(&config);if(!client)return "下载连接内存不足";
+    MallocBuf buf(nullptr,&std::free);
+    constexpr const char *kTmpPath="/storage/fmo-crl-dl.tmp";
+    struct TmpGuard {
+        bool mounted=false,created=false;
+        ~TmpGuard(){if(created)unlink(kTmpPath);if(mounted)fmo_storage_release();}
+    } tmp;
+    bool staged=false;
+    {
+        struct Close {esp_http_client_handle_t c;~Close(){esp_http_client_cleanup(c);}} close{client};
+        const esp_err_t open_err=esp_http_client_open(client,0);
+        if(open_err!=ESP_OK){
+            ESP_LOGW("fmo_http","CRL open fail (%s): err=0x%x free=%u largest=%u",url,(unsigned)open_err,(unsigned)heap_caps_get_free_size(MALLOC_CAP_8BIT),(unsigned)heap_caps_get_largest_free_block(MALLOC_CAP_8BIT));
+            return "无法连接吊销服务";
+        }
+        if(esp_timer_get_time()>=deadline)return "吊销查询超时";
+        const auto length=esp_http_client_fetch_headers(client);
+        const int status=esp_http_client_get_status_code(client);
+        if(length<0||status!=200){
+            ESP_LOGW("fmo_http","CRL header fail (%s): status=%d len=%lld free=%u largest=%u",url,status,(long long)length,(unsigned)heap_caps_get_free_size(MALLOC_CAP_8BIT),(unsigned)heap_caps_get_largest_free_block(MALLOC_CAP_8BIT));
+            return "吊销服务暂不可用";
+        }
+        if(length>32768)return "吊销列表超过32KB上限";
+        if(length>0&&length<=4096){
+            buf.reset(static_cast<uint8_t *>(std::malloc(static_cast<size_t>(length))));
+            if(!buf)return "吊销查询内存不足";
+            const size_t cap=static_cast<size_t>(length);
+            while(*used<cap){
+                if(!WifiManager::GetInstance().HasStationIp())return "吊销查询期间网络断开";
+                if(esp_timer_get_time()>=deadline)return "吊销查询超时";
+                const int n=esp_http_client_read(client,reinterpret_cast<char *>(buf.get()+*used),std::min<size_t>(512,cap-*used));
+                if(n<0)return "吊销列表读取失败";
+                if(!n)break;
+                *used+=static_cast<size_t>(n);
+            }
+            if(*used==cap&&!esp_http_client_is_complete_data_received(client)){
+                char extra=0;
+                const int n=esp_http_client_read(client,&extra,1);
+                if(n<0)return "吊销列表读取失败";
+                if(n>0)return "吊销列表超过32KB上限";
+            }
+            if(!esp_http_client_is_complete_data_received(client))return "吊销列表接收不完整";
+        }else{
+            // Stream larger/chunked CRL payloads to flash while TLS holds its 16KB RX record,
+            // then load exact payload into RAM after TLS closes.
+            if(fmo_storage_acquire(true)!=ESP_OK)return "吊销查询存储暂不可用";
+            tmp.mounted=true;
+            FILE *fp=std::fopen(kTmpPath,"wb");
+            if(!fp)return "吊销查询临时文件打开失败";
+            tmp.created=true;
+            char chunk[512];
+            const size_t limit=length>0?static_cast<size_t>(length):32769u;
+            bool write_ok=true;
+            while(*used<limit){
+                if(!WifiManager::GetInstance().HasStationIp()){std::fclose(fp);return "吊销查询期间网络断开";}
+                if(esp_timer_get_time()>=deadline){std::fclose(fp);return "吊销查询超时";}
+                const int n=esp_http_client_read(client,chunk,std::min<size_t>(sizeof(chunk),limit-*used));
+                if(n<0){std::fclose(fp);return "吊销列表读取失败";}
+                if(!n)break;
+                if(*used+static_cast<size_t>(n)>32768){std::fclose(fp);return "吊销列表超过32KB上限";}
+                if(std::fwrite(chunk,1,static_cast<size_t>(n),fp)!=static_cast<size_t>(n)){write_ok=false;break;}
+                *used+=static_cast<size_t>(n);
+            }
+            if(std::fclose(fp)!=0||!write_ok)return "吊销列表暂存失败";
+            if(length>0&&*used==static_cast<size_t>(length)&&!esp_http_client_is_complete_data_received(client)){
+                char extra=0;
+                const int n=esp_http_client_read(client,&extra,1);
+                if(n<0)return "吊销列表读取失败";
+                if(n>0)return "吊销列表超过32KB上限";
+            }
+            if(!esp_http_client_is_complete_data_received(client))return "吊销列表接收不完整";
+            staged=true;
+        }
+    }
+    // TLS is now closed; allocate exact payload buffer with full contiguous SRAM available.
+    if(staged){
+        buf.reset(static_cast<uint8_t *>(std::malloc(*used?*used:1u)));
+        if(!buf){
+            ESP_LOGW("fmo_http","CRL post-TLS alloc(%u) fail: free=%u largest=%u",(unsigned)*used,(unsigned)heap_caps_get_free_size(MALLOC_CAP_8BIT),(unsigned)heap_caps_get_largest_free_block(MALLOC_CAP_8BIT));
+            return "吊销查询内存不足";
+        }
+        if(*used){
+            FILE *fp=std::fopen(kTmpPath,"rb");
+            if(!fp)return "吊销列表暂存读取失败";
+            size_t got=0;
+            while(got<*used){
+                const size_t n=std::fread(buf.get()+got,1,std::min<size_t>(512,*used-got),fp);
+                if(!n)break;
+                got+=n;
+            }
+            std::fclose(fp);
+            if(got!=*used)return "吊销列表暂存读取不完整";
+        }
+    }
+    *out=std::move(buf);
+    ESP_LOGI("fmo_http","CRL downloaded (%s): used=%u free=%u largest=%u",url,(unsigned)*used,(unsigned)heap_caps_get_free_size(MALLOC_CAP_8BIT),(unsigned)heap_caps_get_largest_free_block(MALLOC_CAP_8BIT));
+    return nullptr;
+}
+#endif
 bool provider_crl_url(const char *url){
     constexpr char prefix[]="https://fmo.simy.live/ca/crl/";
     if(!url||std::strlen(url)>=256||std::strncmp(url,prefix,sizeof(prefix)-1))return false;
@@ -102,39 +215,83 @@ esp_err_t refresh_crls(httpd_req_t *r){
     next_request=now_us+15000000;
     const size_t min_free=
 #ifdef ESP_PLATFORM
-        fmo_http_lan_active()?65536u:
+        fmo_http_lan_active()?57344u:
 #endif
         98304u;
-    if(heap_caps_get_free_size(MALLOC_CAP_8BIT)<min_free||heap_caps_get_largest_free_block(MALLOC_CAP_8BIT)<32769)return fail(r,"空闲内存不足，请退出音频应用后重试");
+    const size_t min_largest=
+#ifdef ESP_PLATFORM
+        fmo_http_lan_active()?28672u:
+#endif
+        32769u;
+    if(heap_caps_get_free_size(MALLOC_CAP_8BIT)<min_free||heap_caps_get_largest_free_block(MALLOC_CAP_8BIT)<min_largest){
+#ifdef ESP_PLATFORM
+        ESP_LOGW("fmo_http","CRL entry low heap: free=%u/%u largest=%u/%u",
+                 (unsigned)heap_caps_get_free_size(MALLOC_CAP_8BIT),(unsigned)min_free,
+                 (unsigned)heap_caps_get_largest_free_block(MALLOC_CAP_8BIT),(unsigned)min_largest);
+#endif
+        return fail(r,"空闲内存不足，请退出音频应用后重试");
+    }
     const auto restored=fmo::revocation_restore(identity,fmo_root_start,time(nullptr));
-    Json root(cJSON_Parse(fmo_root_start),cJSON_Delete),inter(cJSON_Parse(identity.intermediate_json.c_str()),cJSON_Delete);
+    std::string urls[2];
+    {
+        Json root(cJSON_Parse(fmo_root_start),cJSON_Delete),inter(cJSON_Parse(identity.intermediate_json.c_str()),cJSON_Delete);
+        if(!root||!inter)return fail(r,"吊销查询内存不足");
+        if(const char *u=field(cJSON_GetObjectItemCaseSensitive(root.get(),"extensions"),"crl"))urls[0]=u;
+        if(const char *u=field(cJSON_GetObjectItemCaseSensitive(inter.get(),"extensions"),"crl"))urls[1]=u;
+    }
     Json report(cJSON_CreateObject(),cJSON_Delete);
-    if(!root||!inter||!report)return fail(r,"吊销查询内存不足");
+    if(!report)return fail(r,"吊销查询内存不足");
     for(unsigned level=0;level<2;++level){
         const auto kind=level?fmo::CrlLevel::User:fmo::CrlLevel::Root;
-        const auto *cert=level?inter.get():root.get();
-        const char *url=field(cJSON_GetObjectItemCaseSensitive(cert,"extensions"),"crl");
+        const char *url=urls[level].empty()?nullptr:urls[level].c_str();
         const char *issue=nullptr;bool updated=false,saved=false;size_t used=0;
-        std::unique_ptr<uint8_t[]> bytes;std::vector<uint8_t> proof;
+        std::unique_ptr<uint8_t,decltype(&std::free)> bytes(nullptr,&std::free);std::vector<uint8_t> proof;
         if(!provider_crl_url(url))issue="证书未提供支持的公开吊销地址";
         else {
-            bytes.reset(new(std::nothrow) uint8_t[32769]);
+#ifdef ESP_PLATFORM
+            issue=download_crl_alloc(url,&bytes,&used);
+#else
+            bytes.reset(static_cast<uint8_t *>(std::malloc(32769)));
             issue=bytes?download_crl(url,bytes.get(),32769,&used):"吊销查询内存不足";
+#endif
         }
         // TLS is already closed before signature verification allocates CBOR.
-        if(!issue&&(heap_caps_get_free_size(MALLOC_CAP_8BIT)<32768||heap_caps_get_largest_free_block(MALLOC_CAP_8BIT)<24576))issue="验签空闲内存不足";
+        const size_t verify_free=
+#ifdef ESP_PLATFORM
+            fmo_http_lan_active()?24576u:
+#endif
+            32768u;
+        const size_t verify_largest=
+#ifdef ESP_PLATFORM
+            fmo_http_lan_active()?14336u:
+#endif
+            24576u;
+        if(!issue&&(heap_caps_get_free_size(MALLOC_CAP_8BIT)<verify_free||heap_caps_get_largest_free_block(MALLOC_CAP_8BIT)<verify_largest)){
+#ifdef ESP_PLATFORM
+            ESP_LOGW("fmo_http","CRL verify low heap: level=%u used=%u free=%u largest=%u",level,(unsigned)used,(unsigned)heap_caps_get_free_size(MALLOC_CAP_8BIT),(unsigned)heap_caps_get_largest_free_block(MALLOC_CAP_8BIT));
+#endif
+            issue="验签空闲内存不足";
+        }
         if(!issue){
             fmo::CrlStatus result;const uint32_t now=time(nullptr);
             const bool verified=level?fmo::verify_user_crl(bytes.get(),used,identity,fmo_root_start,now,fmo::revocation_minimum(kind,identity),&result,&proof):
                 fmo::verify_root_crl(bytes.get(),used,identity,fmo_root_start,now,fmo::revocation_minimum(kind,identity),&result,&proof);
-            if(!verified)issue="列表签名、格式、有效期或版本未通过验证";
+            if(!verified){
+                if(used==2&&bytes&&bytes.get()[0]=='{'&&bytes.get()[1]=='}')issue="服务端尚未发布签名吊销列表（返回 {}）";
+                else issue="列表签名、格式、有效期或版本未通过验证";
+            }
             else if(!(updated=fmo::revocation_accept(kind,identity,result,now)))issue="列表版本与已有验证结果冲突";
-            // Release the 32KB download buffer before file readback/crypto.
+            // Release the download buffer before file readback/crypto.
             bytes.reset();
             if(updated){
                 saved=fmo::save_crl_cache(kind,identity,fmo_root_start,time(nullptr),proof.data(),proof.size(),true);
                 if(!saved)issue="本次已验证，缓存保存未确认，重启后请再次检查";
             }
+#ifdef ESP_PLATFORM
+            ESP_LOGI("fmo_http","CRL result: level=%u verified=%d num=%lu updated=%d saved=%d proof=%u free=%u",
+                     level,(int)verified,(unsigned long)result.number,(int)updated,(int)saved,(unsigned)proof.size(),
+                     (unsigned)heap_caps_get_free_size(MALLOC_CAP_8BIT));
+#endif
         }
         auto *item=cJSON_AddObjectToObject(report.get(),level?"user":"root");
         cJSON_AddBoolToObject(item,"updated",updated);cJSON_AddBoolToObject(item,"saved",saved);

@@ -1004,6 +1004,8 @@ void run(void *){
         if(action==fmo::UiAction::PhoneSetup){
             talk_requested=false;
             close_mqtt();
+            if(!password.empty())sodium_memzero(password.data(),password.size());
+            std::string{}.swap(password);std::string{}.swap(uri);std::string{}.swap(error);
             if(aprs>=0){close(aprs);aprs=-1;}
             if(audio){bsp_audio_deinit();audio=capturing=false;}
             if(cache_dirty&&scratch){fmo::save_relay_cache(scratch->servers,time(nullptr));cache_dirty=false;}
