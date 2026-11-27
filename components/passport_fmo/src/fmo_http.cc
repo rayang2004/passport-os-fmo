@@ -204,8 +204,11 @@ esp_err_t status(httpd_req_t *r){
         cJSON_AddNumberToObject(br,"port",fmo::kBuiltinRelayPort);
         cJSON_AddBoolToObject(br,"active",!has_saved_relay);
     }
-    const uint32_t now=time(nullptr);fmo::RelayList list;fmo::load_relay_cache(&list,now);auto *servers=cJSON_AddArrayToObject(j.get(),"servers");
-    for(unsigned i=0;i<list.count;++i){const auto &r=list.relays[i];const auto &snapshot=list.status[i];auto *v=cJSON_CreateObject();cJSON_AddItemToArray(servers,v);cJSON_AddStringToObject(v,"name",r.name[0]?r.name:r.host);cJSON_AddStringToObject(v,"host",r.host);cJSON_AddStringToObject(v,"callsign",r.callsign);cJSON_AddNumberToObject(v,"uid",r.uid);cJSON_AddNumberToObject(v,"port",r.port);cJSON_AddNumberToObject(v,"valid_until",list.expires[i]);
+    const uint32_t now=time(nullptr);
+    std::unique_ptr<fmo::RelayList> list(new(std::nothrow) fmo::RelayList);
+    if(list)fmo::load_relay_cache(list.get(),now);
+    auto *servers=cJSON_AddArrayToObject(j.get(),"servers");
+    if(list)for(unsigned i=0;i<list->count;++i){const auto &r=list->relays[i];const auto &snapshot=list->status[i];auto *v=cJSON_CreateObject();cJSON_AddItemToArray(servers,v);cJSON_AddStringToObject(v,"name",r.name[0]?r.name:r.host);cJSON_AddStringToObject(v,"host",r.host);cJSON_AddStringToObject(v,"callsign",r.callsign);cJSON_AddNumberToObject(v,"uid",r.uid);cJSON_AddNumberToObject(v,"port",r.port);cJSON_AddNumberToObject(v,"valid_until",list->expires[i]);
         const bool known=snapshot.valid_until>now;cJSON_AddBoolToObject(v,"stats_known",known);
         if(known){cJSON_AddNumberToObject(v,"online",snapshot.online);cJSON_AddNumberToObject(v,"peak",snapshot.peak);cJSON_AddNumberToObject(v,"range_km",snapshot.range_km);}
     }
@@ -640,13 +643,13 @@ esp_err_t send_unauthorized(httpd_req_t *req) {
     return httpd_resp_sendstr(req, "{\"error\":\"unauthorized\"}");
 }
 esp_err_t handler_fmo_page(httpd_req_t *req) {
+    char cookie_hdr[64]{};
     if (s_lan_server) {
         if (!lan_token_ok(req)) {
             httpd_resp_set_type(req, "text/plain; charset=utf-8");
             httpd_resp_set_status(req, "403 Forbidden");
             return httpd_resp_sendstr(req, "请扫描设备屏幕上的二维码打开 FMO 配置页。");
         }
-        char cookie_hdr[64];
         std::snprintf(cookie_hdr, sizeof(cookie_hdr), "pt=%lu; Path=/; SameSite=Strict",
                       static_cast<unsigned long>(s_lan_token.load(std::memory_order_acquire)));
         httpd_resp_set_hdr(req, "Set-Cookie", cookie_hdr);
@@ -695,7 +698,11 @@ esp_err_t handler_lan_time(httpd_req_t *req) {
     return send(req, ok.get());
 }
 esp_err_t auth_fmo_settings(httpd_req_t *req) {
-    return token_ok_any(req) ? fmo_http_settings(req) : send_unauthorized(req);
+    if (!token_ok_any(req)) return send_unauthorized(req);
+    const auto err = fmo_http_settings(req);
+    ESP_LOGI("fmo_http", "/api/fmo done (err=%d stack_hwm=%u free=%u)",
+             (int)err, (unsigned)uxTaskGetStackHighWaterMark(nullptr), (unsigned)esp_get_free_heap_size());
+    return err;
 }
 esp_err_t auth_fmo_ca(httpd_req_t *req) {
     return token_ok_any(req) ? fmo_http_ca(req) : send_unauthorized(req);
@@ -750,7 +757,7 @@ bool fmo_http_start_lan(char *url_out, size_t url_cap) {
     s_lan_token.store(tok, std::memory_order_release);
 
     httpd_config_t config = HTTPD_DEFAULT_CONFIG();
-    config.stack_size = 10240;
+    config.stack_size = 12288;
     config.max_uri_handlers = 16;
     config.max_open_sockets = 3;
     config.recv_wait_timeout = 5;
