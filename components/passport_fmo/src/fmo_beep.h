@@ -34,9 +34,13 @@ const char *beep_cloud_name(uint8_t id);
 // Validate an FBEP binary blob (header + payload length + frame alignment + CRC32).
 bool beep_parse_fbep(const uint8_t *data, size_t size, uint8_t *id_out, uint32_t *samples_out, uint32_t *crc_out);
 
+using BeepChunkReader = int (*)(void *ctx, uint8_t *buf, size_t max_len);
+
 BeepLoad load_beep_config(BeepConfig *out);
 bool save_beep_config(const BeepConfig &cfg);
 bool save_custom_beep_fbep(const uint8_t *data, size_t size, BeepConfig *cfg, bool allow_format = true);
+bool save_custom_beep_stream(size_t total_size, uint8_t expected_id, BeepChunkReader reader, void *ctx,
+                             BeepConfig *cfg, bool allow_format = true);
 bool clear_custom_beep(BeepConfig *cfg);
 
 // Streaming reader for transmitting or playing a Roger Beep frame-by-frame without

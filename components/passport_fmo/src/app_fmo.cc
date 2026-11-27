@@ -87,6 +87,9 @@ std::atomic<unsigned> observed_fmo_count{0};
 lv_obj_t *screen,*state_label,*relay_label,*call_label,*hint_label,*stamp_image;
 lv_obj_t *top_clock,*hero_card,*hero_dot,*hero_rule,*hero_foot_l,*hero_foot_r;
 lv_obj_t *sub_header,*sub_title,*panel_card,*panel_rule,*panel_meta;
+#ifdef ESP_PLATFORM
+lv_obj_t *qr_code=nullptr;
+#endif
 lv_image_dsc_t stamp_dsc{};
 uint8_t *stamp_image_buf;
 esp_mqtt_client_handle_t mqtt;
@@ -182,6 +185,11 @@ void ui_apply_hero_meta(const char *foot_left,const char *foot_right,const char 
 void stamp_widget_hide(){
     if(!screen)return;
     if(stamp_image)lv_obj_add_flag(stamp_image,LV_OBJ_FLAG_HIDDEN);
+}
+void qr_widget_hide(){
+#ifdef ESP_PLATFORM
+    if(qr_code){lv_obj_delete(qr_code);qr_code=nullptr;}
+#endif
 }
 void stamp_widget_show_builtin(unsigned style_index,uint32_t color_rgb){
     if(!screen||!stamp_image||!stamp_image_buf)return;
@@ -336,9 +344,45 @@ __attribute__((noinline)) const char *edit_favorite(fmo::Favorites *favorites,bo
 void normal_view(){
     page=fmo::Page::Main;
     if(!bsp_lvgl_lock(100))return;
-    if(screen){stamp_widget_hide();ui_apply_mode(fmo::Page::Main);lv_obj_set_height(relay_label,40);lv_obj_remove_flag(call_label,LV_OBJ_FLAG_HIDDEN);fmo_pixel_label_set_text(hint_label,"上键选台 · 下键菜单\n长按确定讲话 · 调音量");}
+    if(screen){
+        stamp_widget_hide();
+#ifdef ESP_PLATFORM
+        qr_widget_hide();
+#endif
+        ui_apply_mode(fmo::Page::Main);lv_obj_set_height(relay_label,40);lv_obj_remove_flag(call_label,LV_OBJ_FLAG_HIDDEN);lv_obj_remove_flag(relay_label,LV_OBJ_FLAG_HIDDEN);fmo_pixel_label_set_text(hint_label,"上键选台 · 下键菜单\n长按确定讲话 · 调音量");
+    }
     bsp_lvgl_unlock();
 }
+#ifdef ESP_PLATFORM
+void web_config_view(const char *full_url,const char *short_url){
+    if(!bsp_lvgl_lock(150))return;
+    if(screen){
+        stamp_widget_hide();
+        qr_widget_hide();
+        ui_apply_mode(fmo::Page::WebConfig,"局域网手机配置");
+        lv_obj_add_flag(call_label,LV_OBJ_FLAG_HIDDEN);
+        lv_obj_add_flag(relay_label,LV_OBJ_FLAG_HIDDEN);
+        qr_code=lv_qrcode_create(screen);
+        if(qr_code){
+            lv_qrcode_set_size(qr_code,124);
+            lv_qrcode_set_dark_color(qr_code,lv_color_hex(0x000000));
+            lv_qrcode_set_light_color(qr_code,lv_color_hex(0xFFFFFF));
+            lv_qrcode_set_quiet_zone(qr_code,true);
+            lv_obj_set_pos(qr_code,(240-124)/2,76);
+            lv_qrcode_update(qr_code,full_url,std::strlen(full_url));
+        }
+        lv_obj_set_pos(state_label,16,208);
+        lv_obj_set_width(state_label,208);
+        lv_obj_set_height(state_label,48);
+        lv_obj_set_style_text_color(state_label,lv_color_hex(0xe7ecf1),0);
+        char info[96]{};
+        std::snprintf(info,sizeof(info),"%s\n同Wi-Fi扫码 · 不断网",short_url?short_url:"");
+        fmo_pixel_label_set_text(state_label,info);
+        fmo_pixel_label_set_text(hint_label,"确定/长按下返回通联\n上键切换全局热点配网");
+    }
+    bsp_lvgl_unlock();
+}
+#endif
 constexpr const char *kMenuItems[]={"选择服务器","抄收记录","播放音量","手机配置","返回通联","退出FMO","发送APRS CQ","发送友台信标","友台广播","活动公告","收藏服务器","我的印章","短消息","结束信令音","连接内置中继","后台守听插播","转后台守听"};
 constexpr unsigned kMenuSize=sizeof(kMenuItems)/sizeof(*kMenuItems);
 
@@ -667,11 +711,17 @@ fmo::UiAction process_controls(fmo::Navigation &nav,fmo::RelayList &servers,cons
     return fmo::UiAction::None;
 }
 void navigate(fmo::UiAction action){
-    if(action==fmo::UiAction::PhoneSetup||action==fmo::UiAction::Exit||action==fmo::UiAction::BackgroundListen){
+    if(action==fmo::UiAction::PhoneSetup||action==fmo::UiAction::OpenGlobalSetup||action==fmo::UiAction::Exit||action==fmo::UiAction::BackgroundListen){
         talk_requested=false;
         // running remains true: registry cooperatively defers teardown until
         // this worker has stopped networking, saved its book and parked.
-        if(action==fmo::UiAction::PhoneSetup)fmo_switch_to_wifi_setup();else fmo_switch_to_launcher();
+#ifdef ESP_PLATFORM
+        if(action==fmo::UiAction::OpenGlobalSetup)fmo_switch_to_wifi_setup();
+        else if(action==fmo::UiAction::Exit||action==fmo::UiAction::BackgroundListen)fmo_switch_to_launcher();
+#else
+        if(action==fmo::UiAction::PhoneSetup||action==fmo::UiAction::OpenGlobalSetup)fmo_switch_to_wifi_setup();
+        else fmo_switch_to_launcher();
+#endif
     }
 }
 const char *mqtt_connection_message(fmo::MqttConnection state){
@@ -938,13 +988,67 @@ void run(void *){
     int64_t next_book_save=esp_timer_get_time()+60000000;
     const bool broadcast_config_ok=fmo::load_broadcast_config(&broadcast);bool broadcast_ready=false;
     std::string aprs_login_text,aprs_login_call;
-    auto cleanup=[&](){std::string{}.swap(aprs_login_text);std::string{}.swap(aprs_login_call);cleanup_session(identity,secret,uri,password,error,aprs,audio);if(cache_dirty&&scratch)fmo::save_relay_cache(scratch->servers,time(nullptr));if(book_dirty)fmo::save_contact_book(*book);if(peer_stamps_dirty&&peer_stamps)fmo::save_peer_stamps(*peer_stamps);book.reset();peers.reset();announcements.reset();inbox.reset();favorites.reset();peer_stamps.reset();custom_stamp.reset();scratch.reset();};
+    auto cleanup=[&](){
+#ifdef ESP_PLATFORM
+        fmo_http_stop_lan();
+#endif
+        std::string{}.swap(aprs_login_text);std::string{}.swap(aprs_login_call);cleanup_session(identity,secret,uri,password,error,aprs,audio);if(cache_dirty&&scratch)fmo::save_relay_cache(scratch->servers,time(nullptr));if(book_dirty)fmo::save_contact_book(*book);if(peer_stamps_dirty&&peer_stamps)fmo::save_peer_stamps(*peer_stamps);book.reset();peers.reset();announcements.reset();inbox.reset();favorites.reset();peer_stamps.reset();custom_stamp.reset();scratch.reset();};
     fmo::Navigation nav;
     auto service_controls=[&](){if(announcements&&announcements->prune(time(nullptr))&&page==fmo::Page::Announcements)announcement_view(announcements.get(),nav);
         const auto action=process_controls(nav,servers,book.get(),book_writable,peers.get(),announcements.get(),favorites.get(),favorites_writable,&stamp_cfg,custom_stamp.get(),peer_stamps.get(),identity.callsign,inbox.get(),&beep_cfg);
         if(action==fmo::UiAction::BackgroundListen)fmo::set_sentinel_enabled(true);
         navigate(action);
         if(action==fmo::UiAction::BackgroundListen)return fmo::UiAction::None;
+#ifdef ESP_PLATFORM
+        if(action==fmo::UiAction::PhoneSetup){
+            talk_requested=false;
+            close_mqtt();
+            if(aprs>=0){close(aprs);aprs=-1;}
+            if(audio){bsp_audio_deinit();audio=capturing=false;}
+            if(cache_dirty&&scratch){fmo::save_relay_cache(scratch->servers,time(nullptr));cache_dirty=false;}
+            if(book_dirty&&book){fmo::save_contact_book(*book);book_dirty=false;}
+            char lan_url[96]{};
+            if(WifiManager::GetInstance().IsConnected()&&fmo_http_start_lan(lan_url,sizeof(lan_url))){
+                const std::string ip=WifiManager::GetInstance().GetIpAddress();
+                char short_url[64]{};
+                std::snprintf(short_url,sizeof(short_url),"http://%s/fmo",ip.c_str());
+                page=fmo::Page::WebConfig;
+                back_requested=false;switch_requested=false;previous_requested=0;next_requested=0;
+                web_config_view(lan_url,short_url);
+                bool open_global=false;
+                while(!stop_requested&&page==fmo::Page::WebConfig){
+                    fmo_keep_awake();
+                    if(back_requested.exchange(false)||switch_requested.exchange(false))break;
+                    if(previous_requested.exchange(0)>0){open_global=true;break;}
+                    next_requested.exchange(0);
+                    if(!WifiManager::GetInstance().IsConnected())break;
+                    ulTaskNotifyTake(pdTRUE,pdMS_TO_TICKS(250));
+                }
+                for(int w=0;fmo_http_busy()&&w<3000;w+=50)vTaskDelay(pdMS_TO_TICKS(50));
+                fmo_http_stop_lan();
+                if(open_global){
+                    fmo_switch_to_wifi_setup();
+                    return fmo::UiAction::None;
+                }
+                // Hot-reload settings modified from the phone browser without rebooting or dropping Wi-Fi.
+                fmo::load_beep_config(&beep_cfg);
+                if(fmo::load_stamp_config(&stamp_cfg)!=fmo::StampLoad::Unavailable&&stamp_cfg.custom_present){
+                    if(!custom_stamp)custom_stamp.reset(new(std::nothrow) uint8_t[fmo::kStampPixelBytes]);
+                    if(custom_stamp&&fmo::load_custom_stamp_image(stamp_cfg,custom_stamp.get())!=fmo::StampLoad::Ready)custom_stamp.reset();
+                }else{
+                    custom_stamp.reset();
+                }
+                fmo::load_broadcast_config(&broadcast);
+                if(favorites)fmo::load_favorites(favorites.get());
+                const uint32_t reload_now=static_cast<uint32_t>(time(nullptr));
+                fmo::load_relay_cache(&servers,reload_now);
+                normal_view();
+                return fmo::UiAction::PhoneSetup;
+            }
+            fmo_switch_to_wifi_setup();
+            return fmo::UiAction::None;
+        }
+#endif
         if(action==fmo::UiAction::SaveStamp){
             const char *msg="印章配置不可写，未覆盖";
             if(stamp_writable){
@@ -1118,6 +1222,16 @@ void run(void *){
             ptt_preempted=false;
         }
         if(action==fmo::UiAction::Discover)discovery_retry_view(restart_discovery(aprs,next_aprs,next_manual_discovery,now));
+#ifdef ESP_PLATFORM
+        if(action==fmo::UiAction::PhoneSetup){
+            fmo::Relay reloaded{};
+            if(fmo::load_relay(&reloaded)){selected=reloaded;has_selected=true;}
+            else {selected=fmo::builtin_relay();has_selected=true;}
+            next_connect=0;next_aprs=0;last_ui=0;
+            show("正在重连中继",selected.name[0]?selected.name:selected.host,identity.callsign);
+            show_relay(selected,servers,time(nullptr));
+        }
+#endif
         if(action==fmo::UiAction::ConnectBuiltin){
             favorite_on_connect_until=0;
             talk_requested=false;close_mqtt();
@@ -1406,6 +1520,7 @@ void stop(){
     if(rx_storage){sodium_memzero(rx_storage,kQueueCount*sizeof(Raw)+fmo::kPacketMax);delete[] rx_storage;rx_storage=nullptr;}
     if(audio_workspace::owner.load()==audio_workspace::Owner::Plugin){sodium_memzero(audio_workspace::storage,audio_workspace::kBytes);audio_workspace::release(audio_workspace::Owner::Plugin);}
     bsp_lvgl_lock(-1);
+    qr_widget_hide();
     if(stamp_image_buf)lv_image_cache_drop(&stamp_dsc);
     if(screen)lv_obj_delete(screen);
     screen=state_label=relay_label=call_label=hint_label=stamp_image=nullptr;

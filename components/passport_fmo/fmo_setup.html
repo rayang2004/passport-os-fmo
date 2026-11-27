@@ -126,12 +126,15 @@ a{color:var(--green)}
 <p id="fmoStampStatus" class="status" role="status" aria-live="polite"></p>
 </div></details>
 <details id="fmoBeepSection"><summary>FMO 结束信令音（Roger Beep）<small id="fmoBeepSummary">内置双音</small></summary><div class="detail-body">
-<p class="help">松开讲话键结束发射时，自动发送并本地播放结束信令音（对齐 FMO Passport v0.6.11）。支持内置高-低双音，或下载云端 FBEP 趣味信令音（上限 3 秒）。</p>
+<p class="help">松开讲话键结束发射时，自动发送并本地播放结束信令音（对齐 FMO Passport v0.6.13）。支持内置高-低双音、云端 FBEP 趣味信令音，或直接上传本地 MP3/WAV/M4A 离线转码（上限 3 秒）。</p>
 <label><input id="fmoBeepEnabled" type="checkbox" checked>启用发射结束信令音</label>
-<label for="fmoBeepSelect">信令音样式</label><select id="fmoBeepSelect"><option value="0">内置双音（960→640 Hz）</option></select>
+<label for="fmoBeepSelect">云端 / 内置信令音样式</label><select id="fmoBeepSelect"><option value="0">内置双音（960→640 Hz）</option></select>
 <button id="fmoBeepRefresh" class="secondary" type="button">刷新云端信令音清单</button>
 <button id="fmoBeepPreview" class="secondary" type="button">试听所选信令音</button>
-<button id="fmoBeepApply" class="secondary" type="button">保存 / 下载到设备</button>
+<button id="fmoBeepApply" class="secondary" type="button">保存 / 下载所选信令音</button>
+<div class="field"><label for="fmoBeepFile">或上传本地音频自定义尾音（MP3 / WAV / M4A，自动截取 ≤3 秒）</label><input id="fmoBeepFile" type="file" accept="audio/*,.wav,.mp3,.m4a,.ogg,.aac"></div>
+<button id="fmoBeepPreviewLocal" class="secondary" type="button" hidden>试听转换后的本地尾音</button>
+<button id="fmoBeepUploadLocal" class="secondary" type="button" disabled>上传本地自定义尾音到设备</button>
 <button id="fmoBeepClear" class="secondary" type="button" hidden>清除自定义音，恢复内置双音</button>
 <p id="fmoBeepStatus" class="status" role="status" aria-live="polite"></p>
 </div></details>
@@ -170,7 +173,31 @@ window.__T=qs.get('t')||(document.cookie.match(/(?:^|;\s*)pt=(\d+)/)||[])[1]||''
 const $=id=>document.getElementById(id);
 const say=(id,text,error=false)=>{const el=$(id);if(!el)return;el.textContent=text;el.dataset.error=String(error)};
 const bytes=s=>new TextEncoder().encode(s).length;
-let saveInProgress=false,hasSaved=false,verified=false,staConnected=false,staSsid='';
+let saveInProgress=false,hasSaved=false,verified=false,staConnected=false,staSsid='',lanMode=false;
+function updateFmoWifiNotice(){
+ const note=$('fmoWifiNotice'),btn=$('fmoConnectWifi');
+ if(lanMode){
+  if(note)note.textContent='当前为局域网直连模式（不断网），手机与设备均可直接访问外网服务。';
+  if(btn)btn.hidden=true;
+  return;
+ }
+ if(staConnected){
+  if(note)note.textContent='设备已连接路由器 Wi-Fi'+(staSsid?`（${staSsid}）`:'')+'，可直接进行证书申请、吊销检查与云端下载。';
+  if(btn)btn.hidden=true;
+ }else if(hasSaved){
+  if(note)note.textContent='设备尚未连接路由器，执行联网操作时将自动重连已保存 Wi-Fi，也可点下方按钮手动连接。';
+  if(btn)btn.hidden=false;
+ }else{
+  if(note)note.textContent='设备尚未保存可用 Wi-Fi，请先返回 Passport 设置完成配网。';
+  if(btn)btn.hidden=true;
+ }
+}
+function encodeBackground(canvas,quality){
+ return new Promise((resolve,reject)=>{
+  if(!canvas||typeof canvas.toBlob!=='function'){reject(Error('当前浏览器不支持图片压缩。'));return;}
+  canvas.toBlob(b=>{if(b)resolve(b);else reject(Error('图片压缩失败，请重试。'));},'image/jpeg',quality);
+ });
+}
 function errMsg(code){const m={unauthorized:'页面已过期，请返回首页重新打开手机设置。',wifi_required:'设备尚未连接可上网的 Wi-Fi。',clock_required:'设备尚未完成校时，请稍后重试。',busy:'设备正忙，请稍后再试。',oom:'设备内存紧张，请关闭其它操作后重试。'};return m[code]||code||'请求失败'}
 async function api(path,body,method){
  const url=path+(path.includes('?')?'&':'?')+'t='+encodeURIComponent(window.__T||'');
@@ -185,7 +212,7 @@ async function api(path,body,method){
 }
 let fmoBusy=false,fmoPollTimer=null,fmoPollCount=0;
 function stopFmoPoll(){clearTimeout(fmoPollTimer);fmoPollTimer=null;fmoPollCount=0}
-function lockFmo(locked){for(const id of ['fmoConnectWifi','fmoImportLegacy','fmoCheckCrl','fmoReadAprs','fmoSaveAprs','fmoAprsEnabled','fmoAprsLegacy','fmoAprsGrid','fmoAprsSsid','fmoAprsFrequency','fmoAprsHeight','fmoAprsRig','fmoAprsAntenna','fmoReadBook','fmoExportBook','fmoRestoreBookFile','fmoRestoreBook','fmoReadStamp','fmoStampStyle','fmoStampColor','fmoStampLabel','fmoSaveStamp','fmoStampFile','fmoStampThreshold','fmoStampInvert','fmoUploadStamp','fmoExportStamp','fmoClearStamp','fmoBeepEnabled','fmoBeepSelect','fmoBeepRefresh','fmoBeepPreview','fmoBeepApply','fmoBeepClear','fmoInit','fmoRefresh','fmoApply','fmoSaveRelay','fmoRefreshServers','fmoSelectServer','fmoUseBuiltin','fmoServerList','fmoPhoto','fmoCallsign','fmoHost','fmoPort','fmoRelayCall','fmoRelayUid','fmoFingerprint'])$(id).disabled=locked||((id==='fmoUploadStamp')&&!stampCustomPixels)}
+function lockFmo(locked){for(const id of ['fmoConnectWifi','fmoImportLegacy','fmoCheckCrl','fmoReadAprs','fmoSaveAprs','fmoAprsEnabled','fmoAprsLegacy','fmoAprsGrid','fmoAprsSsid','fmoAprsFrequency','fmoAprsHeight','fmoAprsRig','fmoAprsAntenna','fmoReadBook','fmoExportBook','fmoRestoreBookFile','fmoRestoreBook','fmoReadStamp','fmoStampStyle','fmoStampColor','fmoStampLabel','fmoSaveStamp','fmoStampFile','fmoStampThreshold','fmoStampInvert','fmoUploadStamp','fmoExportStamp','fmoClearStamp','fmoBeepEnabled','fmoBeepSelect','fmoBeepRefresh','fmoBeepPreview','fmoBeepApply','fmoBeepFile','fmoBeepPreviewLocal','fmoBeepUploadLocal','fmoBeepClear','fmoInit','fmoRefresh','fmoApply','fmoSaveRelay','fmoRefreshServers','fmoSelectServer','fmoUseBuiltin','fmoServerList','fmoPhoto','fmoCallsign','fmoHost','fmoPort','fmoRelayCall','fmoRelayUid','fmoFingerprint']){const el=$(id);if(el)el.disabled=locked||((id==='fmoUploadStamp')&&!stampCustomPixels)||((id==='fmoBeepUploadLocal')&&!localBeepFbep);}}
 async function fmoOperation(work,target='fmoStatus'){if(fmoBusy||saveInProgress)return;fmoBusy=true;lockFmo(true);try{await work()}catch(e){say(target,e.message,true)}finally{fmoBusy=false;lockFmo(false)}}
 async function syncPhoneTime(){try{await api('/api/time',{epoch:Math.floor(Date.now()/1000),tz_minutes:-new Date().getTimezoneOffset()})}catch(e){}}
 async function ensureFmoWifi(target='fmoStatus'){
@@ -494,7 +521,12 @@ async function fmoLocal(){
  if(bi&&$('fmoBuiltinNote'))$('fmoBuiltinNote').textContent=bi.active?`当前已启用内置兜底中继：${bi.name}（${bi.host}:${bi.port}）。`:`当前使用已选/手动中继；无同链 PASS 中继时可随时切换回 ${bi.name}（${bi.host}:${bi.port}）。`;
  return state;
 }
-let beepCatalog=[],beepState={enabled:true,use_custom:false,custom_present:false,custom_id:0},beepCall='';
+let beepCatalog=[],beepState={enabled:true,use_custom:false,custom_present:false,custom_id:0},beepCall='',localBeepFbep=null,localBeepPcm=null;
+function crc32Bytes(u8){
+ let c=0xffffffff;
+ for(let i=0;i<u8.length;++i){c^=u8[i];for(let k=0;k<8;++k)c=(c>>>1)^(0xedb88320&(-(c&1)));}
+ return (~c)>>>0;
+}
 function renderBeepOptions(){
  const sel=$('fmoBeepSelect');if(!sel)return;
  const curId=(beepState.use_custom&&beepState.custom_present)?Number(beepState.custom_id||0):0;
@@ -504,14 +536,14 @@ function renderBeepOptions(){
   if(item.id===curId)hit=true;
   sel.add(new Option(`${item.name} (#${item.id})`,String(item.id)));
  }
- if(curId>0&&!hit)sel.add(new Option(`已下载自定义音 #${curId}`,String(curId)));
+ if(curId>0&&!hit)sel.add(new Option(curId===200?'本地自定义音 (#200)':`已下载自定义音 #${curId}`,String(curId)));
  sel.value=String(curId);
 }
 function applyBeepState(bp,call){
  beepState=bp||beepState;if(call)beepCall=call.replace(/^P-/i,'').toUpperCase();
  if($('fmoBeepEnabled'))$('fmoBeepEnabled').checked=beepState.enabled!==false;
  if($('fmoBeepClear'))$('fmoBeepClear').hidden=!beepState.custom_present;
- if($('fmoBeepSummary'))$('fmoBeepSummary').textContent=!beepState.enabled?'已关闭':(beepState.use_custom&&beepState.custom_present?`自定义音 #${beepState.custom_id}`:'内置双音');
+ if($('fmoBeepSummary'))$('fmoBeepSummary').textContent=!beepState.enabled?'已关闭':(beepState.use_custom&&beepState.custom_present?(Number(beepState.custom_id)===200?'本地自定义音':`自定义音 #${beepState.custom_id}`):'内置双音');
  renderBeepOptions();
 }
 function playBuiltinBeepWeb(){
@@ -522,10 +554,17 @@ function playBuiltinBeepWeb(){
  say('fmoBeepStatus','正在试听内置双音（960→640 Hz）。');
 }
 async function loadBeepCatalog(){
- say('fmoBeepStatus','正在从 fmo.simy.live 读取云端信令音清单…');
- const r=await fetch('https://fmo.simy.live/fw/beep/list.json',{cache:'no-store'});
- if(!r.ok)throw Error(`清单请求失败 (${r.status})`);
- const j=await r.json();const arr=[];
+ say('fmoBeepStatus','正在读取云端信令音清单…');
+ let j=null;
+ try{
+  const r=await fetch('https://fmo.simy.live/fw/beep/list.json',{cache:'no-store'});
+  if(r.ok)j=await r.json();
+ }catch(_){}
+ if(!j||typeof j!=='object'){
+  say('fmoBeepStatus','手机未直连外网，正在通过设备 Wi-Fi 代拉云端信令音清单…');
+  j=await fmoOnlineRequest(()=>api('/api/fmo/beep',{action:'catalog'}),'fmoBeepStatus');
+ }
+ const arr=[];
  for(const k of Object.keys(j||{})){
   const id=Number(k);if(!Number.isInteger(id)||id<=0||id>255||String(id)!==k)continue;
   const v=j[k];let nm='',sc='all',cs=[];
@@ -534,8 +573,79 @@ async function loadBeepCatalog(){
   arr.push({id,name:String(nm)});
  }
  arr.sort((a,b)=>a.id-b.id);beepCatalog=arr;renderBeepOptions();
- say('fmoBeepStatus',arr.length?`已加载 ${arr.length} 款云端信令音。`:'云端暂无可用自定义信令音，可使用内置双音。');
+ say('fmoBeepStatus',arr.length?`已加载 ${arr.length} 款云端信令音。`:'云端暂无可用自定义信令音，可使用内置双音或上传本地音频。');
 }
+async function encodeLocalBeepToFbep(file){
+ if(!file||file.size<=0||file.size>20*1024*1024)throw Error('请选择 20 MB 以内的音频文件（MP3 / WAV / M4A）。');
+ const AC=window.AudioContext||window.webkitAudioContext;
+ if(!AC)throw Error('当前浏览器不支持音频解码，请换用 Safari / Chrome。');
+ const raw=await file.arrayBuffer();
+ const ctx=new AC();
+ let decoded;
+ try{decoded=await ctx.decodeAudioData(raw.slice(0));}
+ finally{try{await ctx.close();}catch(_){}}
+ if(!decoded||!decoded.length)throw Error('无法解析该音频文件，请换一个 MP3/WAV。');
+ const dur=Math.min(3.0,decoded.duration);
+ const samples=Math.max(320,Math.min(24000,Math.ceil(dur*8000/320)*320));
+ let mono=new Float32Array(samples);
+ const OAC=window.OfflineAudioContext||window.webkitOfflineAudioContext;
+ if(OAC){
+  const off=new OAC(1,samples,8000);
+  const src=off.createBufferSource();
+  src.buffer=decoded;src.connect(off.destination);src.start(0,0,dur);
+  const rendered=await off.startRendering();
+  mono.set(rendered.getChannelData(0).subarray(0,samples));
+ }else{
+  const ch0=decoded.getChannelData(0),ratio=decoded.sampleRate/8000;
+  for(let i=0;i<samples;++i){const p=i*ratio,k=Math.floor(p);mono[i]=k<ch0.length?ch0[k]:0;}
+ }
+ let peak=0;
+ for(let i=0;i<samples;++i){const a=Math.abs(mono[i]);if(a>peak)peak=a;}
+ const gain=peak>0.001?0.85/peak:1.0;
+ const pcmBytes=new Uint8Array(samples*2),view=new DataView(pcmBytes.buffer);
+ const fade=Math.min(40,Math.floor(samples/4));
+ for(let i=0;i<samples;++i){
+  let v=mono[i]*gain;
+  if(i<fade)v*=i/fade;
+  else if(samples-1-i<fade)v*=(samples-1-i)/fade;
+  v=Math.max(-1,Math.min(1,v));
+  mono[i]=v;
+  view.setInt16(i*2,Math.round(v*32767),true);
+ }
+ const crc=crc32Bytes(pcmBytes);
+ const out=new Uint8Array(16+pcmBytes.length),hv=new DataView(out.buffer);
+ out[0]=70;out[1]=66;out[2]=69;out[3]=80;out[4]=1;out[5]=200;hv.setUint16(6,0,true);
+ hv.setUint32(8,samples,true);hv.setUint32(12,crc,true);out.set(pcmBytes,16);
+ return {fbep:out,pcm:mono,samples};
+}
+$('fmoBeepFile').onchange=()=>fmoOperation(async()=>{
+ localBeepFbep=null;localBeepPcm=null;
+ $('fmoBeepUploadLocal').disabled=true;$('fmoBeepPreviewLocal').hidden=true;
+ const file=$('fmoBeepFile').files[0];if(!file)return;
+ say('fmoBeepStatus','正在离线转换音频为 8 kHz 单声道 FBEP…');
+ const res=await encodeLocalBeepToFbep(file);
+ localBeepFbep=res.fbep;localBeepPcm=res.pcm;
+ $('fmoBeepUploadLocal').disabled=false;$('fmoBeepPreviewLocal').hidden=false;
+ say('fmoBeepStatus',`已转换完成（${(res.samples/8000).toFixed(2)} 秒，${(res.fbep.length/1024).toFixed(1)} KB），可先试听再上传到设备。`);
+},'fmoBeepStatus');
+$('fmoBeepPreviewLocal').onclick=()=>{
+ if(!localBeepPcm)return;
+ const AC=window.AudioContext||window.webkitAudioContext;
+ if(!AC){say('fmoBeepStatus','当前浏览器不支持试听。');return;}
+ const ctx=new AC(),buf=ctx.createBuffer(1,localBeepPcm.length,8000);
+ buf.copyToChannel(localBeepPcm,0);
+ const src=ctx.createBufferSource();src.buffer=buf;src.connect(ctx.destination);
+ src.onended=()=>{try{ctx.close();}catch(_){}};
+ src.start();
+ say('fmoBeepStatus','正在试听转换后的本地尾音（8 kHz 单声道）。');
+};
+$('fmoBeepUploadLocal').onclick=()=>fmoOperation(async()=>{
+ if(!localBeepFbep)throw Error('请先选择一个本地音频文件。');
+ say('fmoBeepStatus',`正在上传本地自定义尾音（${(localBeepFbep.length/1024).toFixed(1)} KB）到设备…`);
+ const state=await api('/api/fmo/beep',new Blob([localBeepFbep],{type:'application/octet-stream'}));
+ if(state.beep)applyBeepState(state.beep,state.callsign||'');
+ say('fmoBeepStatus','本地自定义尾音已保存到设备，下次松开讲话键时生效。');
+},'fmoBeepStatus');
 $('fmoBeepRefresh').onclick=()=>fmoOperation(loadBeepCatalog,'fmoBeepStatus');
 $('fmoBeepPreview').onclick=()=>{
  const id=Number($('fmoBeepSelect').value||0);
@@ -642,16 +752,23 @@ async function initFmoPage(){
  initStampPalette();
  try{
   const st=await api('/api/setup');
+  lanMode=st.lan_mode===true;
   hasSaved=!!st.saved_network;
   staConnected=!!st.sta_connected||st.state==='connected';
   verified=staConnected;
   staSsid=st.sta_ssid||st.ssid||'';
-  $('connectionSummary').textContent=staConnected?('已连接 Wi-Fi：'+(staSsid||'在线')):(hasSaved?'暂未联网（可自动重连已保存 Wi-Fi）':'未连接路由器，请先返回 Passport 设置配网');
+  if(lanMode){
+   const bk=$('backHome');
+   if(bk){bk.removeAttribute('href');bk.textContent='局域网直连 · 不断网';bk.style.pointerEvents='none';}
+   $('connectionSummary').textContent='局域网直连'+(st.ip?`（${st.ip}）`:'')+' · 手机与设备均保持联网';
+  }else{
+   $('connectionSummary').textContent=staConnected?('已连接 Wi-Fi：'+(staSsid||'在线')):(hasSaved?'暂未联网（可自动重连已保存 Wi-Fi）':'未连接路由器，请先返回 Passport 设置配网');
+  }
   updateFmoWifiNotice();
   await syncPhoneTime();
   await fmoLocal();
  }catch(e){
-  say('fmoStatus',e.message||'无法连接设备，请确认手机仍连在设备热点上。',true);
+  say('fmoStatus',e.message||'无法连接设备，请确认手机与设备处于同一网络。',true);
  }
 }
 initFmoPage();

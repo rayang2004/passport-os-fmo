@@ -23,6 +23,11 @@
 #include "fmo_host_bridge.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
+#ifdef ESP_PLATFORM
+#include "esp_log.h"
+#include "esp_random.h"
+#include <sys/time.h>
+#endif
 extern const char fmo_root_start[] asm("_binary_passport_root_json_start");
 namespace {
 std::atomic<bool> busy{false};
@@ -464,7 +469,7 @@ esp_err_t fmo_http_beep(httpd_req_t *r){
     if(r->content_len<=0||static_cast<size_t>(r->content_len)>fmo::kBeepMaxFileBytes){
         return fail(r,"信令音文件过大或为空（上限 3 秒 / 48 KB）");
     }
-    // Small JSON command: {"download_id": N} to fetch https://fmo.simy.live/fw/beep/<N>.bin directly on device.
+    // Small JSON command: {"action":"catalog"} or {"download_id": N}.
     char ctype[64]{};
     const bool is_json=(httpd_req_get_hdr_value_str(r,"Content-Type",ctype,sizeof(ctype))==ESP_OK&&std::strstr(ctype,"application/json")!=nullptr);
     if(is_json&&r->content_len<=256){
@@ -475,6 +480,43 @@ esp_err_t fmo_http_beep(httpd_req_t *r){
             at+=n;
         }
         Json j(cJSON_Parse(body),cJSON_Delete);
+        const char *act=field(j.get(),"action");
+        if(act&&std::strcmp(act,"catalog")==0){
+            if(!WifiManager::GetInstance().HasStationIp()){
+                return fail(r,"设备尚未连接可上网的Wi-Fi，请先连接路由器后再刷新清单","wifi_required");
+            }
+            if(heap_caps_get_free_size(MALLOC_CAP_8BIT)<40960){
+                return fail(r,"空闲内存不足，请稍后重试");
+            }
+            esp_http_client_config_t config{};
+            config.url="https://fmo.simy.live/fw/beep/list.json";
+            config.method=HTTP_METHOD_GET;
+            config.crt_bundle_attach=esp_crt_bundle_attach;
+            config.disable_auto_redirect=true;
+            config.timeout_ms=10000;config.buffer_size=512;config.buffer_size_tx=512;
+            auto client=esp_http_client_init(&config);
+            if(!client)return fail(r,"清单下载连接内存不足");
+            struct Close {esp_http_client_handle_t c;~Close(){if(c)esp_http_client_cleanup(c);}} close{client};
+            const int64_t deadline=esp_timer_get_time()+15000000;
+            if(esp_http_client_open(client,0)!=ESP_OK)return fail(r,"无法连接云端信令音清单服务");
+            const auto length=esp_http_client_fetch_headers(client);
+            if(length<0||esp_http_client_get_status_code(client)!=200)return fail(r,"云端信令音清单暂不可用");
+            if(length>8192)return fail(r,"云端信令音清单体积异常");
+            std::string raw;
+            char chunk[512];
+            for(;;){
+                if(!WifiManager::GetInstance().HasStationIp())return fail(r,"读取清单期间网络断开");
+                if(esp_timer_get_time()>deadline)return fail(r,"读取清单超时，请重试");
+                const int n=esp_http_client_read(client,chunk,sizeof(chunk));
+                if(n<0)return fail(r,"读取清单中断");
+                if(n==0)break;
+                if(raw.size()+static_cast<size_t>(n)>8192)return fail(r,"云端信令音清单超限");
+                raw.append(chunk,static_cast<size_t>(n));
+            }
+            Json parsed(cJSON_Parse(raw.c_str()),cJSON_Delete);
+            if(!cJSON_IsObject(parsed.get()))return fail(r,"云端信令音清单格式异常");
+            return send(r,parsed.get());
+        }
         const auto *did=cJSON_GetObjectItemCaseSensitive(j.get(),"download_id");
         if(!cJSON_IsNumber(did)||did->valuedouble<1||did->valuedouble>255||did->valuedouble!=did->valueint){
             return fail(r,"云端信令音编号无效");
@@ -482,7 +524,7 @@ esp_err_t fmo_http_beep(httpd_req_t *r){
         if(!WifiManager::GetInstance().HasStationIp()){
             return fail(r,"设备尚未连接可上网的Wi-Fi，请先连接路由器后再下载云端信令音","wifi_required");
         }
-        if(heap_caps_get_free_size(MALLOC_CAP_8BIT)<98304){
+        if(heap_caps_get_free_size(MALLOC_CAP_8BIT)<45056){
             return fail(r,"空闲内存不足，请稍后重试");
         }
         char url[96];
@@ -499,41 +541,46 @@ esp_err_t fmo_http_beep(httpd_req_t *r){
         const auto length=esp_http_client_fetch_headers(client);
         if(length<=0||esp_http_client_get_status_code(client)!=200)return fail(r,"云端信令音不存在或暂不可用");
         if(static_cast<size_t>(length)>fmo::kBeepMaxFileBytes)return fail(r,"云端信令音超过3秒上限");
-        std::unique_ptr<uint8_t[]> data(new(std::nothrow) uint8_t[static_cast<size_t>(length)]);
-        if(!data)return fail(r,"信令音下载内存不足");
-        size_t got=0;
-        while(got<static_cast<size_t>(length)){
-            if(!WifiManager::GetInstance().HasStationIp())return fail(r,"下载期间网络断开");
-            if(esp_timer_get_time()>deadline)return fail(r,"信令音下载超时，请重试");
-            const int n=esp_http_client_read(client,reinterpret_cast<char *>(data.get()+got),std::min<size_t>(512,static_cast<size_t>(length)-got));
-            if(n<=0)return fail(r,"信令音下载中断");
-            got+=n;
-        }
-        if(!esp_http_client_is_complete_data_received(client))return fail(r,"信令音下载不完整");
+        struct HttpReadCtx {
+            esp_http_client_handle_t c;
+            int64_t deadline;
+            const char *err;
+        } ctx{client,deadline,nullptr};
+        auto read_http=[](void *p,uint8_t *buf,size_t max_len)->int{
+            auto *x=static_cast<HttpReadCtx *>(p);
+            if(!WifiManager::GetInstance().HasStationIp()){x->err="下载期间网络断开";return -1;}
+            if(esp_timer_get_time()>x->deadline){x->err="信令音下载超时，请重试";return -1;}
+            const int n=esp_http_client_read(x->c,reinterpret_cast<char *>(buf),max_len);
+            if(n<=0){x->err="信令音下载中断";return -1;}
+            return n;
+        };
+        fmo::BeepConfig cfg{};
+        const bool saved=fmo::save_custom_beep_stream(static_cast<size_t>(length),
+                                                      static_cast<uint8_t>(did->valueint),
+                                                      read_http,&ctx,&cfg,true);
+        const bool complete=saved&&esp_http_client_is_complete_data_received(client);
         esp_http_client_cleanup(client);
         close.c=nullptr;
-        uint8_t file_id=0;
-        if(!fmo::beep_parse_fbep(data.get(),got,&file_id,nullptr,nullptr)||file_id!=did->valueint)
-            return fail(r,"云端信令音编号或文件校验不一致");
-        fmo::BeepConfig cfg{};
-        if(!fmo::save_custom_beep_fbep(data.get(),got,&cfg,true))return fail(r,"信令音校验或写入失败，请重试");
+        if(!saved)return fail(r,ctx.err?ctx.err:"云端信令音校验或写入失败，请重试");
+        if(!complete)return fail(r,"信令音下载不完整");
         return status(r);
     }
-    // Raw FBEP binary upload directly from phone browser.
-    const size_t total=static_cast<size_t>(r->content_len);
-    std::unique_ptr<uint8_t[]> data(new(std::nothrow) uint8_t[total]);
-    if(!data)return fail(r,"信令音上传内存不足");
-    size_t received=0;
-    const int64_t deadline=esp_timer_get_time()+60000000;
-    while(received<total){
-        if(esp_timer_get_time()>deadline)return fail(r,"信令音上传超时，请重试");
-        const int n=httpd_req_recv(r,reinterpret_cast<char *>(data.get()+received),std::min<size_t>(512,total-received));
-        if(n<=0)return fail(r,"信令音上传中断，请重试");
-        received+=n;
-    }
+    // Raw FBEP binary upload directly from phone browser (512B streaming, zero 48KB heap peak).
+    struct ReqReadCtx {
+        httpd_req_t *req;
+        int64_t deadline;
+        const char *err;
+    } ctx{r,esp_timer_get_time()+60000000,nullptr};
+    auto read_req=[](void *p,uint8_t *buf,size_t max_len)->int{
+        auto *x=static_cast<ReqReadCtx *>(p);
+        if(esp_timer_get_time()>x->deadline){x->err="信令音上传超时，请重试";return -1;}
+        const int n=httpd_req_recv(x->req,reinterpret_cast<char *>(buf),max_len);
+        if(n<=0){x->err="信令音上传中断，请重试";return -1;}
+        return n;
+    };
     fmo::BeepConfig cfg{};
-    if(!fmo::save_custom_beep_fbep(data.get(),received,&cfg,true)){
-        return fail(r,"信令音格式(FBEP)校验失败或写入未确认");
+    if(!fmo::save_custom_beep_stream(static_cast<size_t>(r->content_len),0,read_req,&ctx,&cfg,true)){
+        return fail(r,ctx.err?ctx.err:"信令音格式(FBEP)校验失败或写入未确认");
     }
     return status(r);
 }
@@ -543,6 +590,42 @@ extern const char fmo_setup_page_start[] asm("_binary_fmo_setup_html_gz_start");
 extern const char fmo_setup_page_end[] asm("_binary_fmo_setup_html_gz_end");
 
 namespace {
+httpd_handle_t s_lan_server = nullptr;
+std::atomic<uint32_t> s_lan_token{0};
+
+bool lan_token_ok(httpd_req_t *req) {
+    const uint32_t expected = s_lan_token.load(std::memory_order_acquire);
+    if (!expected || !req) return false;
+    char expect_str[16];
+    std::snprintf(expect_str, sizeof(expect_str), "%lu", static_cast<unsigned long>(expected));
+    char query[128]{};
+    if (httpd_req_get_url_query_str(req, query, sizeof(query)) == ESP_OK) {
+        char val[24]{};
+        if (httpd_query_key_value(query, "t", val, sizeof(val)) == ESP_OK &&
+            std::strcmp(val, expect_str) == 0) {
+            return true;
+        }
+    }
+    char cookie[192]{};
+    if (httpd_req_get_hdr_value_str(req, "Cookie", cookie, sizeof(cookie)) == ESP_OK) {
+        const char *p = std::strstr(cookie, "pt=");
+        if (p) {
+            p += 3;
+            size_t len = 0;
+            while (p[len] >= '0' && p[len] <= '9' && len < 15) ++len;
+            if (len == std::strlen(expect_str) && std::memcmp(p, expect_str, len) == 0) {
+                return true;
+            }
+        }
+    }
+    return false;
+}
+
+bool token_ok_any(httpd_req_t *req) {
+    if (s_lan_server) return lan_token_ok(req);
+    return fmo_http_token_ok(req);
+}
+
 esp_err_t send_unauthorized(httpd_req_t *req) {
     httpd_resp_set_type(req, "application/json");
     httpd_resp_set_hdr(req, "Cache-Control", "no-store, max-age=0");
@@ -550,22 +633,71 @@ esp_err_t send_unauthorized(httpd_req_t *req) {
     return httpd_resp_sendstr(req, "{\"error\":\"unauthorized\"}");
 }
 esp_err_t handler_fmo_page(httpd_req_t *req) {
+    if (s_lan_server) {
+        if (!lan_token_ok(req)) {
+            httpd_resp_set_type(req, "text/plain; charset=utf-8");
+            httpd_resp_set_status(req, "403 Forbidden");
+            return httpd_resp_sendstr(req, "请扫描设备屏幕上的二维码打开 FMO 配置页。");
+        }
+        char cookie_hdr[64];
+        std::snprintf(cookie_hdr, sizeof(cookie_hdr), "pt=%lu; Path=/; SameSite=Strict",
+                      static_cast<unsigned long>(s_lan_token.load(std::memory_order_acquire)));
+        httpd_resp_set_hdr(req, "Set-Cookie", cookie_hdr);
+    }
     httpd_resp_set_type(req, "text/html; charset=utf-8");
     httpd_resp_set_hdr(req, "Content-Encoding", "gzip");
     httpd_resp_set_hdr(req, "Cache-Control", "no-store, max-age=0");
     return httpd_resp_send(req, fmo_setup_page_start, fmo_setup_page_end - fmo_setup_page_start);
 }
+esp_err_t handler_lan_setup(httpd_req_t *req) {
+    if (!lan_token_ok(req)) return send_unauthorized(req);
+    auto &wifi = WifiManager::GetInstance();
+    const bool online = wifi.HasStationIp();
+    const std::string ip = wifi.GetIpAddress();
+    const std::string ssid = wifi.GetSsid();
+    Json j(cJSON_CreateObject(), cJSON_Delete);
+    cJSON_AddBoolToObject(j.get(), "lan_mode", true);
+    cJSON_AddBoolToObject(j.get(), "saved_network", true);
+    cJSON_AddBoolToObject(j.get(), "sta_connected", online);
+    cJSON_AddStringToObject(j.get(), "state", online ? "connected" : "disconnected");
+    cJSON_AddStringToObject(j.get(), "sta_ssid", ssid.c_str());
+    cJSON_AddStringToObject(j.get(), "ip", ip.c_str());
+    return send(req, j.get());
+}
+esp_err_t handler_lan_time(httpd_req_t *req) {
+    if (!lan_token_ok(req)) return send_unauthorized(req);
+    if (req->content_len <= 0 || req->content_len > 256) return fail(req, "invalid_time");
+    char body[257]{};
+    size_t at = 0;
+    while (at < static_cast<size_t>(req->content_len)) {
+        const int n = httpd_req_recv(req, body + at, req->content_len - at);
+        if (n <= 0) return fail(req, "read_failed");
+        at += static_cast<size_t>(n);
+    }
+    Json j(cJSON_Parse(body), cJSON_Delete);
+    const auto *ep = cJSON_GetObjectItemCaseSensitive(j.get(), "epoch");
+    if (cJSON_IsNumber(ep) && ep->valuedouble >= 1700000000.0 && ep->valuedouble < 4102444800.0) {
+        if (!fmo_clock_valid()) {
+            timeval tv{};
+            tv.tv_sec = static_cast<time_t>(ep->valuedouble);
+            settimeofday(&tv, nullptr);
+        }
+    }
+    Json ok(cJSON_CreateObject(), cJSON_Delete);
+    cJSON_AddBoolToObject(ok.get(), "ok", true);
+    return send(req, ok.get());
+}
 esp_err_t auth_fmo_settings(httpd_req_t *req) {
-    return fmo_http_token_ok(req) ? fmo_http_settings(req) : send_unauthorized(req);
+    return token_ok_any(req) ? fmo_http_settings(req) : send_unauthorized(req);
 }
 esp_err_t auth_fmo_ca(httpd_req_t *req) {
-    return fmo_http_token_ok(req) ? fmo_http_ca(req) : send_unauthorized(req);
+    return token_ok_any(req) ? fmo_http_ca(req) : send_unauthorized(req);
 }
 esp_err_t auth_fmo_stamp(httpd_req_t *req) {
-    return fmo_http_token_ok(req) ? fmo_http_stamp(req) : send_unauthorized(req);
+    return token_ok_any(req) ? fmo_http_stamp(req) : send_unauthorized(req);
 }
 esp_err_t auth_fmo_beep(httpd_req_t *req) {
-    return fmo_http_token_ok(req) ? fmo_http_beep(req) : send_unauthorized(req);
+    return token_ok_any(req) ? fmo_http_beep(req) : send_unauthorized(req);
 }
 } // namespace
 
@@ -588,5 +720,74 @@ bool fmo_http_register(httpd_handle_t server) {
         if (httpd_register_uri_handler(server, &r) != ESP_OK) return false;
     }
     return true;
+}
+
+bool fmo_http_start_lan(char *url_out, size_t url_cap) {
+    if (s_lan_server) {
+        const std::string ip = WifiManager::GetInstance().GetIpAddress();
+        if (url_out && url_cap && !ip.empty()) {
+            std::snprintf(url_out, url_cap, "http://%s/fmo?t=%lu", ip.c_str(),
+                          static_cast<unsigned long>(s_lan_token.load(std::memory_order_acquire)));
+        }
+        return true;
+    }
+    auto &wifi = WifiManager::GetInstance();
+    if (!wifi.IsConnected() || !wifi.HasStationIp()) return false;
+    const std::string ip = wifi.GetIpAddress();
+    if (ip.empty()) return false;
+
+    uint32_t tok = 0;
+    esp_fill_random(&tok, sizeof(tok));
+    tok &= 0x7fffffffu;
+    if (tok == 0) tok = 1;
+    s_lan_token.store(tok, std::memory_order_release);
+
+    httpd_config_t config = HTTPD_DEFAULT_CONFIG();
+    config.stack_size = 10240;
+    config.max_uri_handlers = 16;
+    config.max_open_sockets = 3;
+    config.recv_wait_timeout = 5;
+    config.send_wait_timeout = 5;
+    config.lru_purge_enable = true;
+
+    httpd_handle_t srv = nullptr;
+    if (httpd_start(&srv, &config) != ESP_OK || !srv) {
+        ESP_LOGW("fmo_http", "LAN httpd_start failed (free=%u)", (unsigned)esp_get_free_heap_size());
+        s_lan_token.store(0, std::memory_order_release);
+        return false;
+    }
+    s_lan_server = srv;
+    const httpd_uri_t extra_routes[] = {
+        {"/", HTTP_GET, handler_fmo_page, nullptr},
+        {"/api/setup", HTTP_GET, handler_lan_setup, nullptr},
+        {"/api/time", HTTP_POST, handler_lan_time, nullptr},
+    };
+    bool ok = fmo_http_register(srv);
+    for (const auto &rt : extra_routes) {
+        if (ok && httpd_register_uri_handler(srv, &rt) != ESP_OK) ok = false;
+    }
+    if (!ok) {
+        fmo_http_stop_lan();
+        return false;
+    }
+    if (url_out && url_cap) {
+        std::snprintf(url_out, url_cap, "http://%s/fmo?t=%lu", ip.c_str(), static_cast<unsigned long>(tok));
+    }
+    ESP_LOGI("fmo_http", "FMO standalone LAN web server started on http://%s/fmo (free=%u)",
+             ip.c_str(), (unsigned)esp_get_free_heap_size());
+    return true;
+}
+
+void fmo_http_stop_lan() {
+    if (s_lan_server) {
+        httpd_stop(s_lan_server);
+        s_lan_server = nullptr;
+        ESP_LOGI("fmo_http", "FMO standalone LAN web server stopped (free=%u)", (unsigned)esp_get_free_heap_size());
+    }
+    s_lan_token.store(0, std::memory_order_release);
+}
+
+bool fmo_http_lan_active() {
+    return s_lan_server != nullptr;
 }
 #endif

@@ -208,6 +208,37 @@ int main() {{
     assert(fmo::clear_custom_beep(&cfg));
     assert(!cfg.custom_present && !cfg.use_custom);
 
+    // 3b. Streaming FBEP save (512B chunked, zero 48KB RAM peak) + error/corruption rejection.
+    {{
+        struct VecReader {{ const std::vector<uint8_t> *v; size_t pos; size_t step; }};
+        auto read_fn = [](void *ctx, uint8_t *buf, size_t max_len) -> int {{
+            auto *r = static_cast<VecReader *>(ctx);
+            if (r->pos >= r->v->size()) return 0;
+            const size_t avail = r->v->size() - r->pos;
+            const size_t n = std::min(max_len, std::min(r->step, avail));
+            std::memcpy(buf, r->v->data() + r->pos, n);
+            r->pos += n;
+            return static_cast<int>(n);
+        }};
+        VecReader r1{{&fbep6, 0, 17}};
+        assert(fmo::save_custom_beep_stream(fbep6.size(), 6, read_fn, &r1, &cfg));
+        assert(cfg.custom_present && cfg.use_custom && cfg.custom_id == 6 && cfg.custom_samples == 640);
+        // Wrong expected_id must fail without corrupting active beep.
+        VecReader r_wrong_id{{&fbep2, 0, 64}};
+        assert(!fmo::save_custom_beep_stream(fbep2.size(), 6, read_fn, &r_wrong_id, &cfg));
+        // Corrupted payload must fail CRC verification and keep previous valid bank intact.
+        auto bad_b2 = fbep2;
+        bad_b2[30] ^= 0xFF;
+        VecReader r_bad{{&bad_b2, 0, 64}};
+        assert(!fmo::save_custom_beep_stream(bad_b2.size(), 2, read_fn, &r_bad, &cfg));
+        // Any valid ID with expected_id == 0 (local custom upload) succeeds and swaps bank.
+        VecReader r2{{&fbep2, 0, 128}};
+        assert(fmo::save_custom_beep_stream(fbep2.size(), 0, read_fn, &r2, &cfg));
+        assert(cfg.custom_present && cfg.custom_id == 2 && cfg.custom_bank == 1);
+        assert(mock_storage_refs == 0);
+        assert(fmo::clear_custom_beep(&cfg));
+    }}
+
     mock_nvs_fail_write = true;
     assert(!fmo::save_beep_config(cfg));
     mock_nvs_fail_write = false;
@@ -259,3 +290,27 @@ int main() {{
         "-lsodium", "-o", str(exe),
     ])
     subprocess.check_call([str(exe)])
+
+    # 5. Static audit of fmo_setup.html: no missing DOM IDs and no undefined JS helper calls.
+    import re
+    html = (root / "components/passport_fmo/fmo_setup.html").read_text(encoding="utf-8")
+    dom_ids = set(re.findall(r'id="([^"]+)"', html))
+    used_ids = set(re.findall(r"\$\('([^']+)'\)", html))
+    missing_ids = sorted(used_ids - dom_ids)
+    assert not missing_ids, f"Missing DOM IDs in fmo_setup.html: {missing_ids}"
+    script = html.split("<script>", 1)[1].split("</script>", 1)[0]
+    defs = set(re.findall(r"(?:async\s+)?function\s+([A-Za-z_]\w*)", script))
+    defs |= set(re.findall(r"(?:const|let|var)\s+([A-Za-z_]\w*)", script))
+    calls = set(re.findall(r"(?<![.\w])([A-Za-z_]\w*)\s*\(", script))
+    builtins = {
+        "if","for","while","switch","catch","return","typeof","new","Error","Number","String",
+        "Boolean","Array","Object","Math","Date","JSON","Blob","File","FileReader","URL",
+        "Image","Audio","Set","Uint8Array","Int16Array","Float32Array","DataView","ArrayBuffer",
+        "TextEncoder","TextDecoder","URLSearchParams","Promise","Option","AudioContext",
+        "OfflineAudioContext","setTimeout","clearTimeout","fetch","encodeURIComponent",
+        "decodeURIComponent","parseInt","parseFloat","isNaN","isFinite","atob","btoa",
+        "console","alert","confirm","Function","async","fn","work","resolve","reject","AC","OAC",
+    }
+    undef_calls = sorted(calls - defs - builtins)
+    assert not undef_calls, f"Undefined JS calls in fmo_setup.html: {undef_calls}"
+    print("FMO setup HTML static audit (DOM IDs + JS calls): PASS")

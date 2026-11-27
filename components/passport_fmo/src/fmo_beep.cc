@@ -311,6 +311,75 @@ bool save_custom_beep_fbep(const uint8_t *data, size_t size, BeepConfig *cfg, bo
     return true;
 }
 
+bool save_custom_beep_stream(size_t total_size, uint8_t expected_id, BeepChunkReader reader, void *ctx,
+                             BeepConfig *cfg, bool allow_format) {
+    if (!reader || total_size < kBeepHeaderBytes + kBeepFrameSamples * sizeof(int16_t) ||
+        total_size > kBeepMaxFileBytes) {
+        return false;
+    }
+    uint8_t hdr[kBeepHeaderBytes]{};
+    size_t got = 0;
+    while (got < sizeof(hdr)) {
+        const int n = reader(ctx, hdr + got, sizeof(hdr) - got);
+        if (n <= 0) return false;
+        got += static_cast<size_t>(n);
+    }
+    const uint8_t ver = hdr[4], id = hdr[5];
+    const uint16_t rsv = get16(hdr + 6);
+    const uint32_t samples = get32(hdr + 8);
+    const uint32_t payload_crc = get32(hdr + 12);
+    if (std::memcmp(hdr, "FBEP", 4) != 0 || ver != 1 || id == 0 || rsv != 0) return false;
+    if (expected_id != 0 && id != expected_id) return false;
+    if (samples < kBeepFrameSamples || samples > kBeepMaxCustomSamples || (samples % kBeepFrameSamples) != 0) {
+        return false;
+    }
+    if (total_size != kBeepHeaderBytes + size_t(samples) * sizeof(int16_t)) return false;
+
+    std::lock_guard<std::mutex> guard(beep_mutex);
+    BeepConfig current{};
+    if (load_config_locked(&current) == BeepLoad::Unavailable) return false;
+    if (fmo_storage_acquire(allow_format) != ESP_OK) return false;
+    StorageRelease release;
+
+    unsigned target_bank = 0;
+    if (current.custom_present) {
+        const unsigned active = current.custom_bank ? 1u : 0u;
+        target_bank = verify_beep_file(bank_path(active), current.custom_id, current.custom_samples, current.custom_crc)
+                          ? (active ^ 1u)
+                          : active;
+    }
+    if (active_readers[target_bank]) return false;
+    const auto path = bank_path(target_bank);
+    FILE *f = fopen(path.c_str(), "wb");
+    if (!f) return false;
+    bool ok = fwrite(hdr, 1, sizeof(hdr), f) == sizeof(hdr);
+    size_t remaining = total_size - sizeof(hdr);
+    uint8_t buf[512];
+    while (ok && remaining > 0) {
+        const size_t want = std::min(sizeof(buf), remaining);
+        const int n = reader(ctx, buf, want);
+        if (n <= 0 || static_cast<size_t>(n) > want) { ok = false; break; }
+        if (fwrite(buf, 1, static_cast<size_t>(n), f) != static_cast<size_t>(n)) { ok = false; break; }
+        remaining -= static_cast<size_t>(n);
+    }
+    if (ok && fflush(f) != 0) ok = false;
+    if (fclose(f) != 0) ok = false;
+    if (!ok || remaining != 0 || !verify_beep_file(path, id, samples, payload_crc)) {
+        unlink(path.c_str());
+        return false;
+    }
+    current.enabled = true;
+    current.use_custom = true;
+    current.custom_present = true;
+    current.custom_id = id;
+    current.custom_bank = static_cast<uint8_t>(target_bank);
+    current.custom_samples = samples;
+    current.custom_crc = payload_crc;
+    if (!save_config_locked(current)) return false;
+    if (cfg) *cfg = current;
+    return true;
+}
+
 bool clear_custom_beep(BeepConfig *cfg) {
     std::lock_guard<std::mutex> guard(beep_mutex);
     BeepConfig current{};
