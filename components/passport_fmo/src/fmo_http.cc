@@ -194,6 +194,7 @@ esp_err_t status(httpd_req_t *r){
         cJSON_AddNumberToObject(bp,"custom_id",bc.custom_id);
         cJSON_AddNumberToObject(bp,"custom_samples",bc.custom_samples);
     }
+    cJSON_AddBoolToObject(j.get(),"sentinel_boot",fmo::sentinel_boot_enabled());
     fmo::Relay relay{};const bool has_saved_relay=fmo::load_relay(&relay);
     if(has_saved_relay){auto *v=cJSON_AddObjectToObject(j.get(),"relay");cJSON_AddStringToObject(v,"host",relay.host);cJSON_AddStringToObject(v,"callsign",relay.callsign);cJSON_AddNumberToObject(v,"uid",relay.uid);cJSON_AddNumberToObject(v,"port",relay.port);cJSON_AddStringToObject(v,"fingerprint",fmo::base64url(relay.fingerprint,32).c_str());}
     {
@@ -308,6 +309,12 @@ esp_err_t fmo_http_settings(httpd_req_t *r){
     if(!action)return fail(r,"FMO操作无效");
     if(!std::strcmp(action,"restore_contacts"))return restore_contacts(r,j.get());
     if(!std::strcmp(action,"check_crl"))return refresh_crls(r);
+    if(!std::strcmp(action,"sentinel")){
+        const auto *be=cJSON_GetObjectItemCaseSensitive(j.get(),"boot_enabled");
+        if(!cJSON_IsBool(be))return fail(r,"后台守听参数无效");
+        if(!fmo::set_sentinel_boot_enabled(cJSON_IsTrue(be)))return fail(r,"后台守听设置保存失败");
+        return status(r);
+    }
     if(!std::strcmp(action,"aprs")){
         fmo::BroadcastConfig c;const auto *enabled=cJSON_GetObjectItemCaseSensitive(j.get(),"enabled"),*legacy=cJSON_GetObjectItemCaseSensitive(j.get(),"legacy_beacon"),*ssid=cJSON_GetObjectItemCaseSensitive(j.get(),"ssid"),*height=cJSON_GetObjectItemCaseSensitive(j.get(),"antenna_height");
         const char *grid=field(j.get(),"grid"),*freq=field(j.get(),"frequency"),*rig=field(j.get(),"rig"),*ant=field(j.get(),"antenna");

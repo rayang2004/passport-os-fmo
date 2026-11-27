@@ -17,7 +17,11 @@ bool clear_relay(std::string *error);
 bool load_relay_cache(RelayList *list,uint32_t now);
 bool save_relay_cache(const RelayList &list,uint32_t now);
 // Background sentinel (FMO/RAW voice break-in while Radio/NetEase/Home is active).
-// Defaults to enabled when unset in NVS fmo_os/sentinel.
+// Boot auto-start defaults to false in NVS fmo_os/sentinel_boot; "转后台守听"
+// arms a RAM-only session flag so background listening works even when boot auto-start is off.
+bool sentinel_boot_enabled();
+bool set_sentinel_boot_enabled(bool enabled);
+void set_sentinel_session_armed(bool armed);
 bool sentinel_enabled();
 bool set_sentinel_enabled(bool enabled);
 }

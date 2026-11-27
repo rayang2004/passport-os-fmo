@@ -383,7 +383,7 @@ void web_config_view(const char *full_url,const char *short_url){
     bsp_lvgl_unlock();
 }
 #endif
-constexpr const char *kMenuItems[]={"选择服务器","抄收记录","播放音量","手机配置","返回通联","退出FMO","发送APRS CQ","发送友台信标","友台广播","活动公告","收藏服务器","我的印章","短消息","结束信令音","连接内置中继","后台守听插播","转后台守听"};
+constexpr const char *kMenuItems[]={"选择服务器","抄收记录","播放音量","手机配置","返回通联","退出FMO","发送APRS CQ","发送友台信标","友台广播","活动公告","收藏服务器","我的印章","短消息","结束信令音","连接内置中继","开机后台守听","转后台守听"};
 constexpr unsigned kMenuSize=sizeof(kMenuItems)/sizeof(*kMenuItems);
 
 void menu_view(unsigned index){
@@ -996,7 +996,8 @@ void run(void *){
     fmo::Navigation nav;
     auto service_controls=[&](){if(announcements&&announcements->prune(time(nullptr))&&page==fmo::Page::Announcements)announcement_view(announcements.get(),nav);
         const auto action=process_controls(nav,servers,book.get(),book_writable,peers.get(),announcements.get(),favorites.get(),favorites_writable,&stamp_cfg,custom_stamp.get(),peer_stamps.get(),identity.callsign,inbox.get(),&beep_cfg);
-        if(action==fmo::UiAction::BackgroundListen)fmo::set_sentinel_enabled(true);
+        if(action==fmo::UiAction::BackgroundListen)fmo::set_sentinel_session_armed(true);
+        else if(action==fmo::UiAction::Exit)fmo::set_sentinel_session_armed(false);
         navigate(action);
         if(action==fmo::UiAction::BackgroundListen)return fmo::UiAction::None;
 #ifdef ESP_PLATFORM
@@ -1079,9 +1080,9 @@ void run(void *){
             return fmo::UiAction::None;
         }
         if(action==fmo::UiAction::ToggleSentinel){
-            const bool next=!fmo::sentinel_enabled();
-            const bool ok=fmo::set_sentinel_enabled(next);
-            const char *msg=ok?(next?"后台守听插播：已开启\n听歌时自动插播通联":"后台守听插播：已关闭"):"保存失败，请重试";
+            const bool next=!fmo::sentinel_boot_enabled();
+            const bool ok=fmo::set_sentinel_boot_enabled(next);
+            const char *msg=ok?(next?"开机后台守听：已开启\n开机与退出FMO自动守听":"开机后台守听：已关闭\n仅点「转后台守听」生效"):"保存失败，请重试";
             if(bsp_lvgl_lock(100)){if(screen)fmo_pixel_label_set_text(state_label,msg);bsp_lvgl_unlock();}
             return fmo::UiAction::None;
         }
@@ -1457,6 +1458,7 @@ void run(void *){
 }
 lv_obj_t *label(int y,const lv_font_t *font){auto *l=fmo_pixel_label(screen,"",font,0xdddddd);lv_obj_set_pos(l,12,y);lv_obj_set_width(l,216);lv_obj_set_style_text_align(l,LV_TEXT_ALIGN_CENTER,0);lv_label_set_long_mode(l,LV_LABEL_LONG_DOT);return l;}
 void start(){
+    fmo::set_sentinel_session_armed(false);
     fmo_sentinel_stop_sync();
     discovery_unknown_issuer=0;
     discovery_rejection=fmo::StationRejection::NotStation;

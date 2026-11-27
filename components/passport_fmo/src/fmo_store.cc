@@ -5,6 +5,7 @@
 #include <sodium.h>
 #include <cJSON.h>
 #include <ctime>
+#include <atomic>
 #include <cstring>
 #include <mutex>
 #include <memory>
@@ -174,25 +175,36 @@ bool save_relay_cache(const RelayList &list,uint32_t now){
     std::lock_guard<std::mutex> guard(mutex);nvs_handle_t h;auto e=nvs_open(kNamespace,NVS_READWRITE,&h);if(e!=ESP_OK)return false;
     e=nvs_set_blob(h,"relay_cache",saved.get(),sizeof(SavedRelays));if(e==ESP_OK)e=nvs_set_blob(h,"relay_stats",stats.get(),sizeof(*stats));if(e==ESP_OK)e=nvs_commit(h);nvs_close(h);return e==ESP_OK;
 }
-bool sentinel_enabled(){
+static std::atomic<bool> s_sentinel_armed{false};
+bool sentinel_boot_enabled(){
     std::lock_guard<std::mutex> guard(mutex);
     nvs_handle_t h;
-    if(nvs_open(kNamespace,NVS_READONLY,&h)!=ESP_OK)return true;
-    uint8_t val=1;
+    if(nvs_open(kNamespace,NVS_READONLY,&h)!=ESP_OK)return false;
+    uint8_t val=0;
     size_t n=sizeof(val);
-    const auto e=nvs_get_blob(h,"sentinel",&val,&n);
+    const auto e=nvs_get_blob(h,"sentinel_boot",&val,&n);
     nvs_close(h);
-    return (e==ESP_OK&&n==sizeof(val))?(val!=0):true;
+    return (e==ESP_OK&&n==sizeof(val))?(val!=0):false;
 }
-bool set_sentinel_enabled(bool enabled){
+bool set_sentinel_boot_enabled(bool enabled){
     std::lock_guard<std::mutex> guard(mutex);
     nvs_handle_t h;
     auto e=nvs_open(kNamespace,NVS_READWRITE,&h);
     if(e!=ESP_OK)return false;
     const uint8_t val=enabled?1:0;
-    e=nvs_set_blob(h,"sentinel",&val,sizeof(val));
+    e=nvs_set_blob(h,"sentinel_boot",&val,sizeof(val));
     if(e==ESP_OK)e=nvs_commit(h);
     nvs_close(h);
     return e==ESP_OK;
+}
+void set_sentinel_session_armed(bool armed){
+    s_sentinel_armed.store(armed,std::memory_order_release);
+}
+bool sentinel_enabled(){
+    return s_sentinel_armed.load(std::memory_order_acquire)||sentinel_boot_enabled();
+}
+bool set_sentinel_enabled(bool enabled){
+    if(!enabled)s_sentinel_armed.store(false,std::memory_order_release);
+    return set_sentinel_boot_enabled(enabled);
 }
 }
