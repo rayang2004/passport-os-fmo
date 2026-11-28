@@ -205,7 +205,7 @@ int main(int argc, char **argv) {
     assert(fmo::stamp_label_valid("AI PASSPORT") && fmo::stamp_label_valid("北京PM01") && !fmo::stamp_label_valid("bad,label"));
     uint8_t pal[fmo::kStampPaletteBytes]{};
     fmo::stamp_build_palette(0xFF7A1A, pal);
-    assert(pal[0] == 0 && pal[1] == 0 && pal[2] == 0 && pal[3] == 255);
+    assert(pal[0] == 0x1A && pal[1] == 0x7A && pal[2] == 0xFF && pal[3] == 0);
     assert(pal[60] == 0x1A && pal[61] == 0x7A && pal[62] == 0xFF && pal[63] == 255);
 
     char pc[13]{}, ps[8]{};

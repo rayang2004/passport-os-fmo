@@ -78,7 +78,7 @@ a{color:var(--green)}
 <h1 style="margin:0 0 4px">FMO 互通通联</h1>
 <p class="fmo-conn" id="connectionSummary">正在读取设备状态…</p>
 <div class="group">
-<details id="fmoSection" open><summary>FMO 身份与证书<small>v0.6.11 兼容</small></summary><div class="detail-body">
+<details id="fmoSection" open><summary>FMO 身份与证书<small>v0.6.14 兼容</small></summary><div class="detail-body">
 <p class="help">沿用 FMO Passport 签发服务。本机生成密钥，私钥不会上传。已有原设备身份不会被更改；若设备曾运行原 FMO Passport 固件并已有有效证书，可一键只读导入。</p>
 <p id="fmoWifiNotice" class="help"></p>
 <button id="fmoConnectWifi" class="secondary" type="button" hidden>连接已保存 Wi-Fi（用于联网申请）</button>
@@ -99,6 +99,7 @@ a{color:var(--green)}
 <button id="fmoUseBuiltin" class="secondary" type="button">切换到 PASSPORT 内置中继台（兜底）</button>
 <p id="fmoBuiltinNote" class="help">无同链 PASS 中继广播时，设备将自动使用 PASSPORT 内置中继台（fmo.simy.asia:1883）作为兜底，确保可随时通联。</p>
 <label><input id="fmoSentinelBoot" type="checkbox">开机自动后台守听（默认关闭；关闭时仅在 FMO 点「转后台守听」后生效）</label>
+<label><input id="fmoCompatTx" type="checkbox">兼容模式（发射语音包头去除 P- 前缀，提升与原版 FMO 盒子 / 第三方平台 QSO 互认率）</label>
 <p class="help">取得有效证书后，打开设备上的FMO自动接收并验证台站广播。本页读取其有效缓存；空列表不代表没有远程服务器，广播周期可能约十分钟。在线/峰值及范围来自广播快照，不是实时查询；缺失或过期时显示待更新。</p>
 <details class="sub"><summary>手动配置中继</summary><div class="detail-body">
 <p class="help">优先使用设备发现的中继。手动设置需要中继管理员提供完整身份参数，地址本身不足以完成认证。</p>
@@ -127,7 +128,7 @@ a{color:var(--green)}
 <p id="fmoStampStatus" class="status" role="status" aria-live="polite"></p>
 </div></details>
 <details id="fmoBeepSection"><summary>FMO 结束信令音（Roger Beep）<small id="fmoBeepSummary">内置双音</small></summary><div class="detail-body">
-<p class="help">松开讲话键结束发射时，自动发送并本地播放结束信令音（对齐 FMO Passport v0.6.13）。支持内置高-低双音、云端 FBEP 趣味信令音，或直接上传本地 MP3/WAV/M4A 离线转码（上限 3 秒）。</p>
+<p class="help">松开讲话键结束发射时，自动发送并本地播放结束信令音（对齐 FMO Passport v0.6.14）。支持内置高-低双音、云端 FBEP 趣味信令音（含专属呼号定制音），或直接上传本地 MP3/WAV/M4A 离线转码（上限 3 秒）。</p>
 <label><input id="fmoBeepEnabled" type="checkbox" checked>启用发射结束信令音</label>
 <label for="fmoBeepSelect">云端 / 内置信令音样式</label><select id="fmoBeepSelect"><option value="0">内置双音（960→640 Hz）</option></select>
 <button id="fmoBeepRefresh" class="secondary" type="button">刷新云端信令音清单</button>
@@ -213,7 +214,7 @@ async function api(path,body,method){
 }
 let fmoBusy=false,fmoPollTimer=null,fmoPollCount=0;
 function stopFmoPoll(){clearTimeout(fmoPollTimer);fmoPollTimer=null;fmoPollCount=0}
-function lockFmo(locked){for(const id of ['fmoConnectWifi','fmoImportLegacy','fmoCheckCrl','fmoReadAprs','fmoSaveAprs','fmoAprsEnabled','fmoAprsLegacy','fmoAprsGrid','fmoAprsSsid','fmoAprsFrequency','fmoAprsHeight','fmoAprsRig','fmoAprsAntenna','fmoReadBook','fmoExportBook','fmoRestoreBookFile','fmoRestoreBook','fmoReadStamp','fmoStampStyle','fmoStampColor','fmoStampLabel','fmoSaveStamp','fmoStampFile','fmoStampThreshold','fmoStampInvert','fmoUploadStamp','fmoExportStamp','fmoClearStamp','fmoBeepEnabled','fmoBeepSelect','fmoBeepRefresh','fmoBeepPreview','fmoBeepApply','fmoBeepFile','fmoBeepPreviewLocal','fmoBeepUploadLocal','fmoBeepClear','fmoSentinelBoot','fmoInit','fmoRefresh','fmoApply','fmoSaveRelay','fmoRefreshServers','fmoSelectServer','fmoUseBuiltin','fmoServerList','fmoPhoto','fmoCallsign','fmoHost','fmoPort','fmoRelayCall','fmoRelayUid','fmoFingerprint']){const el=$(id);if(el)el.disabled=locked||((id==='fmoUploadStamp')&&!stampCustomPixels)||((id==='fmoBeepUploadLocal')&&!localBeepFbep);}}
+function lockFmo(locked){for(const id of ['fmoConnectWifi','fmoImportLegacy','fmoCheckCrl','fmoReadAprs','fmoSaveAprs','fmoAprsEnabled','fmoAprsLegacy','fmoAprsGrid','fmoAprsSsid','fmoAprsFrequency','fmoAprsHeight','fmoAprsRig','fmoAprsAntenna','fmoReadBook','fmoExportBook','fmoRestoreBookFile','fmoRestoreBook','fmoReadStamp','fmoStampStyle','fmoStampColor','fmoStampLabel','fmoSaveStamp','fmoStampFile','fmoStampThreshold','fmoStampInvert','fmoUploadStamp','fmoExportStamp','fmoClearStamp','fmoBeepEnabled','fmoBeepSelect','fmoBeepRefresh','fmoBeepPreview','fmoBeepApply','fmoBeepFile','fmoBeepPreviewLocal','fmoBeepUploadLocal','fmoBeepClear','fmoSentinelBoot','fmoCompatTx','fmoInit','fmoRefresh','fmoApply','fmoSaveRelay','fmoRefreshServers','fmoSelectServer','fmoUseBuiltin','fmoServerList','fmoPhoto','fmoCallsign','fmoHost','fmoPort','fmoRelayCall','fmoRelayUid','fmoFingerprint']){const el=$(id);if(el)el.disabled=locked||((id==='fmoUploadStamp')&&!stampCustomPixels)||((id==='fmoBeepUploadLocal')&&!localBeepFbep);}}
 async function fmoOperation(work,target='fmoStatus'){if(fmoBusy||saveInProgress)return;fmoBusy=true;lockFmo(true);try{await work()}catch(e){say(target,e.message,true)}finally{fmoBusy=false;lockFmo(false)}}
 async function syncPhoneTime(){try{await api('/api/time',{epoch:Math.floor(Date.now()/1000),tz_minutes:-new Date().getTimezoneOffset()})}catch(e){}}
 async function ensureFmoWifi(target='fmoStatus'){
@@ -508,6 +509,7 @@ async function fmoLocal(){
  if(state.stamp)applyStampState(state.stamp);
  if(state.beep)applyBeepState(state.beep,state.callsign||'');
  if($('fmoSentinelBoot'))$('fmoSentinelBoot').checked=state.sentinel_boot===true;
+ if($('fmoCompatTx'))$('fmoCompatTx').checked=state.compat_tx===true;
  if(state.callsign&&!$('fmoCallsign').value)$('fmoCallsign').value=state.callsign;
  const previous=$('fmoServerList').value;
  $('fmoServerList').replaceChildren(new Option('请选择已发现服务器',''));
@@ -697,6 +699,12 @@ $('fmoSentinelBoot').onchange=()=>fmoOperation(async()=>{
  const state=await api('/api/fmo',{action:'sentinel',boot_enabled:enabled});
  if($('fmoSentinelBoot'))$('fmoSentinelBoot').checked=state.sentinel_boot===true;
  say('fmoStatus',enabled?'已开启：开机与退出 FMO 后自动后台守听。':'已关闭：开机不守听，仅在 FMO 点「转后台守听」时生效。');
+},'fmoStatus');
+$('fmoCompatTx').onchange=()=>fmoOperation(async()=>{
+ const enabled=$('fmoCompatTx').checked;
+ const state=await api('/api/fmo',{action:'compat',enabled});
+ if($('fmoCompatTx'))$('fmoCompatTx').checked=state.compat_tx===true;
+ say('fmoStatus',enabled?'兼容模式已开启：发射语音包头将发送裸呼号（去除 P- 前缀）。':'兼容模式已关闭：发射语音包头使用证书原呼号。');
 },'fmoStatus');
 function scheduleFmoPoll(){if(fmoPollTimer||fmoPollCount>=120)return;fmoPollTimer=setTimeout(async()=>{fmoPollTimer=null;if(fmoBusy||saveInProgress){scheduleFmoPoll();return}++fmoPollCount;await fmoOperation(fmoCheck)},5000)}
 async function fmoCheck(){

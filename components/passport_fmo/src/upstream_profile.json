@@ -4,13 +4,13 @@
     "page": "https://ai-passport.folotoy.cn/plays/1791/",
     "metadata_url": "https://ai-passport.folotoy.cn/api/plays/id/1791",
     "ota_manifest_url": "https://fmo.simy.live/fw/latest.json",
-    "ota_reference_application_sha256": "b8d23f19e8e01ab827388484c01e16b141584717883cfb224d5b0872efa48d39",
+    "ota_reference_application_sha256": "f3d9adead0bbf5d2db6bc61eb1218d71b2d2ed5cb84324dc69bfe23bf2245e5e",
     "reference_version": "0.6.10",
-    "target_version": "0.6.13",
-    "reference_firmware_sha256": "a8c866909f40bbd7abe85ad74c48b06e7f4ae7c8dd364fe5761079dac74b11c5",
-    "reference_firmware_bytes": 3013344,
+    "target_version": "0.6.14",
+    "reference_firmware_sha256": "fc31e002269731d6762f869b5e735124ab3f40989367d290d779982c81e3e0f3",
+    "reference_firmware_bytes": 3032832,
     "source_available": false,
-    "reference_release_revision": 6726,
+    "reference_release_revision": 6935,
     "reference_application_sha256": "6758c9141cb03bd5f60c93e1a6f314c3cd3ae1c274a25943b606e5c20c1b4378"
   },
   "interfaces": {

@@ -397,7 +397,7 @@ int main(int argc,char **argv){
  assert(process_controls(nav,catalog,&heard,true)==fmo::UiAction::None);
  assert(nav.menu_index==0&&relay_label->text.find("> 选择服务器")!=std::string::npos);
  const auto menu_text=relay_label->text;show("live RX","relay","BG0RX");assert(relay_label->text==menu_text);
- key(BSP_BTN_UP,BTN_EVT_CLICK,0);process_controls(nav,catalog,&heard,true);assert(nav.menu_index==16);
+ key(BSP_BTN_UP,BTN_EVT_CLICK,0);process_controls(nav,catalog,&heard,true);assert(nav.menu_index==17);
  key(BSP_BTN_DOWN,BTN_EVT_CLICK,0);process_controls(nav,catalog,&heard,true);assert(nav.menu_index==0);
  key(BSP_BTN_DOWN,BTN_EVT_CLICK,0);process_controls(nav,catalog,&heard,true);assert(nav.menu_index==1);
  key(BSP_BTN_OK,BTN_EVT_CLICK,0);process_controls(nav,catalog,&heard,true);
@@ -442,11 +442,12 @@ int main(int argc,char **argv){
  discovery_retry_view(true);assert(state_label->text=="正在重新连接发现服务");
  normal_view();const auto prior_retry_text=state_label->text;discovery_retry_view(true);assert(state_label->text==prior_retry_text);
  normal_view();key(BSP_BTN_DOWN,BTN_EVT_CLICK,0);process_controls(nav,catalog,&heard,true);
- for(int i=0;i<12;++i)key(BSP_BTN_UP,BTN_EVT_CLICK,0);process_controls(nav,catalog,&heard,true);
+ for(int i=0;i<13;++i)key(BSP_BTN_UP,BTN_EVT_CLICK,0);process_controls(nav,catalog,&heard,true);
  key(BSP_BTN_OK,BTN_EVT_CLICK,0);action=process_controls(nav,catalog,&heard,true);assert(action==fmo::UiAction::Exit);navigate(action);assert(navigated==APP_ID_LAUNCHER);
  normal_view();page=fmo::Page::Menu;nav.menu_index=14;switch_requested=true;assert(process_controls(nav,catalog,&heard,true)==fmo::UiAction::ConnectBuiltin);
  normal_view();page=fmo::Page::Menu;nav.menu_index=15;switch_requested=true;assert(process_controls(nav,catalog,&heard,true)==fmo::UiAction::ToggleSentinel);
  normal_view();page=fmo::Page::Menu;nav.menu_index=16;switch_requested=true;action=process_controls(nav,catalog,&heard,true);assert(action==fmo::UiAction::BackgroundListen);navigated=0;navigate(action);assert(navigated==APP_ID_LAUNCHER);
+ normal_view();page=fmo::Page::Menu;nav.menu_index=17;switch_requested=true;assert(process_controls(nav,catalog,&heard,true)==fmo::UiAction::ToggleCompat);
  // Stamp page (menu item 11): preview built-in + custom stamp and save action.
  normal_view();page=fmo::Page::Menu;nav.menu_index=11;switch_requested=true;
  fmo::StampConfig sc{};std::strcpy(sc.style_id,"G003");sc.custom_present=true;uint8_t custom_px[fmo::kStampPixelBytes]{};custom_px[0]=0xFF;
@@ -605,9 +606,17 @@ int main(int argc,char **argv){
   strcpy(beacon.latitude,"9000.00N");strcpy(beacon.longitude,"00000.00E");assert(nearby_beacon(beacon,"AR09ax",&metres)&&metres<2500);
   strcpy(beacon.latitude,"9000.00S");assert(nearby_beacon(beacon,"AA00aa",&metres)&&metres<2500);
   {
-   uint32_t far_m=0;assert(aprs_distance_m("OM90sp","3957.36N","11618.62E",&far_m)&&far_m>800000u);
+   uint32_t far_m=0;uint16_t bearing=999;assert(aprs_distance_bearing("OM90sp","3957.36N","11618.62E",&far_m,&bearing)&&far_m>800000u&&bearing<360u);
+   char peer_grid[7]{};assert(aprs_coords_to_grid("3957.36N","11618.62E",peer_grid)&&!strcmp(peer_grid,"OM89dw"));
+   char qth_buf[32]{};
+   assert(aprs_coords_to_qth("3034.69N","11421.14E",qth_buf,sizeof(qth_buf))&&!strcmp(qth_buf,"湖北武汉"));
+   assert(aprs_coords_to_qth("3128.05N","10440.77E",qth_buf,sizeof(qth_buf))&&!strcmp(qth_buf,"四川绵阳"));
+   assert(aprs_coords_to_qth("2219.16N","11410.16E",qth_buf,sizeof(qth_buf))&&!strcmp(qth_buf,"香港"));
+   assert(grid_to_qth("OM89dw",qth_buf,sizeof(qth_buf))&&!strcmp(qth_buf,"北京"));
+   assert(!aprs_coords_to_qth("3541.00N","13941.00E",qth_buf,sizeof(qth_buf))); // Tokyo outside China bounds
+   assert(!aprs_coords_to_qth("bad","11421.14E",qth_buf,sizeof(qth_buf)));
    PeerMetaCache pmc{};PeerMeta pm{};
-   const std::string pat="BG1XYZ-1>APPASP,TCPIP*:=3957.36NF11618.62EiPAT-1,ST:G003,VER:0.6.13,FREQ:438.5000,RIG:ID-51,QTH:北京,ANT:J型";
+   const std::string pat="BG1XYZ-1>APPASP,TCPIP*:=3957.36NF11618.62EiPAT-1,ST:G003,VER:0.6.14,FREQ:438.5000,RIG:ID-51,QTH:北京,ANT:J型";
    assert(parse_aprs_peer_meta(pat.data(),pat.size(),1800000000,&pm)&&!strcmp(pm.callsign,"BG1XYZ")&&!strcmp(pm.frequency,"438.5000")&&!strcmp(pm.rig,"ID-51")&&!strcmp(pm.qth,"北京")&&!strcmp(pm.antenna,"J型"));
    pmc.remember(pm);
    const std::string cq="P-BG1XYZ>APFMO4,TCPIP*:=3957.36NF11618.62Ei FMO-V4,CQ,CERT:x,S1032,SIG:y";
@@ -623,6 +632,13 @@ int main(int argc,char **argv){
    PeerMeta pm5{};assert(parse_aprs_peer_meta(v2st.data(),v2st.size(),1800000040,&pm5)&&!strcmp(pm5.callsign,"BG3XYZ")&&!strcmp(pm5.relay_name,"(鲁)淄博红叶柿岩FMO"));
    pmc.remember(pm5);
    const auto *f2=pmc.find("BG3XYZ");assert(f2&&!strcmp(f2->qth,"Hello FMO")&&!strcmp(f2->relay_name,"(鲁)淄博红叶柿岩FMO")&&!strcmp(f2->latitude,"3701.31N"));
+   const std::string bang="BG6ABC-15>APFMO2,TCPIP*:!3058.83NF11136.37Ei大美宜昌";
+   PeerMeta pm6{};assert(parse_aprs_peer_meta(bang.data(),bang.size(),1800000050,&pm6)&&!strcmp(pm6.callsign,"BG6ABC")&&!strcmp(pm6.qth,"大美宜昌"));
+   pmc.remember(pm6);
+   std::vector<uint8_t> ser(12+PeerMetaCache::capacity*sizeof(PeerMeta));
+   const size_t ser_len=serialize_peer_meta_cache(pmc,ser.data(),ser.size());
+   PeerMetaCache pmc2{};assert(ser_len>12&&deserialize_peer_meta_cache(ser.data(),ser_len,&pmc2)&&pmc2.count==pmc.count&&pmc2.find("BG6ABC")&&!strcmp(pmc2.find("BG6ABC")->qth,"大美宜昌"));
+   ser[ser_len-1]^=0xff;assert(!deserialize_peer_meta_cache(ser.data(),ser_len,&pmc2));
    assert(login.find("u/APFMO2/APFMO4/APPASP")!=std::string::npos);
   }
   normal_view();
@@ -806,7 +822,7 @@ std::atomic<fmo::Page> page{fmo::Page::Main};
 std::atomic<uint32_t> discovery_unknown_issuer{0};
 std::atomic<fmo::StationRejection> discovery_rejection{fmo::StationRejection::NotStation};
 std::atomic<unsigned> volume_percent{80};std::atomic<bool> volume_saved{true};
-std::atomic<bool> menu_requested{false},back_requested{false},favorite_requested{false},connected{false},switch_requested{false};
+std::atomic<bool> menu_requested{false},back_requested{false},favorite_requested{false},main_needs_refresh{false},connected{false},switch_requested{false};
 #include <ctime>
 unsigned mock_volume=80,mock_volume_saves=0;bool volume_save_ok=true;
 int mock_timezone=8*3600;int time_sync_tz_offset_sec(){return mock_timezone;}
@@ -953,7 +969,7 @@ source=source.replace(' sodium_memzero(sk,sizeof(sk));puts(',r'''
  stop_requested=false;running=true;mock_clock_valid=false;identity_loads=0;next_requested=previous_requested=0;menu_requested=back_requested=switch_requested=false;normal_view();step=0;
  wait_step=[&](){switch(++step){
   case 1:key(BSP_BTN_DOWN,BTN_EVT_CLICK,0);break;
-  case 2:for(int i=0;i<12;++i)key(BSP_BTN_UP,BTN_EVT_CLICK,0);key(BSP_BTN_OK,BTN_EVT_CLICK,0);break;
+  case 2:for(int i=0;i<13;++i)key(BSP_BTN_UP,BTN_EVT_CLICK,0);key(BSP_BTN_OK,BTN_EVT_CLICK,0);break;
   default:assert(false);
  }};
  try{run_boot(nullptr);assert(false);}catch(const Parked&){}

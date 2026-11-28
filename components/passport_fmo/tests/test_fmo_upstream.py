@@ -56,10 +56,10 @@ print('Dual upstream: exact base/source, ahead/rewind/divergence, invalid counte
 
 # The device feed advances independently of the merged flash package.
 reference=p['upstream']
-ota={'version':'0.6.13','size':2901760,'sha256':reference['ota_reference_application_sha256'],
-     'url':'https://fmo.simy.live/fw/fmo-passport-v0.6.13.bin'}
+ota={'version':'0.6.14','size':2894864,'sha256':reference['ota_reference_application_sha256'],
+     'url':'https://fmo.simy.live/fw/fmo-passport-v0.6.14.bin'}
 assert module.inspect_ota(reference,ota)['update_available'] is False
-assert module.inspect_ota(reference,dict(ota,version='0.6.14',sha256='b'*64))['update_available']
+assert module.inspect_ota(reference,dict(ota,version='0.6.15',sha256='b'*64))['update_available']
 for invalid in ({'size':True},{'version':'0.6.11/1'},{'url':'http://fmo.simy.live/fw/image.bin'},
                 {'url':'https://fmo.simy.live.example/fw/image.bin'},{'sha256':'short'}):
  try:module.inspect_ota(reference,dict(ota,**invalid));raise AssertionError('invalid OTA manifest accepted')

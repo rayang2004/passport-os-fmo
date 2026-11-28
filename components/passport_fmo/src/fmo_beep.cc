@@ -229,6 +229,10 @@ const char *beep_cloud_name(uint8_t id) {
         case 4: return "鸭呱呱";
         case 5: return "牛叫";
         case 6: return "鸭子叫";
+        case 101: return "mdc1200尾音";
+        case 102: return "比卡丘";
+        case 103: return "OK了";
+        case 104: return "港警信令音";
         default: return nullptr;
     }
 }

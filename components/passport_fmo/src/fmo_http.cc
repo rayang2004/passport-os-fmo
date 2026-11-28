@@ -357,6 +357,7 @@ esp_err_t status(httpd_req_t *r){
         cJSON_AddNumberToObject(bp,"custom_samples",bc.custom_samples);
     }
     cJSON_AddBoolToObject(j.get(),"sentinel_boot",fmo::sentinel_boot_enabled());
+    cJSON_AddBoolToObject(j.get(),"compat_tx",fmo::compat_tx_enabled());
     fmo::Relay relay{};const bool has_saved_relay=fmo::load_relay(&relay);
     if(has_saved_relay){auto *v=cJSON_AddObjectToObject(j.get(),"relay");cJSON_AddStringToObject(v,"host",relay.host);cJSON_AddStringToObject(v,"callsign",relay.callsign);cJSON_AddNumberToObject(v,"uid",relay.uid);cJSON_AddNumberToObject(v,"port",relay.port);cJSON_AddStringToObject(v,"fingerprint",fmo::base64url(relay.fingerprint,32).c_str());}
     {
@@ -478,6 +479,12 @@ esp_err_t fmo_http_settings(httpd_req_t *r){
         const auto *be=cJSON_GetObjectItemCaseSensitive(j.get(),"boot_enabled");
         if(!cJSON_IsBool(be))return fail(r,"后台守听参数无效");
         if(!fmo::set_sentinel_boot_enabled(cJSON_IsTrue(be)))return fail(r,"后台守听设置保存失败");
+        return status(r);
+    }
+    if(!std::strcmp(action,"compat")){
+        const auto *en=cJSON_GetObjectItemCaseSensitive(j.get(),"enabled");
+        if(!cJSON_IsBool(en))return fail(r,"兼容模式参数无效");
+        if(!fmo::set_compat_tx_enabled(cJSON_IsTrue(en)))return fail(r,"兼容模式设置保存失败");
         return status(r);
     }
     if(!std::strcmp(action,"aprs")){

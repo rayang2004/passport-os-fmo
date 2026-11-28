@@ -32,25 +32,31 @@ bool grid_position(const char *grid,char lat[9],char lon[10]);
 // Exact APRS coordinates only, including valid poles/dateline. No distance is
 // inferred for ambiguous/invalid positions or a missing explicitly chosen grid.
 bool aprs_distance_m(const char *grid,const char *lat,const char *lon,uint32_t *distance_m);
+bool aprs_distance_bearing(const char *grid,const char *lat,const char *lon,uint32_t *distance_m,uint16_t *bearing_deg);
+bool aprs_coords_to_grid(const char *lat,const char *lon,char grid_out[7]);
+bool aprs_coords_to_qth(const char *lat,const char *lon,char *out,size_t cap);
+bool grid_to_qth(const char *grid,char *out,size_t cap);
 bool nearby_beacon(const PeerAnnouncement &event,const char *grid,uint32_t *distance_m);
 struct PeerMeta {
-    char callsign[13]{};
+    char callsign[11]{};
     char latitude[9]{};
     char longitude[10]{};
-    char frequency[16]{};
-    char rig[25]{};
-    char antenna[25]{};
+    char frequency[10]{};
+    char rig[17]{};
+    char antenna[13]{};
     char qth[25]{};
-    char relay_name[37]{};
+    char relay_name[29]{};
     uint32_t seen_utc=0;
 };
 struct PeerMetaCache {
-    static constexpr unsigned capacity=24;
+    static constexpr unsigned capacity=96;
     PeerMeta entries[capacity]{};
     unsigned count=0;
     void remember(const PeerMeta &meta);
     const PeerMeta *find(const char *callsign) const;
 };
+size_t serialize_peer_meta_cache(const PeerMetaCache &cache,uint8_t *out,size_t cap);
+bool deserialize_peer_meta_cache(const uint8_t *data,size_t size,PeerMetaCache *out);
 // Extract position/frequency/rig/antenna/QTH/listening-relay from APFMO2,
 // APFMO4, or APPASP peer beacons (excluding STATION/JOINT) for QSO RX HUD.
 bool parse_aprs_peer_meta(const char *line,size_t size,uint32_t now,PeerMeta *out);

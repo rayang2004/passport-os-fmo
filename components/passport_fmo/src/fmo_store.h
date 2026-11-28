@@ -24,4 +24,8 @@ bool set_sentinel_boot_enabled(bool enabled);
 void set_sentinel_session_armed(bool armed);
 bool sentinel_enabled();
 bool set_sentinel_enabled(bool enabled);
+// Compat mode (FMO Passport v0.6.14): strip "P-" prefix from FMO/RAW TX voice headers
+// for better QSO logging compatibility with legacy FMO hardware boxes and 3rd-party tools.
+bool compat_tx_enabled();
+bool set_compat_tx_enabled(bool enabled);
 }

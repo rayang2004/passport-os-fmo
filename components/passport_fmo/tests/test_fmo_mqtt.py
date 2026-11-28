@@ -30,7 +30,7 @@ using esp_mqtt_event_handle_t=Event *;
 enum {MQTT_EVENT_CONNECTED=1,MQTT_EVENT_DISCONNECTED,MQTT_EVENT_ERROR,MQTT_EVENT_DATA};
 std::atomic<bool> connected{false},stop_requested{false},talk_requested{false};
 std::atomic<fmo::MqttConnection> mqtt_connection{fmo::MqttConnection::Connecting};
-fmo::MqttInbox mqtt_inbox;fmo::NodeConnections mqtt_connections;
+fmo::MqttInbox mqtt_inbox;fmo::NodeConnections mqtt_connections;fmo::MuteList mqtt_mutelist;
 uint8_t storage[fmo::kPacketMax];uint8_t *assembly=storage;int queue=1,mqtt=1,worker=1;
 std::vector<Raw> received;std::vector<std::string> subscriptions;unsigned stopped=0,destroyed=0,worker_wakes=0;
 int esp_mqtt_client_subscribe(int,const char *topic,int){subscriptions.emplace_back(topic);return 0;}
@@ -75,7 +75,7 @@ int main(){
  event(nullptr,nullptr,MQTT_EVENT_DISCONNECTED,&e);assert(mqtt_connection==State::AuthenticationRejected);
  error.connect_return_code=3;event(nullptr,nullptr,MQTT_EVENT_ERROR,&e);assert(mqtt_connection==State::BrokerRejected);
  e.error_handle=nullptr;event(nullptr,nullptr,MQTT_EVENT_ERROR,&e);assert(mqtt_connection==State::TransportFailed);
- event(nullptr,nullptr,MQTT_EVENT_CONNECTED,&e);assert(mqtt_connection==State::Online);assert(connected&&subscriptions.size()==2&&subscriptions[0]=="FMO/RAW"&&subscriptions[1]=="$SYS/brokers/+/stats/connections/count");
+ event(nullptr,nullptr,MQTT_EVENT_CONNECTED,&e);assert(mqtt_connection==State::Online);assert(connected&&subscriptions.size()==3&&subscriptions[0]=="FMO/RAW"&&subscriptions[1]=="FMO/REGU/MUTELIST/#"&&subscriptions[2]=="$SYS/brokers/+/stats/connections/count");
  auto feed=[&](const char *topic,const char *data,int n,int offset,int total){e.topic=topic;e.topic_len=topic?strlen(topic):0;e.data=data;e.data_len=n;e.current_data_offset=offset;e.total_data_len=total;event(nullptr,nullptr,MQTT_EVENT_DATA,&e);};
  uint32_t count=777;assert(!mqtt_connections.read(mono,&count));
  const unsigned wakes_before=worker_wakes;
@@ -94,7 +94,10 @@ int main(){
  feed("FMO/RAW","x",1,0,2);feed(nullptr,"y",1,1,3);assert(received.size()==2);
  e.data=nullptr;e.data_len=1;e.topic="FMO/RAW";e.topic_len=7;e.total_data_len=1;e.current_data_offset=0;event(nullptr,nullptr,MQTT_EVENT_DATA,&e);assert(received.size()==2);
  stop_requested=true;feed("FMO/RAW","zz",2,0,2);assert(received.size()==2);stop_requested=false;
- event(nullptr,nullptr,MQTT_EVENT_DISCONNECTED,&e);assert(!connected&&!mqtt_connections.read(mono,&count));
+ feed("FMO/REGU/MUTELIST/BG1BAD","1",1,0,1);assert(mqtt_mutelist.is_muted("BG1BAD")&&mqtt_mutelist.is_muted("P-BG1BAD")&&!mqtt_mutelist.is_muted("BG1OK"));
+ feed("FMO/REGU/MUTELIST/BG1BAD","",0,0,0);assert(!mqtt_mutelist.is_muted("BG1BAD"));
+ feed("FMO/REGU/MUTELIST/P-BG2BAD","mute",4,0,4);assert(mqtt_mutelist.is_muted("BG2BAD"));
+ event(nullptr,nullptr,MQTT_EVENT_DISCONNECTED,&e);assert(!connected&&!mqtt_connections.read(mono,&count)&&!mqtt_mutelist.is_muted("BG2BAD"));
  event(nullptr,nullptr,MQTT_EVENT_CONNECTED,&e);assert(!mqtt_connections.read(mono,&count));feed(topic,"9",1,0,1);assert(mqtt_connections.read(mono,&count)&&count==9);
  mqtt=1;close_mqtt();assert(!connected&&!talk_requested&&stopped==1&&destroyed==1&&received.empty()&&!mqtt_connections.read(mono,&count)&&mqtt_inbox.kind==fmo::MqttKind::None);
  fmo::Credential identity;strcpy(identity.callsign,"BG0TEST");fmo::Relay relay;strcpy(relay.host,"relay.example.test");relay.port=1883;uint8_t secret[64]{};std::string uri,password;

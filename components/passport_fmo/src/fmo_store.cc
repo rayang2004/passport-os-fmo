@@ -207,4 +207,25 @@ bool set_sentinel_enabled(bool enabled){
     if(!enabled)s_sentinel_armed.store(false,std::memory_order_release);
     return set_sentinel_boot_enabled(enabled);
 }
+bool compat_tx_enabled(){
+    std::lock_guard<std::mutex> guard(mutex);
+    nvs_handle_t h;
+    if(nvs_open(kNamespace,NVS_READONLY,&h)!=ESP_OK)return false;
+    uint8_t val=0;
+    size_t n=sizeof(val);
+    const auto e=nvs_get_blob(h,"compat_tx",&val,&n);
+    nvs_close(h);
+    return (e==ESP_OK&&n==sizeof(val))?(val!=0):false;
+}
+bool set_compat_tx_enabled(bool enabled){
+    std::lock_guard<std::mutex> guard(mutex);
+    nvs_handle_t h;
+    auto e=nvs_open(kNamespace,NVS_READWRITE,&h);
+    if(e!=ESP_OK)return false;
+    const uint8_t val=enabled?1:0;
+    e=nvs_set_blob(h,"compat_tx",&val,sizeof(val));
+    if(e==ESP_OK)e=nvs_commit(h);
+    nvs_close(h);
+    return e==ESP_OK;
+}
 }

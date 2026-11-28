@@ -340,10 +340,10 @@ void stamp_build_palette(uint32_t color_rgb, uint8_t palette[kStampPaletteBytes]
     const uint32_t g = (color_rgb >> 8) & 0xFFu;
     const uint32_t b = color_rgb & 0xFFu;
     for (unsigned i = 0; i < 16; ++i) {
-        palette[i * 4 + 0] = static_cast<uint8_t>((b * i + 7) / 15);
-        palette[i * 4 + 1] = static_cast<uint8_t>((g * i + 7) / 15);
-        palette[i * 4 + 2] = static_cast<uint8_t>((r * i + 7) / 15);
-        palette[i * 4 + 3] = 0xFF;
+        palette[i * 4 + 0] = static_cast<uint8_t>(b);
+        palette[i * 4 + 1] = static_cast<uint8_t>(g);
+        palette[i * 4 + 2] = static_cast<uint8_t>(r);
+        palette[i * 4 + 3] = static_cast<uint8_t>((255u * i + 7u) / 15u);
     }
 }
 
