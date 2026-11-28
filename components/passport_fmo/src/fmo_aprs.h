@@ -41,17 +41,18 @@ struct PeerMeta {
     char rig[25]{};
     char antenna[25]{};
     char qth[25]{};
+    char relay_name[37]{};
     uint32_t seen_utc=0;
 };
 struct PeerMetaCache {
-    static constexpr unsigned capacity=16;
+    static constexpr unsigned capacity=24;
     PeerMeta entries[capacity]{};
     unsigned count=0;
     void remember(const PeerMeta &meta);
     const PeerMeta *find(const char *callsign) const;
 };
-// Extract position/frequency/rig/antenna/QTH from APFMO4 or APPASP peer beacons
-// (excluding STATION/JOINT) for display during active QSO reception.
+// Extract position/frequency/rig/antenna/QTH/listening-relay from APFMO2,
+// APFMO4, or APPASP peer beacons (excluding STATION/JOINT) for QSO RX HUD.
 bool parse_aprs_peer_meta(const char *line,size_t size,uint32_t now,PeerMeta *out);
 // Strip FMO Passport "P-" subject prefix when deriving an APRS-IS bare callsign.
 const char *bare_callsign(const char *callsign);

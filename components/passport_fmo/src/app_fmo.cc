@@ -1261,6 +1261,8 @@ void run(void *){
             ui_apply_hero_meta(foot_l,foot_r,nullptr);
             return;
         }
+        // Gather APRS metadata from PeerMetaCache + signed PeerEvents
+        const auto *pm_found=peer_meta?peer_meta->find(pkt.callsign):nullptr;
         // Line 1: source relay (+ optional S-meter)
         char line1[64]{};
         if(pkt.server_uid&&pkt.server_uid!=selected.uid){
@@ -1275,6 +1277,7 @@ void run(void *){
                     }
                 }
             }
+            if(!src_name&&pm_found&&pm_found->relay_name[0])src_name=pm_found->relay_name;
             if(src_name&&src_name[0]){
                 char sn[44]{};short_name(src_name,sn);
                 std::snprintf(line1,sizeof(line1),"来自 %s",sn);
@@ -1289,16 +1292,13 @@ void run(void *){
             const size_t n=std::strlen(line1);
             if(n+6<sizeof(line1))std::snprintf(line1+n,sizeof(line1)-n," S%u",static_cast<unsigned>(pkt.smeter));
         }
-        // Gather APRS metadata from PeerMetaCache + signed PeerEvents
         const char *lat=nullptr,*lon=nullptr,*freq_raw=nullptr,*rig=nullptr,*ant=nullptr,*qth=nullptr;
-        if(peer_meta){
-            if(const auto *pm=peer_meta->find(pkt.callsign)){
-                if(pm->latitude[0]&&pm->longitude[0]){lat=pm->latitude;lon=pm->longitude;}
-                if(pm->frequency[0])freq_raw=pm->frequency;
-                if(pm->rig[0])rig=pm->rig;
-                if(pm->antenna[0])ant=pm->antenna;
-                if(pm->qth[0])qth=pm->qth;
-            }
+        if(pm_found){
+            if(pm_found->latitude[0]&&pm_found->longitude[0]){lat=pm_found->latitude;lon=pm_found->longitude;}
+            if(pm_found->frequency[0])freq_raw=pm_found->frequency;
+            if(pm_found->rig[0])rig=pm_found->rig;
+            if(pm_found->antenna[0])ant=pm_found->antenna;
+            if(pm_found->qth[0])qth=pm_found->qth;
         }
         if(peers){
             const char *bare=fmo::bare_callsign(pkt.callsign);
@@ -1447,7 +1447,9 @@ void run(void *){
                             message_view(inbox.get(),0);
                         }
                     }else if(fmo::parse_appasp_listening(line,line_bytes,scratch->listen_name,scratch->listen_call)){
-                        remember_peer_pass(scratch->listen_call,static_cast<uint32_t>(time(nullptr)));
+                        const uint32_t now_s=static_cast<uint32_t>(time(nullptr));
+                        remember_peer_pass(scratch->listen_call,now_s);
+                        if(peer_meta){fmo::PeerMeta pm{};if(fmo::parse_aprs_peer_meta(line,line_bytes,now_s,&pm))peer_meta->remember(pm);}
                     }else if(!connected||now-last_rx>=1000000){auto &discovered=scratch->discovered;discovered={};uint32_t until=0;auto &snapshot=scratch->snapshot;snapshot={};fmo::StationRejection rejection;uint32_t unknown_issuer=0;const uint32_t now_s=static_cast<uint32_t>(time(nullptr));
                         if(fmo::station_announcement(line,line_bytes,identity,fmo_root_start,now_s,&discovered,&until,&snapshot,&rejection,discovery_chain,&unknown_issuer)&&servers.add(discovered,until,now_s,&snapshot)){
                             discovery_rejection=fmo::StationRejection::None;

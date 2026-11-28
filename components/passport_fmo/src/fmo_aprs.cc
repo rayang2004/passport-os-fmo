@@ -129,6 +129,7 @@ void PeerMetaCache::remember(const PeerMeta &meta){
         if(!merged.rig[0]&&prev.rig[0])std::strcpy(merged.rig,prev.rig);
         if(!merged.antenna[0]&&prev.antenna[0])std::strcpy(merged.antenna,prev.antenna);
         if(!merged.qth[0]&&prev.qth[0])std::strcpy(merged.qth,prev.qth);
+        if(!merged.relay_name[0]&&prev.relay_name[0])std::strcpy(merged.relay_name,prev.relay_name);
     }else if(count<capacity){
         ++count;
     }else{
@@ -151,11 +152,11 @@ bool parse_aprs_peer_meta(const char *line,size_t size,uint32_t now,PeerMeta *ou
     const auto gt=sv.find('>');
     if(gt<3||gt>15)return false;
     const auto dest=sv.substr(gt+1,6);
-    if(dest!="APFMO4"&&dest!="APPASP")return false;
+    if(dest!="APFMO2"&&dest!="APFMO4"&&dest!="APPASP")return false;
     const auto sep=gt+7;
     if(sep>=sv.size()||(sv[sep]!=','&&sv[sep]!=':'))return false;
     const auto colon=sv.find(':',sep);
-    if(colon==sv.npos||colon+21>sv.size())return false;
+    if(colon==sv.npos||colon+2>=sv.size())return false;
     auto src=sv.substr(0,gt);
     if(src.size()>=5&&(src[0]=='P'||src[0]=='p')&&src[1]=='-')src=src.substr(2);
     const auto dash=src.rfind('-');
@@ -168,6 +169,24 @@ bool parse_aprs_peer_meta(const char *line,size_t size,uint32_t now,PeerMeta *ou
     }
     out->callsign[src.size()]=0;
     const auto payload=sv.substr(colon+1);
+    // Case 1: Status frame ">正在 <relay_name>(<relay_call>) 上守听" (APFMO2 / APPASP)
+    if(payload[0]=='>'){
+        static constexpr std::string_view kPre=">正在 ";
+        static constexpr std::string_view kSuf=" 上守听";
+        if(payload.size()<=kPre.size()+kSuf.size()+3||payload.substr(0,kPre.size())!=kPre)return false;
+        const auto end_pos=payload.find(kSuf,kPre.size());
+        if(end_pos==payload.npos||end_pos<=kPre.size()+2)return false;
+        std::string_view inner=payload.substr(kPre.size(),end_pos-kPre.size());
+        if(!inner.empty()&&inner.back()==')'){
+            const auto open_pos=inner.rfind('(');
+            if(open_pos!=inner.npos&&open_pos>0)inner=inner.substr(0,open_pos);
+        }
+        copy_clean_utf8(inner.data(),inner.size(),out->relay_name,sizeof(out->relay_name));
+        if(!out->relay_name[0])return false;
+        out->seen_utc=now;
+        return true;
+    }
+    // Case 2: Position frame "=ddmm.mmN<sym>dddmm.mmE<sym>..."
     if(payload.size()<20||payload[0]!='=')return false;
     if((payload[8]!='N'&&payload[8]!='S')||(payload[18]!='E'&&payload[18]!='W')||payload[5]!='.'||payload[15]!='.')return false;
     std::memcpy(out->latitude,payload.data()+1,8);out->latitude[8]=0;
@@ -177,6 +196,8 @@ bool parse_aprs_peer_meta(const char *line,size_t size,uint32_t now,PeerMeta *ou
     const auto body=payload.substr(pos);
     // Skip relay station & event announcements; those are not user QSO metadata.
     if(body.substr(0,14)=="FMO-V4,STATION"||body.substr(0,12)=="FMO-V4,JOINT")return false;
+    const bool structured=(body.substr(0,6)=="PAT-1,"||body.substr(0,7)=="FMO-V4,"||body.substr(0,7)=="ONLINE,");
+    bool any_kv=false;
     size_t start=0;
     while(start<=body.size()){
         const auto comma=body.find(',',start);
@@ -184,19 +205,22 @@ bool parse_aprs_peer_meta(const char *line,size_t size,uint32_t now,PeerMeta *ou
         if(tok.substr(0,5)=="FREQ:"){
             char fbuf[16]{};
             copy_clean_utf8(tok.data()+5,tok.size()-5,fbuf,sizeof(fbuf));
-            // Keep only plausible numeric MHz strings (e.g. 144.0..1300.0).
             bool ok=fbuf[0]!=0,dot=false;
             for(const char *p=fbuf;*p;++p){if(*p=='.'&&!dot){dot=true;continue;}if(*p<'0'||*p>'9'){ok=false;break;}}
-            if(ok){const double mhz=std::strtod(fbuf,nullptr);if(std::isfinite(mhz)&&mhz>=28.0&&mhz<=1300.0)std::strcpy(out->frequency,fbuf);}
+            if(ok){const double mhz=std::strtod(fbuf,nullptr);if(std::isfinite(mhz)&&mhz>=28.0&&mhz<=1300.0){std::strcpy(out->frequency,fbuf);any_kv=true;}}
         }else if(tok.substr(0,4)=="RIG:"){
-            copy_clean_utf8(tok.data()+4,tok.size()-4,out->rig,sizeof(out->rig));
+            copy_clean_utf8(tok.data()+4,tok.size()-4,out->rig,sizeof(out->rig));any_kv=true;
         }else if(tok.substr(0,4)=="ANT:"){
-            copy_clean_utf8(tok.data()+4,tok.size()-4,out->antenna,sizeof(out->antenna));
+            copy_clean_utf8(tok.data()+4,tok.size()-4,out->antenna,sizeof(out->antenna));any_kv=true;
         }else if(tok.substr(0,4)=="QTH:"){
-            copy_clean_utf8(tok.data()+4,tok.size()-4,out->qth,sizeof(out->qth));
+            copy_clean_utf8(tok.data()+4,tok.size()-4,out->qth,sizeof(out->qth));any_kv=true;
         }
         if(comma==body.npos)break;
         start=comma+1;
+    }
+    // APFMO2 / legacy free-text comment after position (e.g. QTH / greeting)
+    if(!structured&&!any_kv&&!body.empty()&&body.substr(0,5)!="CERT:"&&body.substr(0,4)!="SIG:"){
+        copy_clean_utf8(body.data(),body.size(),out->qth,sizeof(out->qth));
     }
     out->seen_utc=now;
     return true;
@@ -218,7 +242,7 @@ bool aprs_login(const char *call,const BroadcastConfig &c,std::string *login,std
     // account password. A validated FMO identity and explicit opt-in gate TX.
     const int code=c.enabled?((0x73e2^(parity[0]<<8)^parity[1])&0x7fff):-1;
     *login_call=name;
-    *login="user "+name+" pass "+std::to_string(code)+" vers PassportOS 0.9 filter u/APFMO4/APPASP g/"+name;
+    *login="user "+name+" pass "+std::to_string(code)+" vers PassportOS 0.9 filter u/APFMO2/APFMO4/APPASP g/"+name;
     if(name!=call)*login+="/"+std::string(call);
     *login+="\r\n";
     return true;

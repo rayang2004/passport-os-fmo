@@ -616,6 +616,14 @@ int main(int argc,char **argv){
    const auto *found=pmc.find("P-BG1XYZ");assert(found&&!strcmp(found->frequency,"438.5000")&&!strcmp(found->rig,"ID-51")&&!strcmp(found->qth,"北京")&&found->seen_utc==1800000010);
    const std::string st="BG0SRV-1>APFMO4,TCPIP*:=3957.36NF11618.62Ei FMO-V4,STATION,CERT:x,CN,TEST,h,P1883,F10KM,U1/1,SIG:y";
    PeerMeta pm3{};assert(!parse_aprs_peer_meta(st.data(),st.size(),1800000020,&pm3));
+   const std::string v2pos="BG3XYZ-1>APFMO2,TCPIP*,qAC,T2MEXICO:=3701.31NF11128.58EiHello FMO";
+   PeerMeta pm4{};assert(parse_aprs_peer_meta(v2pos.data(),v2pos.size(),1800000030,&pm4)&&!strcmp(pm4.callsign,"BG3XYZ")&&!strcmp(pm4.latitude,"3701.31N")&&!strcmp(pm4.qth,"Hello FMO"));
+   pmc.remember(pm4);
+   const std::string v2st="BG3XYZ-1>APFMO2,TCPIP*,qAC,T2NANJING:>正在 (鲁)淄博红叶柿岩FMO(BH4OGZ) 上守听";
+   PeerMeta pm5{};assert(parse_aprs_peer_meta(v2st.data(),v2st.size(),1800000040,&pm5)&&!strcmp(pm5.callsign,"BG3XYZ")&&!strcmp(pm5.relay_name,"(鲁)淄博红叶柿岩FMO"));
+   pmc.remember(pm5);
+   const auto *f2=pmc.find("BG3XYZ");assert(f2&&!strcmp(f2->qth,"Hello FMO")&&!strcmp(f2->relay_name,"(鲁)淄博红叶柿岩FMO")&&!strcmp(f2->latitude,"3701.31N"));
+   assert(login.find("u/APFMO2/APFMO4/APPASP")!=std::string::npos);
   }
   normal_view();
   puts("FMO signed BEACON reception: all optional-field combinations, frequency normalization, full UTF-8 signatures before bounded display, tampering/order/bounds rejection, explicit-grid-only 80km filter, poles/dateline and UI metadata PASS");
