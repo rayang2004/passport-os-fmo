@@ -604,6 +604,19 @@ int main(int argc,char **argv){
   strcpy(beacon.latitude,"0001.25N");strcpy(beacon.longitude,"18000.00E");assert(nearby_beacon(beacon,"AJ00aa",&metres)&&metres<5000);
   strcpy(beacon.latitude,"9000.00N");strcpy(beacon.longitude,"00000.00E");assert(nearby_beacon(beacon,"AR09ax",&metres)&&metres<2500);
   strcpy(beacon.latitude,"9000.00S");assert(nearby_beacon(beacon,"AA00aa",&metres)&&metres<2500);
+  {
+   uint32_t far_m=0;assert(aprs_distance_m("OM90sp","3957.36N","11618.62E",&far_m)&&far_m>800000u);
+   PeerMetaCache pmc{};PeerMeta pm{};
+   const std::string pat="BG1XYZ-1>APPASP,TCPIP*:=3957.36NF11618.62EiPAT-1,ST:G003,VER:0.6.13,FREQ:438.5000,RIG:ID-51,QTH:北京,ANT:J型";
+   assert(parse_aprs_peer_meta(pat.data(),pat.size(),1800000000,&pm)&&!strcmp(pm.callsign,"BG1XYZ")&&!strcmp(pm.frequency,"438.5000")&&!strcmp(pm.rig,"ID-51")&&!strcmp(pm.qth,"北京")&&!strcmp(pm.antenna,"J型"));
+   pmc.remember(pm);
+   const std::string cq="P-BG1XYZ>APFMO4,TCPIP*:=3957.36NF11618.62Ei FMO-V4,CQ,CERT:x,S1032,SIG:y";
+   PeerMeta pm2{};assert(parse_aprs_peer_meta(cq.data(),cq.size(),1800000010,&pm2)&&!strcmp(pm2.callsign,"BG1XYZ"));
+   pmc.remember(pm2);
+   const auto *found=pmc.find("P-BG1XYZ");assert(found&&!strcmp(found->frequency,"438.5000")&&!strcmp(found->rig,"ID-51")&&!strcmp(found->qth,"北京")&&found->seen_utc==1800000010);
+   const std::string st="BG0SRV-1>APFMO4,TCPIP*:=3957.36NF11618.62Ei FMO-V4,STATION,CERT:x,CN,TEST,h,P1883,F10KM,U1/1,SIG:y";
+   PeerMeta pm3{};assert(!parse_aprs_peer_meta(st.data(),st.size(),1800000020,&pm3));
+  }
   normal_view();
   puts("FMO signed BEACON reception: all optional-field combinations, frequency normalization, full UTF-8 signatures before bounded display, tampering/order/bounds rejection, explicit-grid-only 80km filter, poles/dateline and UI metadata PASS");
  }

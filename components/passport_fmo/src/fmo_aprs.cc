@@ -40,8 +40,9 @@ bool grid_position(const char *grid,char lat[9],char lon[10]){
     if(n==8){dx/=10;dy/=10;x+=(grid[6]-'0')*dx;y+=(grid[7]-'0')*dy;}
     position(x+dx/2,false,lon);position(y+dy/2,true,lat);return true;
 }
-bool nearby_beacon(const PeerAnnouncement &event,const char *grid,uint32_t *distance_m){
-    if(event.kind!=PeerKind::Beacon||!distance_m)return false;
+namespace {
+bool aprs_distance_km_raw(const char *grid,const char *lat_s,const char *lon_s,double *km_out){
+    if(!grid||!lat_s||!lon_s||!km_out)return false;
     char own_lat[9],own_lon[10];if(!grid_position(grid,own_lat,own_lon))return false;
     auto coordinate=[](const char *text,bool latitude,double *value){
         const unsigned length=latitude?8:9,degrees=latitude?2:3;
@@ -59,14 +60,146 @@ bool nearby_beacon(const PeerAnnouncement &event,const char *grid,uint32_t *dist
         *value=(degree+minutes/6000.0)*((hemisphere=='S'||hemisphere=='W')?-1:1);return true;
     };
     double a,b,c,d;
-    if(!coordinate(own_lat,true,&a)||!coordinate(own_lon,false,&b)||!coordinate(event.latitude,true,&c)||!coordinate(event.longitude,false,&d))return false;
+    if(!coordinate(own_lat,true,&a)||!coordinate(own_lon,false,&b)||!coordinate(lat_s,true,&c)||!coordinate(lon_s,false,&d))return false;
     constexpr double radians=3.14159265358979323846/180;
     const double lat=std::sin((a-c)*radians/2),lon=std::sin((b-d)*radians/2);
     double hav=lat*lat+std::cos(a*radians)*std::cos(c*radians)*lon*lon;
     hav=hav<0?0:hav>1?1:hav;
-    const double km=6371.0088*2*std::atan2(std::sqrt(hav),std::sqrt(1-hav));
-    if(km>80.0)return false;
+    *km_out=6371.0088*2*std::atan2(std::sqrt(hav),std::sqrt(1-hav));
+    return std::isfinite(*km_out);
+}
+void copy_clean_utf8(const char *src,size_t len,char *dst,size_t cap){
+    if(!dst||!cap)return;
+    dst[0]=0;
+    if(!src||!len)return;
+    // Strip leading/trailing whitespace and control chars, then keep valid UTF-8 prefix.
+    while(len&&(static_cast<unsigned char>(*src)<=32||*src==127)){++src;--len;}
+    while(len&&(static_cast<unsigned char>(src[len-1])<=32||src[len-1]==127))--len;
+    size_t out=0;
+    for(size_t i=0;i<len&&out+1<cap;){
+        const unsigned char c=static_cast<unsigned char>(src[i]);
+        if(c<32||c==127){++i;continue;}
+        size_t bytes=c<0x80?1:(c&0xe0)==0xc0?2:(c&0xf0)==0xe0?3:(c&0xf8)==0xf0?4:1;
+        if(i+bytes>len){break;}
+        bool ok=true;
+        for(size_t k=1;k<bytes;++k)if((static_cast<unsigned char>(src[i+k])&0xc0)!=0x80){ok=false;break;}
+        if(!ok){++i;continue;}
+        if(out+bytes>=cap)break;
+        std::memcpy(dst+out,src+i,bytes);out+=bytes;i+=bytes;
+    }
+    dst[out]=0;
+}
+bool same_bare_call(const char *a,const char *b){
+    a=bare_callsign(a);b=bare_callsign(b);
+    if(!a||!b||!*a||!*b)return false;
+    while(*a&&*b){
+        if(*a=='-'||*b=='-')break;
+        if(upper(static_cast<unsigned char>(*a))!=upper(static_cast<unsigned char>(*b)))return false;
+        ++a;++b;
+    }
+    const bool a_end=(!*a||*a=='-'),b_end=(!*b||*b=='-');
+    return a_end&&b_end;
+}
+}
+bool aprs_distance_m(const char *grid,const char *lat,const char *lon,uint32_t *distance_m){
+    if(!distance_m)return false;
+    double km=0;
+    if(!aprs_distance_km_raw(grid,lat,lon,&km))return false;
+    *distance_m=static_cast<uint32_t>(std::round(km*1000.0));
+    return true;
+}
+bool nearby_beacon(const PeerAnnouncement &event,const char *grid,uint32_t *distance_m){
+    if(event.kind!=PeerKind::Beacon||!distance_m)return false;
+    double km=0;
+    if(!aprs_distance_km_raw(grid,event.latitude,event.longitude,&km)||km>80.0)return false;
     *distance_m=static_cast<uint32_t>(std::round(km*1000));return true;
+}
+void PeerMetaCache::remember(const PeerMeta &meta){
+    if(!meta.callsign[0])return;
+    unsigned slot=count;
+    for(unsigned i=0;i<count;++i){
+        if(same_bare_call(entries[i].callsign,meta.callsign)){slot=i;break;}
+    }
+    PeerMeta merged=meta;
+    if(slot<count){
+        const auto &prev=entries[slot];
+        if(!merged.latitude[0]&&prev.latitude[0])std::strcpy(merged.latitude,prev.latitude);
+        if(!merged.longitude[0]&&prev.longitude[0])std::strcpy(merged.longitude,prev.longitude);
+        if(!merged.frequency[0]&&prev.frequency[0])std::strcpy(merged.frequency,prev.frequency);
+        if(!merged.rig[0]&&prev.rig[0])std::strcpy(merged.rig,prev.rig);
+        if(!merged.antenna[0]&&prev.antenna[0])std::strcpy(merged.antenna,prev.antenna);
+        if(!merged.qth[0]&&prev.qth[0])std::strcpy(merged.qth,prev.qth);
+    }else if(count<capacity){
+        ++count;
+    }else{
+        slot=capacity-1;
+    }
+    for(unsigned i=slot;i>0;--i)entries[i]=entries[i-1];
+    entries[0]=merged;
+}
+const PeerMeta *PeerMetaCache::find(const char *call) const {
+    if(!call||!*call)return nullptr;
+    for(unsigned i=0;i<count;++i){
+        if(same_bare_call(entries[i].callsign,call))return &entries[i];
+    }
+    return nullptr;
+}
+bool parse_aprs_peer_meta(const char *line,size_t size,uint32_t now,PeerMeta *out){
+    if(!line||!size||size>512||!out)return false;
+    *out={};
+    std::string_view sv(line,size);
+    const auto gt=sv.find('>');
+    if(gt<3||gt>15)return false;
+    const auto dest=sv.substr(gt+1,6);
+    if(dest!="APFMO4"&&dest!="APPASP")return false;
+    const auto sep=gt+7;
+    if(sep>=sv.size()||(sv[sep]!=','&&sv[sep]!=':'))return false;
+    const auto colon=sv.find(':',sep);
+    if(colon==sv.npos||colon+21>sv.size())return false;
+    auto src=sv.substr(0,gt);
+    if(src.size()>=5&&(src[0]=='P'||src[0]=='p')&&src[1]=='-')src=src.substr(2);
+    const auto dash=src.rfind('-');
+    if(dash!=src.npos)src=src.substr(0,dash);
+    if(src.size()<3||src.size()>12)return false;
+    for(size_t i=0;i<src.size();++i){
+        const unsigned char c=upper(static_cast<unsigned char>(src[i]));
+        if(!((c>='A'&&c<='Z')||(c>='0'&&c<='9')||c=='/'||c=='-'))return false;
+        out->callsign[i]=static_cast<char>(c);
+    }
+    out->callsign[src.size()]=0;
+    const auto payload=sv.substr(colon+1);
+    if(payload.size()<20||payload[0]!='=')return false;
+    if((payload[8]!='N'&&payload[8]!='S')||(payload[18]!='E'&&payload[18]!='W')||payload[5]!='.'||payload[15]!='.')return false;
+    std::memcpy(out->latitude,payload.data()+1,8);out->latitude[8]=0;
+    std::memcpy(out->longitude,payload.data()+10,9);out->longitude[9]=0;
+    size_t pos=20;
+    while(pos<payload.size()&&payload[pos]==' ')++pos;
+    const auto body=payload.substr(pos);
+    // Skip relay station & event announcements; those are not user QSO metadata.
+    if(body.substr(0,14)=="FMO-V4,STATION"||body.substr(0,12)=="FMO-V4,JOINT")return false;
+    size_t start=0;
+    while(start<=body.size()){
+        const auto comma=body.find(',',start);
+        const auto tok=comma==body.npos?body.substr(start):body.substr(start,comma-start);
+        if(tok.substr(0,5)=="FREQ:"){
+            char fbuf[16]{};
+            copy_clean_utf8(tok.data()+5,tok.size()-5,fbuf,sizeof(fbuf));
+            // Keep only plausible numeric MHz strings (e.g. 144.0..1300.0).
+            bool ok=fbuf[0]!=0,dot=false;
+            for(const char *p=fbuf;*p;++p){if(*p=='.'&&!dot){dot=true;continue;}if(*p<'0'||*p>'9'){ok=false;break;}}
+            if(ok){const double mhz=std::strtod(fbuf,nullptr);if(std::isfinite(mhz)&&mhz>=28.0&&mhz<=1300.0)std::strcpy(out->frequency,fbuf);}
+        }else if(tok.substr(0,4)=="RIG:"){
+            copy_clean_utf8(tok.data()+4,tok.size()-4,out->rig,sizeof(out->rig));
+        }else if(tok.substr(0,4)=="ANT:"){
+            copy_clean_utf8(tok.data()+4,tok.size()-4,out->antenna,sizeof(out->antenna));
+        }else if(tok.substr(0,4)=="QTH:"){
+            copy_clean_utf8(tok.data()+4,tok.size()-4,out->qth,sizeof(out->qth));
+        }
+        if(comma==body.npos)break;
+        start=comma+1;
+    }
+    out->seen_utc=now;
+    return true;
 }
 const char *bare_callsign(const char *call){
     if(!call)return "";

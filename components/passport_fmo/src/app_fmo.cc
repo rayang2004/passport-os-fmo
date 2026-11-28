@@ -228,7 +228,7 @@ void show(const char *state,const char *relay=nullptr,const char *call=nullptr){
         if(relay)fmo_pixel_label_set_text(relay_label,relay);
         if(call)fmo_pixel_label_set_text(call_label,call);
         const bool tx=(state&&std::strncmp(state,"正在发送",12)==0)||talk_requested.load();
-        const bool rx=(state&&std::strncmp(state,"正在收听",12)==0);
+        const bool rx=(state&&(std::strncmp(state,"正在收听",12)==0||std::strncmp(state,"收听",6)==0||std::strncmp(state,"来自",6)==0));
         const auto mc=mqtt_connection.load();
         const bool err=(mc==fmo::MqttConnection::AuthenticationRejected||mc==fmo::MqttConnection::BrokerRejected||mc==fmo::MqttConnection::TransportFailed||mc==fmo::MqttConnection::LocalSetupFailed);
         ui_apply_hero_state(connected.load(),tx,rx,err);
@@ -974,6 +974,7 @@ void run(void *){
     std::unique_ptr<fmo::Announcements> announcements(new(std::nothrow) fmo::Announcements);
     std::unique_ptr<fmo::Favorites> favorites(new(std::nothrow) fmo::Favorites);
     std::unique_ptr<fmo::PeerStamps> peer_stamps(new(std::nothrow) fmo::PeerStamps);
+    std::unique_ptr<fmo::PeerMetaCache> peer_meta(new(std::nothrow) fmo::PeerMetaCache);
     const bool stamp_writable=fmo::load_stamp_config(&stamp_cfg)!=fmo::StampLoad::Unavailable;
     const bool beep_writable=fmo::load_beep_config(&beep_cfg)!=fmo::BeepLoad::Unavailable;
     std::unique_ptr<uint8_t[]> custom_stamp;
@@ -992,7 +993,7 @@ void run(void *){
 #ifdef ESP_PLATFORM
         fmo_http_stop_lan();
 #endif
-        std::string{}.swap(aprs_login_text);std::string{}.swap(aprs_login_call);cleanup_session(identity,secret,uri,password,error,aprs,audio);if(cache_dirty&&scratch)fmo::save_relay_cache(scratch->servers,time(nullptr));if(book_dirty)fmo::save_contact_book(*book);if(peer_stamps_dirty&&peer_stamps)fmo::save_peer_stamps(*peer_stamps);book.reset();peers.reset();announcements.reset();inbox.reset();favorites.reset();peer_stamps.reset();custom_stamp.reset();scratch.reset();};
+        std::string{}.swap(aprs_login_text);std::string{}.swap(aprs_login_call);cleanup_session(identity,secret,uri,password,error,aprs,audio);if(cache_dirty&&scratch)fmo::save_relay_cache(scratch->servers,time(nullptr));if(book_dirty)fmo::save_contact_book(*book);if(peer_stamps_dirty&&peer_stamps)fmo::save_peer_stamps(*peer_stamps);book.reset();peers.reset();announcements.reset();inbox.reset();favorites.reset();peer_stamps.reset();peer_meta.reset();custom_stamp.reset();scratch.reset();};
     fmo::Navigation nav;
     auto service_controls=[&](){if(announcements&&announcements->prune(time(nullptr))&&page==fmo::Page::Announcements)announcement_view(announcements.get(),nav);
         const auto action=process_controls(nav,servers,book.get(),book_writable,peers.get(),announcements.get(),favorites.get(),favorites_writable,&stamp_cfg,custom_stamp.get(),peer_stamps.get(),identity.callsign,inbox.get(),&beep_cfg);
@@ -1011,8 +1012,8 @@ void run(void *){
             if(cache_dirty&&scratch){fmo::save_relay_cache(scratch->servers,time(nullptr));cache_dirty=false;}
             if(book_dirty&&book){fmo::save_contact_book(*book);book_dirty=false;}
             if(peer_stamps_dirty&&peer_stamps){fmo::save_peer_stamps(*peer_stamps);peer_stamps_dirty=false;}
-            // Temporarily release reloadable FMO buffers (~36 KB) so HTTPS CRL checks & uploads have ample SRAM.
-            book.reset();peers.reset();announcements.reset();inbox.reset();favorites.reset();peer_stamps.reset();custom_stamp.reset();
+            // Temporarily release reloadable FMO buffers (~38 KB) so HTTPS CRL checks & uploads have ample SRAM.
+            book.reset();peers.reset();announcements.reset();inbox.reset();favorites.reset();peer_stamps.reset();peer_meta.reset();custom_stamp.reset();
             if(queue){vQueueDelete(queue);queue=nullptr;}
             assembly=nullptr;
             if(rx_storage){sodium_memzero(rx_storage,kQueueCount*sizeof(Raw)+fmo::kPacketMax);delete[] rx_storage;rx_storage=nullptr;}
@@ -1048,6 +1049,7 @@ void run(void *){
                 if(!announcements)announcements.reset(new(std::nothrow) fmo::Announcements);
                 if(!favorites){favorites.reset(new(std::nothrow) fmo::Favorites);if(favorites)fmo::load_favorites(favorites.get());}
                 if(!peer_stamps){peer_stamps.reset(new(std::nothrow) fmo::PeerStamps);if(peer_stamps)fmo::load_peer_stamps(peer_stamps.get());}
+                if(!peer_meta)peer_meta.reset(new(std::nothrow) fmo::PeerMetaCache);
             };
             char lan_url[96]{};
             if(WifiManager::GetInstance().IsConnected()&&fmo_http_start_lan(lan_url,sizeof(lan_url))){
@@ -1173,7 +1175,7 @@ void run(void *){
     const int decoder_bytes=opus_decoder_get_size(1),encoder_bytes=opus_encoder_get_size(1);
     if(decoder_bytes<=0||encoder_bytes<=0||static_cast<size_t>(std::max(decoder_bytes,encoder_bytes))>audio_workspace::kAuxBytes){wait_for_exit("语音编解码内存不足","可使用菜单查看记录或配网");cleanup();running=false;vTaskSuspend(nullptr);return;}
     auto *decoder=reinterpret_cast<OpusDecoder *>(audio_workspace::aux());auto *encoder=reinterpret_cast<OpusEncoder *>(audio_workspace::aux());
-    bool encoding=false,decoder_ready=false,ptt_preempted=false,rx_ui_active=false;uint32_t stream_begin=0,last_uid=0,last_stream=0;int64_t last_rx=0,tx_start=0,next_connect=0,next_aprs=0,last_ui=0,audio_active_us=0;unsigned aprs_server=0;int64_t next_manual_discovery=0;
+    bool encoding=false,decoder_ready=false,ptt_preempted=false,rx_ui_active=false;uint32_t stream_begin=0,last_uid=0,last_stream=0,rx_timer_sec=UINT32_MAX;int64_t last_rx=0,rx_stream_start=0,tx_start=0,next_connect=0,next_aprs=0,last_ui=0,audio_active_us=0;unsigned aprs_server=0;int64_t next_manual_discovery=0;
     bool aprs_login_sent=false,aprs_ack=false,aprs_verified=false;int64_t aprs_opened=0,aprs_last_data=0,last_broadcast[2]={-60000000,-60000000};
     uint32_t favorite_on_connect_until=0;
     auto last_logged_mqtt=fmo::MqttConnection::Connecting;
@@ -1238,6 +1240,118 @@ void run(void *){
                 promote_interop_relay(obs.relay,obs.valid_until,obs.status,"appasp",now_s);
             }
         }
+    };
+    auto render_rx_hud=[&](const fmo::Packet &pkt,uint32_t elapsed_sec,bool include_body){
+        if(page!=fmo::Page::Main)return;
+        uint32_t heard_count=0;
+        if(book){
+            const char *bare=fmo::bare_callsign(pkt.callsign);
+            for(unsigned i=0;i<book->count;++i){
+                if(book->contacts[i].uid==pkt.uid||(bare[0]&&!std::strcmp(fmo::bare_callsign(book->contacts[i].callsign),bare))){
+                    heard_count=book->contacts[i].receptions;
+                    break;
+                }
+            }
+        }
+        char foot_l[32]{},foot_r[24]{};
+        if(heard_count)std::snprintf(foot_l,sizeof(foot_l),"通联章 %lu 次",static_cast<unsigned long>(heard_count));
+        else std::snprintf(foot_l,sizeof(foot_l),"首次通联");
+        std::snprintf(foot_r,sizeof(foot_r),"收听 %lu:%02lu",static_cast<unsigned long>(elapsed_sec/60u),static_cast<unsigned long>(elapsed_sec%60u));
+        if(!include_body){
+            ui_apply_hero_meta(foot_l,foot_r,nullptr);
+            return;
+        }
+        // Line 1: source relay (+ optional S-meter)
+        char line1[64]{};
+        if(pkt.server_uid&&pkt.server_uid!=selected.uid){
+            const char *src_name=nullptr;
+            const int slot=servers.find(pkt.server_uid);
+            if(slot>=0)src_name=servers.relays[slot].name[0]?servers.relays[slot].name:servers.relays[slot].callsign;
+            if(!src_name){
+                for(unsigned i=0;i<scratch->observed_count;++i){
+                    if(scratch->observed[i].relay.uid==pkt.server_uid){
+                        src_name=scratch->observed[i].relay.name[0]?scratch->observed[i].relay.name:scratch->observed[i].relay.callsign;
+                        break;
+                    }
+                }
+            }
+            if(src_name&&src_name[0]){
+                char sn[44]{};short_name(src_name,sn);
+                std::snprintf(line1,sizeof(line1),"来自 %s",sn);
+            }else{
+                std::snprintf(line1,sizeof(line1),"来自中继 #%lu",static_cast<unsigned long>(pkt.server_uid));
+            }
+        }else{
+            char sn[44]{};short_name(selected.name[0]?selected.name:selected.callsign,sn);
+            std::snprintf(line1,sizeof(line1),"收听 · %s",sn[0]?sn:"本台中继");
+        }
+        if(pkt.smeter>0){
+            const size_t n=std::strlen(line1);
+            if(n+6<sizeof(line1))std::snprintf(line1+n,sizeof(line1)-n," S%u",static_cast<unsigned>(pkt.smeter));
+        }
+        // Gather APRS metadata from PeerMetaCache + signed PeerEvents
+        const char *lat=nullptr,*lon=nullptr,*freq_raw=nullptr,*rig=nullptr,*ant=nullptr,*qth=nullptr;
+        if(peer_meta){
+            if(const auto *pm=peer_meta->find(pkt.callsign)){
+                if(pm->latitude[0]&&pm->longitude[0]){lat=pm->latitude;lon=pm->longitude;}
+                if(pm->frequency[0])freq_raw=pm->frequency;
+                if(pm->rig[0])rig=pm->rig;
+                if(pm->antenna[0])ant=pm->antenna;
+                if(pm->qth[0])qth=pm->qth;
+            }
+        }
+        if(peers){
+            const char *bare=fmo::bare_callsign(pkt.callsign);
+            for(unsigned i=0;i<peers->count;++i){
+                const auto &ev=peers->events[i];
+                if(ev.uid==pkt.uid||(bare[0]&&!std::strcmp(fmo::bare_callsign(ev.callsign),bare))){
+                    if((!lat||!lon)&&ev.latitude[0]&&ev.longitude[0]){lat=ev.latitude;lon=ev.longitude;}
+                    if(!freq_raw&&ev.frequency[0])freq_raw=ev.frequency;
+                    if(!rig&&ev.rig[0])rig=ev.rig;
+                    if(!ant&&ev.antenna[0])ant=ev.antenna;
+                    break;
+                }
+            }
+        }
+        char freq_str[16]{};
+        if(freq_raw&&freq_raw[0]){
+            std::snprintf(freq_str,sizeof(freq_str),"%s",freq_raw);
+            if(std::strchr(freq_str,'.')){
+                size_t len=std::strlen(freq_str);
+                while(len>2&&freq_str[len-1]=='0'&&freq_str[len-2]!='.')freq_str[--len]=0;
+            }
+        }
+        char dist_str[20]{};
+        uint32_t dist_m=0;
+        if(lat&&lon&&broadcast.grid[0]&&fmo::aprs_distance_m(broadcast.grid,lat,lon,&dist_m)){
+            if(dist_m<100000u)std::snprintf(dist_str,sizeof(dist_str),"%lu.%lukm",static_cast<unsigned long>(dist_m/1000u),static_cast<unsigned long>((dist_m%1000u)/100u));
+            else std::snprintf(dist_str,sizeof(dist_str),"%lukm",static_cast<unsigned long>((dist_m+500u)/1000u));
+        }
+        // Line 2: APRS frequency / distance / QTH (or UID + volume fallback)
+        char line2[72]{};bool qth_used=false,uid_used=false;
+        if(freq_str[0]&&dist_str[0])std::snprintf(line2,sizeof(line2),"%sMHz · %s",freq_str,dist_str);
+        else if(freq_str[0]&&qth&&qth[0]){std::snprintf(line2,sizeof(line2),"%sMHz · %s",freq_str,qth);qth_used=true;}
+        else if(dist_str[0]&&qth&&qth[0]){std::snprintf(line2,sizeof(line2),"%s · %s",dist_str,qth);qth_used=true;}
+        else if(freq_str[0])std::snprintf(line2,sizeof(line2),"频率 %sMHz",freq_str);
+        else if(dist_str[0])std::snprintf(line2,sizeof(line2),"距离 %s",dist_str);
+        else if(qth&&qth[0]){std::snprintf(line2,sizeof(line2),"QTH %s",qth);qth_used=true;}
+        else {std::snprintf(line2,sizeof(line2),"UID %lu · 音量 %u%%",static_cast<unsigned long>(pkt.uid),volume_percent.load());uid_used=true;}
+        // Bottom meta bar: APRS rig / antenna / QTH (or codec + volume fallback)
+        char meta_line[64]{};
+        if(rig&&rig[0]&&ant&&ant[0])std::snprintf(meta_line,sizeof(meta_line),"%s · %s",rig,ant);
+        else if(rig&&rig[0]&&!qth_used&&qth&&qth[0])std::snprintf(meta_line,sizeof(meta_line),"%s · %s",qth,rig);
+        else if(rig&&rig[0])std::snprintf(meta_line,sizeof(meta_line),"设备 %s",rig);
+        else if(ant&&ant[0])std::snprintf(meta_line,sizeof(meta_line),"天线 %s",ant);
+        else if(!qth_used&&qth&&qth[0])std::snprintf(meta_line,sizeof(meta_line),"QTH %s",qth);
+        else {
+            const char *codec_name=(pkt.count&&pkt.frames[0].codec==1)?"Opus":"ADPCM";
+            if(uid_used)std::snprintf(meta_line,sizeof(meta_line),"语音 %s · 音量 %u%%",codec_name,volume_percent.load());
+            else std::snprintf(meta_line,sizeof(meta_line),"%s · UID %lu · 音量 %u%%",codec_name,static_cast<unsigned long>(pkt.uid),volume_percent.load());
+        }
+        char state_buf[144]{};
+        std::snprintf(state_buf,sizeof(state_buf),"%s\n%s",line1,line2);
+        show(state_buf,nullptr,current_speaker);
+        ui_apply_hero_meta(foot_l,foot_r,meta_line);
     };
     while(!stop_requested){
         const int64_t now=esp_timer_get_time();
@@ -1358,6 +1472,10 @@ void run(void *){
                                 }
                             }
                         }else if(rejection==fmo::StationRejection::NotStation){
+                            if(peer_meta){
+                                fmo::PeerMeta pm{};
+                                if(fmo::parse_aprs_peer_meta(line,line_bytes,now_s,&pm))peer_meta->remember(pm);
+                            }
                             if(!receive_peer(line,line_bytes,identity,fmo_root_start,now_s,peers.get(),nav,broadcast_config_ok?&broadcast:nullptr,discovery_chain)&&
                                !receive_announcement(line,line_bytes,identity,fmo_root_start,now_s,announcements.get(),nav,discovery_chain)&&
                                peer_stamps_writable&&peer_stamps){
@@ -1457,14 +1575,20 @@ void run(void *){
                         last_uid=packet.uid;last_stream=packet.stream_begin;last_rx=rx_now;audio_active_us=rx_now;
                         if(stream_changed){
                             std::strcpy(current_speaker,packet.callsign);
+                            rx_stream_start=rx_now;
+                            rx_timer_sec=0;
                             ESP_LOGI("fmo","RX start: uid=%lu srv=%lu(sel=%lu) codec=%u fn=%u",
                                      static_cast<unsigned long>(packet.uid),static_cast<unsigned long>(packet.server_uid),
                                      static_cast<unsigned long>(selected.uid),
                                      packet.count?(unsigned)packet.frames[0].codec:0u,static_cast<unsigned>(packet.count));
-                            show("正在收听",nullptr,current_speaker);
-                            char vol_buf[24]{};std::snprintf(vol_buf,sizeof(vol_buf),"音量 %u%%",volume_percent.load());
-                            ui_apply_hero_meta(nullptr,vol_buf,nullptr);
+                            render_rx_hud(packet,0,true);
                             rx_ui_active=true;
+                        }else{
+                            const uint32_t sec=rx_now>=rx_stream_start?static_cast<uint32_t>((rx_now-rx_stream_start)/1000000):0u;
+                            if(sec!=rx_timer_sec){
+                                rx_timer_sec=sec;
+                                render_rx_hud(packet,sec,false);
+                            }
                         }
                         bool played=false;
                         for(size_t i=0;i<packet.count&&!stop_requested&&!talk_requested;++i){const auto &f=packet.frames[i];int samples=-1;
@@ -1473,7 +1597,11 @@ void run(void *){
                             if(samples>0&&samples<=640&&bsp_audio_write(pcm,samples*sizeof(int16_t))==ESP_OK)played=true;
                         }
                         const uint32_t book_relay_uid=fmo::is_builtin_relay(selected)?fmo::kBuiltinRelayBookUid:selected.uid;
-                        if(played&&book_writable&&book->heard(packet.uid,packet.callsign,book_relay_uid,packet.stream_begin,time(nullptr)))book_dirty=true;
+                        if(played&&book_writable&&book->heard(packet.uid,packet.callsign,book_relay_uid,packet.stream_begin,time(nullptr))){
+                            book_dirty=true;
+                            const uint32_t sec=rx_now>=rx_stream_start?static_cast<uint32_t>((rx_now-rx_stream_start)/1000000):0u;
+                            render_rx_hud(packet,sec,false);
+                        }
                     }
                 }
             }else{
@@ -1534,8 +1662,8 @@ void start(){
     hero_card=make_box(screen,12,30,216,132,12,0x1b232c,1,0x2e3b47);
     hero_dot=make_box(screen,22,42,8,8,4,0xffb37a,0,0);
     hero_rule=make_box(screen,24,126,192,1,0,0x33414f,0,0);
-    hero_foot_l=fmo_pixel_label(screen,"准备中",fmo_font_16(),0xb7c4d0);lv_obj_set_pos(hero_foot_l,24,134);lv_obj_set_width(hero_foot_l,116);lv_label_set_long_mode(hero_foot_l,LV_LABEL_LONG_DOT);
-    hero_foot_r=fmo_pixel_label(screen,"音量 80%",fmo_font_16(),0xb7c4d0);lv_obj_set_pos(hero_foot_r,140,134);lv_obj_set_width(hero_foot_r,76);lv_obj_set_style_text_align(hero_foot_r,LV_TEXT_ALIGN_RIGHT,0);
+    hero_foot_l=fmo_pixel_label(screen,"准备中",fmo_font_16(),0xb7c4d0);lv_obj_set_pos(hero_foot_l,24,134);lv_obj_set_width(hero_foot_l,112);lv_label_set_long_mode(hero_foot_l,LV_LABEL_LONG_DOT);
+    hero_foot_r=fmo_pixel_label(screen,"音量 80%",fmo_font_16(),0xb7c4d0);lv_obj_set_pos(hero_foot_r,136,134);lv_obj_set_width(hero_foot_r,80);lv_obj_set_style_text_align(hero_foot_r,LV_TEXT_ALIGN_RIGHT,0);
     sub_header=make_box(screen,12,30,216,32,8,0x182029,1,0x26313c);
     make_box(sub_header,0,4,4,24,2,0xff7a1a,0,0);
     sub_title=fmo_pixel_label(sub_header,"FMO",fmo_font_16(),0xe7ecf1);lv_obj_set_pos(sub_title,12,6);lv_obj_set_width(sub_title,196);lv_label_set_long_mode(sub_title,LV_LABEL_LONG_DOT);

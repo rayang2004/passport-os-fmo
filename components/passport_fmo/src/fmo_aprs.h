@@ -31,7 +31,28 @@ bool save_broadcast_config(const BroadcastConfig &config);
 bool grid_position(const char *grid,char lat[9],char lon[10]);
 // Exact APRS coordinates only, including valid poles/dateline. No distance is
 // inferred for ambiguous/invalid positions or a missing explicitly chosen grid.
+bool aprs_distance_m(const char *grid,const char *lat,const char *lon,uint32_t *distance_m);
 bool nearby_beacon(const PeerAnnouncement &event,const char *grid,uint32_t *distance_m);
+struct PeerMeta {
+    char callsign[13]{};
+    char latitude[9]{};
+    char longitude[10]{};
+    char frequency[16]{};
+    char rig[25]{};
+    char antenna[25]{};
+    char qth[25]{};
+    uint32_t seen_utc=0;
+};
+struct PeerMetaCache {
+    static constexpr unsigned capacity=16;
+    PeerMeta entries[capacity]{};
+    unsigned count=0;
+    void remember(const PeerMeta &meta);
+    const PeerMeta *find(const char *callsign) const;
+};
+// Extract position/frequency/rig/antenna/QTH from APFMO4 or APPASP peer beacons
+// (excluding STATION/JOINT) for display during active QSO reception.
+bool parse_aprs_peer_meta(const char *line,size_t size,uint32_t now,PeerMeta *out);
 // Strip FMO Passport "P-" subject prefix when deriving an APRS-IS bare callsign.
 const char *bare_callsign(const char *callsign);
 bool aprs_login(const char *callsign,const BroadcastConfig &config,std::string *login,std::string *login_call);
